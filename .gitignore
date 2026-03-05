@@ -42,4 +42,4 @@ coverage/
 *.lcov
 
 # BMAD: generated HTML direction files (large, derived from md sources)
-.bmad-output/planning-artifacts/*.html
+_bmad-output/planning-artifacts/*.html

@@ -4,9 +4,9 @@ lastStep: 8
 status: 'complete'
 completedAt: '2026-03-05'
 inputDocuments:
-  - .bmad-output/planning-artifacts/product-brief-ManlyCam-2026-03-04.md
-  - .bmad-output/planning-artifacts/prd.md
-  - .bmad-output/planning-artifacts/ux-design-specification.md
+  - _bmad-output/planning-artifacts/product-brief-ManlyCam-2026-03-04.md
+  - _bmad-output/planning-artifacts/prd.md
+  - _bmad-output/planning-artifacts/ux-design-specification.md
 workflowType: 'architecture'
 project_name: 'ManlyCam'
 user_name: 'Caleb'

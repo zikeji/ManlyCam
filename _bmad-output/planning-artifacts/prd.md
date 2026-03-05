@@ -1,7 +1,7 @@
 ---
 stepsCompleted: [step-01-init, step-02-discovery, step-02b-vision, step-02c-executive-summary, step-03-success, step-04-journeys, step-05-domain, step-06-innovation, step-07-project-type, step-08-scoping, step-09-functional, step-10-nonfunctional, step-11-polish]
 inputDocuments:
-  - .bmad-output/planning-artifacts/product-brief-ManlyCam-2026-03-04.md
+  - _bmad-output/planning-artifacts/product-brief-ManlyCam-2026-03-04.md
 workflowType: 'prd'
 date: 2026-03-04
 author: Caleb

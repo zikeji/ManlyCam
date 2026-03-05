@@ -1,9 +1,9 @@
 ---
 stepsCompleted: [step-01-validate-prerequisites, step-02-design-epics, step-03-create-stories, step-04-final-validation]
 inputDocuments:
-  - .bmad-output/planning-artifacts/prd.md
-  - .bmad-output/planning-artifacts/architecture.md
-  - .bmad-output/planning-artifacts/ux-design-specification.md
+  - _bmad-output/planning-artifacts/prd.md
+  - _bmad-output/planning-artifacts/architecture.md
+  - _bmad-output/planning-artifacts/ux-design-specification.md
 ---
 
 # ManlyCam - Epic Breakdown

@@ -8,9 +8,9 @@
 - **Communication Language**: English
 - **Document Output Language**: English
 - **User Skill Level**: intermediate
-- **Output Folder**: {project-root}/.bmad-output
-- **Planning Artifacts**: {project-root}/.bmad-output/planning-artifacts
-- **Implementation Artifacts**: {project-root}/.bmad-output/implementation-artifacts
+- **Output Folder**: {project-root}/_bmad-output
+- **Planning Artifacts**: {project-root}/_bmad-output/planning-artifacts
+- **Implementation Artifacts**: {project-root}/_bmad-output/implementation-artifacts
 - **Project Knowledge**: {project-root}/docs
 
 ## BMAD Runtime Structure
