@@ -14,10 +14,14 @@ persona:
   principles: []
 
 # Add custom critical actions (appended after standard config loading)
-critical_actions: []
+critical_actions:
+  - "Load {project-root}/_bmad/_memory/github-issues.md to stay aware of the issue map and integration protocol."
 
 # Add persistent memories for the agent
-memories: []
+memories:
+  - "Every git commit MUST include the trailer: Co-authored-by: GitHub Copilot <copilot@github.com>"
+  - "When a new story is created outside the original 30, a matching GitHub Issue should be created in zikeji/ManlyCam and added to github-issues.md before sprint planning proceeds."
+  - "PRs close GitHub Issues automatically via 'Closes #N' — do not ask the dev agent to manually update issue state."
 # Example:
 # memories:
 #   - "User prefers detailed technical explanations"
