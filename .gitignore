@@ -1,0 +1,45 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+dist/
+build/
+out/
+
+# Environment files — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
+
+# Go binaries
+apps/agent/manlycam-agent
+apps/agent/*.exe
+
+# HLS segment scratch (never commit runtime output)
+tmp/
+*.ts.tmp
+
+# Prisma generated client (regenerated on install)
+apps/server/node_modules/.prisma/
+
+# Test coverage
+coverage/
+*.lcov
+
+# BMAD: generated HTML direction files (large, derived from md sources)
+.bmad-output/planning-artifacts/*.html
