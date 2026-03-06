@@ -158,7 +158,8 @@ The stream always fills remaining horizontal space at correct aspect ratio when 
 resized or collapsed. This directly maps to ManlyCam's dual-sidebar layout: a collapsible
 camera controls panel (left, privileged only) and a collapsible chat panel (right, all users),
 with the stream reflowing responsively between them. Draggable gutters at each sidebar edge
-give users direct control over screen real estate allocation.
+give users direct control over screen real estate allocation. *(Drag-resize is post-MVP; MVP
+sidebars are fixed-width and collapse-only — see Story PM-2.)*
 
 **Discord (dark mode + chat interactions) + Slack (chat style)**
 Discord's dark theme palette (`#313338` surface, `#1E1F22` sidebar) is the reference point
@@ -225,7 +226,7 @@ UI needs (camera controls, sidebar panels, emoji picker, user avatars).
 
 **Adopt directly:**
 - ShadCN UI as the component and theming foundation
-- Twitch's resizable-sidebar-peer layout model for stream + sidebars
+- Twitch's sidebar-peer layout model for stream + sidebars (collapse-only at MVP; drag-resize is post-MVP, see Story PM-2)
 - Slack's message list style (spacious, avatar-grouped, flat)
 - Discord's dark mode palette as the base color reference
 - Discord's typing indicator micro-interaction
@@ -269,7 +270,7 @@ for first-class dark/light mode support.
 ### Implementation Approach
 
 - ShadCN CLI to scaffold components on demand into the project component library
-- Radix UI `react-resizable-panels` (or equivalent) for the resizable sidebar gutter model
+- Sidebar resize-by-drag is **post-MVP** — MVP sidebars are fixed-width and collapse-only (see Implementation Readiness Report 2026-03-06, UX-5)
 - Tailwind CSS for all layout, spacing, and responsive breakpoint logic
 - CSS custom properties at `:root` / `.dark` for color theme switching
 
@@ -400,7 +401,7 @@ an expressive typeface. Novelty fonts (paw bullets, etc.) are explicitly out of 
 **Layout model:** Three-column fluid layout
 - `[Left sidebar — collapsible, privileged only]` + `[Stream — fills remaining space]` + `[Right sidebar — collapsible, all users]`
 - Stream fills 100% of available horizontal space between open sidebars, maintaining 16:9 aspect ratio
-- Sidebar default widths: left `280px`, right `320px` — both resizable via drag gutter
+- Sidebar default widths: left `280px`, right `320px` — fixed-width at MVP, collapsible only (drag-resize is post-MVP, see Story PM-2)
 - On mobile: sidebars collapse to bottom sheet or off-canvas drawers; stream fills full viewport width
 
 **Spacing principles:**
@@ -688,7 +689,7 @@ stateDiagram-v2
 
 - All custom components built on top of ShadCN primitives (e.g. `<ProfileAnchor>` uses `<Popover>`, `<Sheet>` handles mobile drawers)
 - CSS custom properties drive all colours — components reference `--primary`, `--live`, `--reconnect` etc.; dark/light mode is a single class swap on `<html>`
-- **Compound component pattern** for `<StreamPlayer>` — owns stream state, passes context to child overlays via React context
+- **Compound component pattern** for `<StreamPlayer>` — owns stream state, passes context to child overlays via Vue `provide/inject`
 - Overlays use `pointer-events: none` when not active to prevent blocking the video element
 
 ### Implementation Roadmap

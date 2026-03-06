@@ -70,7 +70,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR41: Admin users can add or remove domain entries from the allowlist via CLI
 - FR42: Admin users can add or remove individual email addresses from the allowlist via CLI
 - FR43: Admin users can ban or unban individual user accounts via CLI
-- FR44: Removal of a user from the allowlist or addition to the blocklist takes effect immediately on any active session
+- FR44: The allowlist controls registration eligibility only; adding or removing entries does not affect already-authenticated users. Banning a user takes effect immediately, revoking all active sessions via WebSocket signal.
 
 **IoT Agent & Infrastructure**
 - FR45: The Pi agent establishes and maintains an frp stream proxy tunnel to the upstream server on boot
@@ -98,7 +98,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - NFR4: All traffic between clients, the upstream server, and the Pi is transmitted over encrypted connections (TLS)
 - NFR5: Google OAuth is validated once at login; the server issues a session cookie for subsequent request authentication; profile data is upserted on each login
 - NFR6: User allowlist and role checks are enforced server-side; access cannot be bypassed by client manipulation
-- NFR7: Session revocation (ban, allowlist removal) takes effect immediately via WebSocket signal to the affected client's active connection
+- NFR7: Session revocation on ban takes effect immediately via WebSocket signal to the affected client's active connection; allowlist removal does not revoke existing sessions
 - NFR8: The Pi agent binary published via CI contains no credentials, server addresses, or PII; all sensitive configuration is stored in a separate on-device config file with restricted filesystem permissions
 - NFR9: Audit log entries for moderation actions are append-only and cannot be modified or deleted by any web UI action
 
@@ -362,7 +362,7 @@ So that the database is ready to support all application features from the start
 
 **Given** the schema is applied
 **When** the `audit_log` table is inspected
-**Then** it has columns: `id CHAR(26)` (PK), `actor_id CHAR(26)` (FK → users), `target_user_id CHAR(26)` (nullable FK), `target_message_id CHAR(26)` (nullable), `action TEXT NOT NULL`, `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` — no `updated_at`, no `deleted_at` (append-only)
+**Then** it has columns: `id CHAR(26)` (PK), `action TEXT NOT NULL`, `actor_id CHAR(26)` (FK → users), `target_id TEXT` (nullable), `metadata JSONB`, `performed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` — no `updated_at`, no `deleted_at` (append-only)
 
 **And** all models use explicit `@@map` to snake_case table names and `@map` on all FK/multi-word columns
 
@@ -1113,8 +1113,8 @@ So that banned users cannot continue to view or interact with the stream.
 **Then** the session lookup fails (session row deleted); the user is redirected to the login page or receives `401 Unauthorized`
 
 **Given** the banned user had an active WebSocket connection at ban time
-**When** the hub checks session validity (next keep-alive or within 60s of ban)
-**Then** the WS connection is closed with close code `4003 Banned`
+**When** the ban transaction commits and sessions are deleted
+**Then** the WS hub detects the missing session and sends `{ type: 'session:revoked', payload: { reason: 'banned' } }` to that user's active WebSocket connection — the client immediately redirects to `/banned` and closes the connection
 
 **Given** the ban is applied
 **When** the action completes
@@ -1126,35 +1126,19 @@ So that banned users cannot continue to view or interact with the stream.
 
 ---
 
-### Story 5.4: Audit Log Access and Non-Privileged UI Gating
+### Story 5.4: Non-Privileged UI Gating
 
-As an **admin**,
-I want to view a chronological log of all moderation actions,
-So that I can audit what moderators have done and maintain accountability.
+As a **non-privileged viewer** (ViewerCompany or ViewerGuest),
+I want the UI to only show me controls appropriate to my role,
+So that I am never presented with moderation options I cannot use.
 
 **Acceptance Criteria:**
-
-**Given** an admin navigates to the Admin Panel → Audit Log view
-**When** the page loads
-**Then** `GET /api/admin/audit-log?limit=50` is called and returns a paginated list of audit entries sorted by `performed_at DESC`
-
-**Given** the audit log response arrives
-**When** `<AuditLogTable>` renders
-**Then** each row shows: timestamp (local timezone), actor display name, action type, target identifier (user display name or message ID), and any relevant metadata
-
-**Given** there are more than 50 audit entries
-**When** the user scrolls to the bottom of the log
-**Then** `GET /api/admin/audit-log?before={lastEntryId}&limit=50` is called and older entries are appended — keyset pagination, no offset params
-
-**Given** the audit log route `GET /api/admin/audit-log` is called without an active Admin session
-**When** the server evaluates the request
-**Then** it returns `403 Forbidden` — Moderators cannot access the audit log
 
 **Given** a non-privileged user (ViewerCompany or ViewerGuest) views the presence list or a message context menu
 **When** the UI renders those components
 **Then** no "Mute", "Ban", or "Delete" options appear — the server is the authoritative gate, but the UI also hides all elevated affordances for non-privileged roles
 
-**And** the four moderation actions recorded in the audit log are: `message_delete`, `mute`, `unmute`, `ban`; the `audit_log` table schema: `id CHAR(26)`, `action TEXT`, `actor_id CHAR(26)`, `target_id TEXT`, `metadata JSONB`, `performed_at TIMESTAMPTZ`
+**And** the four moderation actions recorded in the audit log are: `message_delete`, `mute`, `unmute`, `ban`; the `audit_log` table schema: `id CHAR(26)`, `action TEXT NOT NULL`, `actor_id CHAR(26)` (FK → users), `target_id TEXT`, `metadata JSONB`, `performed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()` — append-only, no `updated_at` or `deleted_at`
 
 ---
 
@@ -1284,11 +1268,11 @@ So that setup is reproducible and does not require Linux expertise.
 
 **Given** the service starts for the first time with no configuration file present
 **When** `manlycam` runs
-**Then** it creates a default config file at `~/.config/manlycam/config.yaml` with placeholder values and prints instructions for editing it — the service does not crash on first run
+**Then** it creates a default config file at `/etc/manlycam/config.toml` with placeholder values and prints instructions for editing it — the service does not crash on first run
 
 **Given** the README covers configuration
 **When** an operator reads it
-**Then** it documents all required config keys: `serverEndpoint` (frp server URL), `serverToken` (shared secret), `streamName` (unique identifier), and optional `stunServer`
+**Then** it documents all required config keys in the TOML format: `[frp]` section (`server_addr`, `server_port`, `auth_token`), `[stream]` section (`width`, `height`, `framerate`, `codec`), and `[update]` section (`github_repo`)
 
 **And** the install script is idempotent: running it a second time on an already-configured Pi updates the binary to the latest version without overwriting an existing config file
 
@@ -1327,3 +1311,59 @@ So that I can set up or change the WiFi credentials without needing a keyboard o
 **Then** the Pi re-activates the `ManlyCam-Setup` AP and the portal reloads with an error banner "Connection failed — please check your credentials"
 
 **And** the captive portal UI is mobile-first, requires no JavaScript framework (plain HTML + minimal inline CSS is sufficient), and loads fully within a 5-second captive portal timeout window
+
+---
+
+## Post-MVP / Phase 2
+
+> The following stories are deferred from the MVP scope. They are documented here for planning continuity. See the Implementation Readiness Report (2026-03-06) for the rationale behind each deferral.
+
+---
+
+### Story PM-1: Admin Audit Log Viewer
+
+> **Deferred from MVP** — See ISSUE-3 in the Implementation Readiness Report (2026-03-06). The PRD marks the audit log viewer UI as post-MVP; only backend audit log writes (FR30) are required at MVP. These ACs were originally in Story 5.4 and relocated here.
+
+As an **admin**,
+I want to view a chronological log of all moderation actions,
+So that I can audit what moderators have done and maintain accountability.
+
+**Acceptance Criteria:**
+
+**Given** an admin navigates to the Admin Panel → Audit Log view
+**When** the page loads
+**Then** `GET /api/admin/audit-log?limit=50` is called and returns a paginated list of audit entries sorted by `performed_at DESC`
+
+**Given** the audit log response arrives
+**When** `<AuditLogTable>` renders
+**Then** each row shows: timestamp (local timezone), actor display name, action type, target identifier (user display name or message ID), and any relevant metadata
+
+**Given** there are more than 50 audit entries
+**When** the user scrolls to the bottom of the log
+**Then** `GET /api/admin/audit-log?before={lastEntryId}&limit=50` is called and older entries are appended — keyset pagination, no offset params
+
+**Given** the audit log route `GET /api/admin/audit-log` is called without an active Admin session
+**When** the server evaluates the request
+**Then** it returns `403 Forbidden` — Moderators cannot access the audit log
+
+---
+
+### Story PM-2: Resizable Sidebars (Drag Gutter)
+
+> **Deferred from MVP** — See UX-5 in the Implementation Readiness Report (2026-03-06). The UX spec includes draggable sidebar gutters, but this was deferred to post-MVP. MVP sidebars are fixed-width and collapse-only.
+
+As a **viewer**,
+I want to resize the chat and camera control sidebars by dragging their edges,
+So that I can allocate screen real estate to suit my preference.
+
+**Acceptance Criteria:**
+
+**Given** the desktop three-column layout is visible
+**When** the user drags the gutter at the edge of a sidebar
+**Then** the sidebar width changes fluidly and the stream fills the remaining space, maintaining 16:9 aspect ratio
+
+**Given** the user has resized a sidebar
+**When** they return to the page
+**Then** the sidebar width is restored from `localStorage` — no layout flash occurs
+
+**And** a Vue-compatible drag-resize library is used (not `react-resizable-panels`); sidebar widths are constrained to min/max values to prevent the stream from becoming unusably small

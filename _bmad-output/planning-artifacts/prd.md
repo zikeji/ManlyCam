@@ -417,7 +417,7 @@ The upstream server is the **primary application host** — it handles all viewe
 - **FR41:** Admin users can add or remove domain entries from the allowlist via CLI
 - **FR42:** Admin users can add or remove individual email addresses from the allowlist via CLI
 - **FR43:** Admin users can ban or unban individual user accounts via CLI
-- **FR44:** Removal of a user from the allowlist or addition to the blocklist takes effect immediately on any active session
+- **FR44:** The allowlist controls registration eligibility only; adding or removing domain or individual email entries does not affect already-authenticated users. Banning a user takes effect immediately, revoking all active sessions via WebSocket signal.
 
 ### IoT Agent & Infrastructure
 
@@ -449,9 +449,9 @@ The upstream server is the **primary application host** — it handles all viewe
 ### Security
 
 - **NFR4:** All traffic between clients, the upstream server, and the Pi is transmitted over encrypted connections (TLS)
-- **NFR5:** Google OAuth is validated once at login; the server issues a JWT for subsequent request authentication. User profile data (display name, avatar) is upserted to the user record on each login; if profile information changes between sessions, the update is reflected on next login and broadcast to all connected clients via WebSocket. Clients are not instructed to re-validate OAuth tokens mid-session.
+- **NFR5:** Google OAuth is validated once at login; the server issues a DB-backed session cookie (`httpOnly SameSite=Strict Secure`) for subsequent request authentication. User profile data (display name, avatar) is upserted to the user record on each login; if profile information changes between sessions, the update is reflected on next login and broadcast to all connected clients via WebSocket. Clients are not instructed to re-validate OAuth tokens mid-session.
 - **NFR6:** User allowlist and role checks are enforced server-side; access cannot be bypassed by client manipulation
-- **NFR7:** Session revocation (ban, allowlist removal) takes effect immediately via WebSocket signal to the affected client's active connection
+- **NFR7:** Session revocation on ban takes effect immediately via WebSocket signal to the affected client's active connection; allowlist removal does not revoke existing sessions
 - **NFR8:** The Pi agent binary published via CI contains no credentials, server addresses, or PII; all sensitive configuration is stored in a separate on-device config file with restricted filesystem permissions
 - **NFR9:** Audit log entries for moderation actions are append-only and cannot be modified or deleted by any web UI action
 
