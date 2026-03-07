@@ -467,3 +467,40 @@ The upstream server is the **primary application host** — it handles all viewe
 - **NFR14:** Chat messages and audit log records are retained indefinitely; no automated expiry or deletion policy is applied by the application
 - **NFR15:** Chat message edits are stored as revision history; soft-deleted messages retain their server-side record; no user-initiated action results in permanent data loss
 - **NFR16:** Bulk data management (e.g. deleting records older than a given date) is an administrative database operation performed outside the application UI
+
+### Code Quality & Development
+
+- **NFR17:** All source code is linted via ESLint with airbnb-base + @typescript-eslint rules enforced at project root
+- **NFR18:** Code style is enforced via Prettier integration; formatting violations are reported as lint errors by ESLint
+- **NFR19:** CI pipeline blocks merges with lint violations; all code must pass `pnpm lint` before deployment
+- **NFR20:** Lint enforcement applies equally to server, web, and shared type packages — no exemptions for legacy code
+
+**Rationale:** Early code quality enforcement prevents technical debt accumulation and ensures consistent patterns across multiple developers/AI agents. This supports long-term maintainability and reduces defect rates.
+
+---
+
+## Development Tooling & Infrastructure
+
+### Code Quality
+
+- **ESLint 9.x** with airbnb-base configuration (enforces industry-standard JS best practices)
+- **@typescript-eslint** for type-aware linting (server and web apps use strict TypeScript)
+- **Prettier 3.x** for code formatting (integrated as ESLint rule, eliminates formatting debates)
+- **Root-level configuration** applied across all apps/packages; no per-app overrides needed (keeps setup simple)
+
+### Deployment & Operations
+
+- **GitHub Actions CI/CD** for automated builds, tests, and releases
+- **Docker Compose** for local development and standard deployment
+- **Reverse proxy options:** Caddy (simplest), nginx (most familiar), Traefik (Docker-native)
+- **frp (fast reverse proxy)** for Pi-to-upstream tunnel relay (stream + API control)
+- **systemd** for bare-metal server deployment (automatic restart-on-failure)
+
+### Package Management
+
+- **pnpm workspaces** (monorepo with shared dependencies at root)
+- **Shared TypeScript config** per app (strict mode enforced across all packages)
+
+### Rationale
+
+Opinionated, industry-standard tooling reduces decision fatigue during development. Early enforcement (Epic 1) establishes patterns that scale with team growth.

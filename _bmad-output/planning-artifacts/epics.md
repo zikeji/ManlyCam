@@ -400,6 +400,40 @@ So that each component can be built, tested, and released independently when its
 
 **And** no workflow embeds secrets in build artifacts — all sensitive values are injected at runtime via environment variables
 
+**Note — Unplanned Follow-up:**
+During implementation of this story, CI workflows required ESLint configuration that was not part of the original story scope. Story 1-3b was created to address this blocking issue. Both stories are now complete and dependencies are resolved.
+
+---
+
+### Story 1-3b: Configure ESLint Root Config with Modern Setup
+
+**Status:** done
+
+**Context:**
+Story 1-3 created CI/CD workflows that invoke lint scripts (`pnpm --filter @manlycam/server lint`, `pnpm --filter @manlycam/web lint`), but no ESLint configuration existed at the project root. This story was created as an unplanned follow-up to unblock linting in CI.
+
+**Summary:**
+Configure ESLint at the project root with a modern, opinionated setup: airbnb-base + @typescript-eslint + Prettier. The root config applies globally to all apps/packages; per-app `tsconfig.json` overrides ensure type-aware linting for each app's specific TypeScript target.
+
+**Acceptance Criteria:**
+
+- **AC1:** Root ESLint config file exists and is syntactically valid
+- **AC2:** ESLint parser correctly resolves TypeScript for .ts/.tsx files
+- **AC3:** Server and Web lint without violations
+- **AC4:** Prettier integration detects code style issues
+- **AC5:** CI workflows pass lint stage
+- **AC6:** Airbnb-base rules are enforced across codebase
+
+**Key Implementation Details:**
+
+- Root `.eslintrc.json` with airbnb-base + @typescript-eslint/recommended + Prettier extends
+- Per-app `tsconfig.json` overrides for type-aware linting
+- Dependencies added to root `package.json`: eslint 9.x, @typescript-eslint 7.x+, prettier 3.x, airbnb-base, and plugins
+- Enforcement from Epic 1 onward; all code must pass lint before merge
+
+**Rationale:**
+Early code quality enforcement prevents technical debt. Opinionated rule set (airbnb-base) ensures consistency across monorepo. Type-aware linting catches subtle bugs; Prettier integration eliminates formatting disputes.
+
 ---
 
 ### Story 1.4: Create Deployment Reference Configs and Environment Templates
@@ -433,6 +467,17 @@ So that I can get the server running in production with my choice of reverse pro
 **And** `apps/agent/deploy/config.example.toml` exists with all config fields annotated, showing the `[stream]`, `[frp]`, and `[update]` sections
 
 **And** `apps/server/deploy/manlycam-server.service` is a working systemd unit file for bare-metal deployment without Docker
+
+**Note — frps Configuration:**
+This story includes server-side frp (fast reverse proxy) configuration examples at `apps/server/deploy/frps.toml`. The frps server listens for connections from the Pi agent (`frpc`) and exposes two tunnels:
+- **Stream tunnel** (port 11935): Pi rpicam-vid output → upstream ffmpeg ingestion
+- **API tunnel** (port 11936): Upstream Hono backend → Pi agent local HTTP server (camera control)
+
+Configuration files provided for:
+- Docker Compose variant: `apps/server/deploy/frps.toml`
+- Traefik variant: `apps/server/deploy/traefik/frps.toml` (identical)
+
+Both docker-compose files include frps service (`snowdreamtech/frps:latest`) with mounted config. Complete setup instructions are documented in the story 1-4 implementation artifact.
 
 ---
 

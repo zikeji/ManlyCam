@@ -236,8 +236,43 @@ Path-filtered GitHub Actions — each component releases independently on merge 
 | CI/CD | GitHub Actions, path-filtered | Independent release cycles; agent semver, server/web rolling |
 | Monorepo | pnpm workspaces | Minimal tooling |
 | Shared types | `packages/types` | WS shapes, role enums, stream state |
+| Code linting | ESLint 9.x + airbnb-base | Root config; all apps/packages; enforced in CI |
+| Type-aware linting | @typescript-eslint 7.x+ | Per-app tsconfig overrides; type safety in dev |
+| Code formatting | Prettier 3.x | Integrated as ESLint rule; no manual formatting decisions |
 
 **Note:** Monorepo initialization and project scaffold creation should be the first implementation story.
+
+### Code Quality & Linting Strategy
+
+**Approach:** Root-level ESLint configuration enforced across all apps/packages at Epic 1.
+
+**Tooling Stack:**
+- **ESLint 9.x** — Main linter with airbnb-base config (opinionated, industry-standard JS rules)
+- **@typescript-eslint 7.x+** — Type-aware linting for TypeScript files (server, web, types packages)
+- **Prettier 3.x** — Code formatter, integrated as ESLint rule via eslint-plugin-prettier
+- **eslint-config-prettier** — Disables ESLint formatting rules to avoid conflicts with Prettier
+
+**Configuration:**
+- Single `.eslintrc.json` at project root (traditional format, airbnb-base compatible)
+- Per-app `tsconfig.json` overrides for type-aware linting (each app has different TS target/module)
+- Server: NodeNext module, ESNext target
+- Web: ES2022 target, bundler resolution, DOM library
+- Types: Pure TypeScript, no runtime
+
+**Enforcement:**
+- All apps/packages lint together: `pnpm lint` (from root)
+- Per-app lint: `pnpm --filter @manlycam/server lint`, etc.
+- CI enforcement: GitHub Actions workflows block merges with lint violations
+- Applied from Epic 1 onward — no legacy code exemptions
+
+**Rule Philosophy:**
+- Strict type safety enabled (airbnb-base default)
+- Unsafe type narrowing disabled: `no-unsafe-assignment`, `no-unsafe-member-access`, etc. (acceptable in monorepo context where internal code is known)
+- Security rules enforced: proper error handling, no unguarded template expressions
+- Formatting delegated to Prettier (ESLint focuses on code quality, not whitespace)
+
+**Rationale:**
+Early enforcement prevents tech debt accumulation and ensures consistent code patterns across multiple developers/AI agents. Airbnb-base provides battle-tested rules; TypeScript integration catches bugs; Prettier eliminates formatting arguments.
 
 ---
 
@@ -413,6 +448,65 @@ rpicam-vid -t 0 --width {width} --height {height} --framerate {framerate} \
 **Agent testing scope:**
 - `go test`: config parsing, `rpicam-vid` command-building from config (assert constructed args), version comparison, captive portal WiFi detection logic
 - Camera pipeline integration (actual `rpicam-vid` + frp) = hardware-only, on-device
+
+### frps Server Configuration
+
+**Overview:**
+The upstream server runs `frps` (frp server) to receive tunnels from the Pi agent (`frpc`). This is separate from the application server (Hono) — frps is a transport layer that relays streams and API calls.
+
+**Configuration File: `apps/server/deploy/frps.toml`**
+
+```toml
+# frps server configuration
+# frps listens on port 7000 (control) for agent connections
+# Tunnels expose remote ports where ffmpeg and Hono backend connect
+
+[common]
+bind_port = 7000
+bind_addr = "0.0.0.0"
+authentication_timeout = 900
+
+# Token for agent authentication (must match frpc token)
+token = "change-me-to-a-random-secret"
+
+# Dashboard (optional, for frps web UI monitoring)
+dashboard_port = 7500
+dashboard_user = "admin"
+dashboard_pwd = "change-me"
+```
+
+**Tunnel Configuration (defined by Pi agent `frpc.toml`):**
+The agent (`frpc` on Pi) defines two tunnels:
+1. **Stream tunnel** → Forwards Pi's rpicam-vid output to frps remote port 11935 (ffmpeg ingestion)
+2. **API tunnel** → Forwards Hono backend commands to Pi's local HTTP server (camera control)
+
+Example frpc sections (on Pi):
+```toml
+[stream]
+type = tcp
+local_ip = 127.0.0.1
+local_port = 5000        # rpicam-vid listens here
+remote_port = 11935      # frps exposes this to ffmpeg
+# Upstream ffmpeg: ffmpeg -i tcp://localhost:11935 ...
+
+[api]
+type = tcp
+local_ip = 127.0.0.1
+local_port = 8080        # Pi agent HTTP server (receives camera control)
+remote_port = 11936      # frps exposes this to Hono backend
+# Hono: curl http://localhost:11936/camera/brightness ...
+```
+
+**Deployment Context:**
+- Docker Compose: frps runs in `snowdreamtech/frps:latest` container, mounts `frps.toml`
+- Traefik variant: Same frps container, same configuration
+- Bare-metal: frps installed as binary (out of scope for MVP), configured separately
+
+**Security Notes:**
+- Token must be strong (generate with `openssl rand -base64 24`)
+- frps should listen on 0.0.0.0 (accepts agent connections from anywhere)
+- Dashboard port (7500) should be firewalled or disabled in production
+- All communication between Pi and frps is unencrypted at transport; rely on token-based auth and network isolation
 
 ### Frontend Architecture
 
