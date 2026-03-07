@@ -8,6 +8,7 @@ dist/
 build/
 out/
 *.js.map
+*.tsbuildinfo
 
 # Environment files — never commit secrets
 .env
