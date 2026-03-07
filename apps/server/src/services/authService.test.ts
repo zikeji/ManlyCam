@@ -22,12 +22,12 @@ vi.mock('../env.js', () => ({
     NODE_ENV: 'test',
     GOOGLE_CLIENT_ID: 'test-client-id',
     GOOGLE_CLIENT_SECRET: 'test-client-secret',
-    GOOGLE_REDIRECT_URI: 'http://localhost:3000/api/auth/google/callback',
+    BASE_URL: 'http://localhost:3000',
   },
 }));
 
 import { prisma } from '../db/client.js';
-import { createSession, destroySession, getSessionUser } from './authService.js';
+import { createSession, destroySession, getSessionUser, handleCallback } from './authService.js';
 
 describe('authService', () => {
   beforeEach(() => {
@@ -96,6 +96,52 @@ describe('authService', () => {
       } as never);
       const result = await getSessionUser('sess-1');
       expect(result).toEqual(mockUser);
+    });
+  });
+
+  describe('handleCallback (CSRF validation)', () => {
+    beforeEach(() => {
+      global.fetch = vi.fn();
+    });
+
+    it('throws 401 UNAUTHORIZED when state does not match (CSRF protection)', async () => {
+      const result = handleCallback('auth-code', 'wrong-state', 'expected-state');
+      await expect(result).rejects.toThrow('Invalid OAuth state');
+    });
+
+    it('throws 401 UNAUTHORIZED when expected state is not provided', async () => {
+      const result = handleCallback('auth-code', 'some-state', null as never);
+      await expect(result).rejects.toThrow('Invalid OAuth state');
+    });
+
+    it('successfully fetches Google profile when state matches', async () => {
+      const mockTokenResponse = {
+        ok: true,
+        json: () => Promise.resolve({ access_token: 'test-token' }),
+      };
+      const mockUserResponse = {
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            sub: 'google-123',
+            email: 'user@example.com',
+            name: 'Test User',
+            picture: 'https://example.com/avatar.jpg',
+          }),
+      };
+
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(mockTokenResponse)
+        .mockResolvedValueOnce(mockUserResponse);
+
+      const result = await handleCallback('auth-code', 'test-state', 'test-state');
+      expect(result).toEqual({
+        googleSub: 'google-123',
+        email: 'user@example.com',
+        displayName: 'Test User',
+        avatarUrl: 'https://example.com/avatar.jpg',
+      });
     });
   });
 });

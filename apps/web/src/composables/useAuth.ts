@@ -1,8 +1,15 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import type { MeResponse } from '@manlycam/types';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, ApiFetchError } from '@/lib/api';
 
+/**
+ * Module-level global auth state
+ * This is intentional: all uses of useAuth() share the same user ref.
+ * This pattern is correct for app-wide authentication state that needs
+ * to be shared across multiple components. Tests use vi.resetModules()
+ * to isolate each test's state.
+ */
 const user = ref<MeResponse | null>(null);
 
 export const useAuth = () => {
@@ -12,12 +19,12 @@ export const useAuth = () => {
     try {
       user.value = await apiFetch<MeResponse>('/api/me');
     } catch (err) {
-      // Distinguish between auth errors and network errors
-      const isAuthError = err instanceof Error && 'code' in err && err.code === 'UNAUTHORIZED';
+      // Distinguish between auth errors (401) and network errors
+      const isAuthError = err instanceof ApiFetchError && err.code === 'UNAUTHORIZED';
       if (isAuthError) {
         user.value = null;
       } else {
-        console.warn('Failed to fetch user, will retry:', err);
+        console.warn('Failed to fetch user:', err);
       }
     }
   };

@@ -1,6 +1,7 @@
 # Story 2.1: Landing Page and Google OAuth Sign-In Flow
 
 Status: done
+Code Review: ✓ Complete (2 reviews, all issues resolved)
 
 ## Story
 
@@ -648,6 +649,75 @@ None — implementation proceeded without blockers.
    - Logs warnings for transient failures instead of silent failure
    - **Impact:** Better UX when server is temporarily unreachable
 
+### Code Review Fixes Applied (Second Review)
+
+**Test Coverage Enhancements:** Elevated test coverage from 17 to 26 tests (+9 test cases)
+
+**CRITICAL FIXES:**
+
+1. **OAuth State Cookie Security Attributes Validation** (`apps/server/src/routes/auth.test.ts:44-50`)
+   - Added explicit test assertions for `SameSite=Lax` and `Max-Age=600`
+   - Previously only checked for cookie name and HttpOnly flag
+   - **Impact:** Now catches if SameSite accidentally changes to Strict (which breaks OAuth redirect)
+
+2. **Session Logout Cookie Attributes** (`apps/server/src/routes/auth.test.ts:69-79`)
+   - Added assertion to verify session_id cookie cleared with `Max-Age=0`
+   - Ensures logout actually clears the session cookie, not just server-side
+   - **Impact:** Prevents session fixation vulnerabilities
+
+3. **destroySession Called with Correct SessionID** (`apps/server/src/routes/auth.test.ts:58-65`)
+   - Added explicit assertion verifying `destroySession()` called with correct sessionId
+   - Previously test didn't verify this was actually executed
+   - **Impact:** Logout actually deletes session from database
+
+4. **OAuth CSRF State Validation** (`apps/server/src/services/authService.test.ts:103-145`)
+   - Added comprehensive CSRF protection tests for `handleCallback()`
+   - Tests verify: mismatched state → 401, missing state → error, valid state → succeeds
+   - Tests successful Google userinfo fetch
+   - **Impact:** CSRF protection (core security requirement) is now explicitly tested
+
+5. **Callback Missing Parameters** (`apps/server/src/routes/auth.test.ts:88-95`)
+   - Added tests for missing code parameter
+   - Added tests for missing oauth_state cookie
+   - **Impact:** Malformed OAuth callbacks properly rejected with 401
+
+**MEDIUM FIXES:**
+
+6. **Outdated Environment Variable Mocks** (`auth.test.ts`, `me.test.ts`, `authService.test.ts`)
+   - Removed `GOOGLE_REDIRECT_URI` (doesn't exist in actual env schema)
+   - Added `BASE_URL` to mocks (correct field used at runtime)
+   - **Impact:** Test mocks now match actual env.ts schema; will catch schema breaking changes
+
+7. **Type-Safe API Error Handling** (`apps/web/src/lib/api.ts`, `useAuth.ts`)
+   - Created `ApiFetchError` class to replace loose `Object.assign()` pattern
+   - Updated useAuth to use `instanceof ApiFetchError` type check
+   - **Impact:** Type-safe error detection; TypeScript prevents type misuse
+
+8. **useAuth Error Detection Logic** (`apps/web/src/composables/useAuth.test.ts:32-65`)
+   - Added test verifying UNAUTHORIZED code detection via ApiFetchError instance
+   - Added test for network errors (non-ApiFetchError) with proper logging
+   - **Impact:** Error handling is now explicitly verified
+
+**LOW FIXES:**
+
+9. **Misleading Error Message** (`apps/web/src/composables/useAuth.ts:20`)
+   - Changed console warning from `"will retry"` to just `"Failed to fetch user"`
+   - No retry logic was actually implemented
+   - **Impact:** Eliminates false expectations during debugging
+
+10. **Module-Level State Documentation** (`apps/web/src/composables/useAuth.ts:7-12`)
+    - Added JSDoc comment explaining why user ref is at module scope
+    - Documents this is intentional for global app-wide auth state
+    - **Impact:** Future developers understand the design pattern
+
+**Test Results After Fixes:**
+- Server tests: 14 → 22 (+8 new assertions and tests)
+- Web tests: 3 → 4 (+1 error handling test)
+- Total: 17 → 26 tests (+9 test cases)
+- All 26 tests passing ✓
+- Lint: clean ✓
+- TypeCheck: clean ✓
+
 ### File List
 
 **New files:**
@@ -681,3 +751,11 @@ None — implementation proceeded without blockers.
 - `apps/web/.env.example` — added VITE_SITE_NAME, VITE_PET_NAME
 - `apps/web/package.json` — added vitest, @vue/test-utils devDependencies
 - `_bmad-output/implementation-artifacts/sprint-status.yaml` — status in-progress → review
+
+**Modified files (Second Code Review):**
+- `apps/server/src/routes/auth.test.ts` — added 4 new test cases (cookie attributes, CSRF validation, missing params, oauth_state validation)
+- `apps/server/src/routes/me.test.ts` — updated env mock to match actual schema
+- `apps/server/src/services/authService.test.ts` — added 3 new CSRF validation tests for handleCallback, updated env mock
+- `apps/web/src/lib/api.ts` — created ApiFetchError class for type-safe error handling
+- `apps/web/src/composables/useAuth.ts` — improved error detection logic, added documentation, updated to use ApiFetchError
+- `apps/web/src/composables/useAuth.test.ts` — added 1 new error handling test (UNAUTHORIZED detection + network error logging)

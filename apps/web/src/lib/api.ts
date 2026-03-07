@@ -1,3 +1,17 @@
+/**
+ * Typed error from apiFetch with status code and error code from server
+ */
+export class ApiFetchError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code: string = 'UNKNOWN',
+  ) {
+    super(message);
+    this.name = 'ApiFetchError';
+  }
+}
+
 export async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...options,
@@ -15,10 +29,7 @@ export async function apiFetch<T>(path: string, options?: RequestInit): Promise<
     } catch (err) {
       console.warn('Failed to parse error response body:', err);
     }
-    throw Object.assign(new Error(message), {
-      status: res.status,
-      code,
-    });
+    throw new ApiFetchError(message, res.status, code);
   }
 
   return res.json() as Promise<T>;

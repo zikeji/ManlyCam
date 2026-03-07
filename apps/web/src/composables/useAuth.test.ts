@@ -51,16 +51,29 @@ describe('useAuth', () => {
     expect(user.value).toEqual(mockUser);
   });
 
-  it('fetchCurrentUser sets user to null on 401', async () => {
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      json: () => Promise.resolve({ error: { code: 'UNAUTHORIZED' } }),
-    } as Response);
+  it('fetchCurrentUser sets user to null on 401 UNAUTHORIZED error', async () => {
+    const { ApiFetchError } = await import('@/lib/api');
+    const unauthorizedError = new ApiFetchError('Request failed (401)', 401, 'UNAUTHORIZED');
+
+    global.fetch = vi.fn().mockRejectedValue(unauthorizedError);
 
     const { useAuth } = await import('./useAuth');
     const { user, fetchCurrentUser } = withRouter(() => useAuth());
     await fetchCurrentUser();
     expect(user.value).toBeNull();
+  });
+
+  it('fetchCurrentUser keeps user null on network error (non-auth)', async () => {
+    const networkError = new Error('Network error');
+    // Note: networkError is not ApiFetchError, so it's treated as a network error
+
+    global.fetch = vi.fn().mockRejectedValue(networkError);
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const { useAuth } = await import('./useAuth');
+    const { user, fetchCurrentUser } = withRouter(() => useAuth());
+    await fetchCurrentUser();
+    expect(user.value).toBeNull();
+    expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch user:', networkError);
   });
 });

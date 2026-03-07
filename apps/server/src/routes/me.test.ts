@@ -3,9 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../env.js', () => ({
   env: {
     NODE_ENV: 'test',
-    GOOGLE_CLIENT_ID: 'test-client-id',
-    GOOGLE_CLIENT_SECRET: 'test-client-secret',
-    GOOGLE_REDIRECT_URI: 'http://localhost:3000/api/auth/google/callback',
+    BASE_URL: 'http://localhost:3000',
   },
 }));
 
