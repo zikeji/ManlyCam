@@ -54,6 +54,7 @@ describe('requireRole', () => {
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.error.code).toBe('FORBIDDEN');
+    expect(body.error.message).toBeDefined();
   });
 
   it('returns 403 FORBIDDEN for ViewerGuest accessing Moderator-or-Admin route', async () => {
@@ -68,6 +69,7 @@ describe('requireRole', () => {
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.error.code).toBe('FORBIDDEN');
+    expect(body.error.message).toBeDefined();
   });
 
   it('passes for any role in a multi-role allowlist', async () => {

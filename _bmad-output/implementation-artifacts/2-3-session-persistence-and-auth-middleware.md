@@ -1,6 +1,6 @@
 # Story 2.3: Session Persistence and Auth Middleware
 
-Status: review
+Status: done
 
 ## Story
 
@@ -333,3 +333,4 @@ apps/server/vitest.config.ts
 ## Change Log
 
 - 2026-03-07: Implemented Story 2.3 — added BANNED check + message fields to `requireAuth`, created `requireRole` factory middleware, updated/created associated tests, updated coverage thresholds (functions 73→75, branches 85→86). 41 tests pass, no regressions.
+- 2026-03-07: Code review complete — all ACs verified, minor test assertion enhancements applied (message field validation in error responses), 41/41 tests passing. Story marked DONE.
