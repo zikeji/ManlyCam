@@ -24,6 +24,7 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @manlycam/server exec prisma generate
       - run: pnpm --filter @manlycam/web lint
       - run: pnpm --filter @manlycam/web typecheck
       - run: pnpm --filter @manlycam/web test
