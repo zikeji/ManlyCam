@@ -5,9 +5,11 @@ on:
     branches: [main]
     paths:
       - 'packages/types/**'
+      - '.github/workflows/types-ci.yml'
   pull_request:
     paths:
       - 'packages/types/**'
+      - '.github/workflows/types-ci.yml'
 
 jobs:
   typecheck:
@@ -19,7 +21,7 @@ jobs:
           version: latest
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @manlycam/types typecheck

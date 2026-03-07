@@ -5,11 +5,13 @@ on:
     branches: [main]
     paths:
       - 'apps/agent/**'
+      - '.github/workflows/agent-ci.yml'
     tags:
       - 'v*.*.*'
   pull_request:
     paths:
       - 'apps/agent/**'
+      - '.github/workflows/agent-ci.yml'
 
 jobs:
   test:

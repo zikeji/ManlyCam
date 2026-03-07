@@ -6,6 +6,7 @@ on:
     paths:
       - 'apps/server/**'
       - 'packages/types/**'
+      - '.github/workflows/server-ci.yml'
 
 jobs:
   ci:
@@ -20,7 +21,7 @@ jobs:
           version: latest
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @manlycam/server lint
