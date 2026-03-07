@@ -1,6 +1,6 @@
 # Story 2.1b: Design System Foundation and Landing Page Polish
 
-Status: review
+Status: done
 
 ## Story
 
@@ -575,9 +575,11 @@ None — all tasks completed without blockers.
 
 ✅ **Task 9 Complete** — vite.config.ts updated with jsdom environment; jsdom installed; LoginView.test.ts created with 4 tests covering: SITE_NAME rendering, PET_NAME rendering, /api/auth/google link existence, ShadCN Button component presence.
 
-✅ **All Tests Pass** — 8 LoginView tests + 4 useAuth tests + 22 server tests = 34 total (no regressions).
+✅ **All Tests Pass** — 4 LoginView tests + 4 useAuth tests = 8 web tests total (no regressions).
 
 ✅ **Linting Passes** — ESLint + Prettier enforced; ShadCN-generated code auto-fixed for consistency.
+
+✅ **Code Review Complete** — 4 issues fixed: deleted orphaned `index.css`, changed `components.json` baseColor to `stone`, fixed test mock (invalid nested anchors + boolean prop type), strengthened Button test assertions to verify `asChild=true` and `size="lg"`.
 
 ### File List
 
@@ -594,9 +596,13 @@ None — all tasks completed without blockers.
 
 **Modified files:**
 - `apps/web/tailwind.config.js` — Added darkMode: 'class', full CSS variable color mappings, semantic tokens
-- `apps/web/components.json` — Updated CSS path to main.css, removed invalid 'framework' key
+- `apps/web/components.json` — Updated CSS path to main.css, removed invalid 'framework' key; baseColor changed to 'stone' (code review)
 - `apps/web/vite.config.ts` — Added test: { environment: 'jsdom' }
 - `apps/web/src/main.ts` — Added import './assets/main.css'
 - `apps/web/index.html` — Updated title, favicon link, dark mode init script in <head>
 - `apps/web/src/views/LoginView.vue` — Restyled with ShadCN Button, design system tokens
+- `apps/web/src/views/LoginView.test.ts` — Fixed mock (asChild render function, boolean prop type), strengthened Button assertion (code review)
 - `package.json` (apps/web) — Added jsdom dev dependency
+
+**Deleted files:**
+- `apps/web/src/assets/index.css` — Orphaned old cold-slate palette file; should have been deleted in Task 1 rename (code review)
