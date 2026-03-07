@@ -25,7 +25,9 @@ describe('requireAuth', () => {
     app.use('*', requireAuth);
     app.get('/protected', (c) => c.json({ ok: true }));
 
-    const res = await app.request('/protected', { headers: { cookie: 'session_id=valid-session' } });
+    const res = await app.request('/protected', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);

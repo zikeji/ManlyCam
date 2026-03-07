@@ -32,7 +32,13 @@ vi.mock('../env.js', () => ({
 }));
 
 import { prisma } from '../db/client.js';
-import { createSession, destroySession, getSessionUser, handleCallback, processOAuthCallback } from './authService.js';
+import {
+  createSession,
+  destroySession,
+  getSessionUser,
+  handleCallback,
+  processOAuthCallback,
+} from './authService.js';
 
 describe('authService', () => {
   beforeEach(() => {
@@ -188,9 +194,16 @@ describe('authService', () => {
     });
 
     it('existing user: updates profile and creates session, returns redirectTo "/"', async () => {
-      const existingUser = { id: 'existing-user-id', googleSub: 'google-123', email: 'user@example.com' };
+      const existingUser = {
+        id: 'existing-user-id',
+        googleSub: 'google-123',
+        email: 'user@example.com',
+      };
       vi.mocked(prisma.user.findUnique).mockResolvedValue(existingUser as never);
-      vi.mocked(prisma.user.update).mockResolvedValue({ ...existingUser, displayName: 'Test User' } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({
+        ...existingUser,
+        displayName: 'Test User',
+      } as never);
       vi.mocked(prisma.session.create).mockResolvedValue({} as never);
 
       const result = await processOAuthCallback('code', 'state', 'state');
