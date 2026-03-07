@@ -49,8 +49,8 @@ development_status:
   epic-1-retrospective: done
   epic-1-documentation-updates: done  # Comprehensive documentation review completed 2026-03-07
 
-  epic-2: backlog
-  2-1-landing-page-and-google-oauth-sign-in-flow: backlog
+  epic-2: in-progress
+  2-1-landing-page-and-google-oauth-sign-in-flow: review
   2-2-allowlist-enforcement-and-rejection-handling: backlog
   2-3-session-persistence-and-auth-middleware: backlog
   2-4-avatar-resolution-and-gravatar-fallback: backlog

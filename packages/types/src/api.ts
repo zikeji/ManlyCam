@@ -1,2 +1,11 @@
-// Shared API request/response types — populated in subsequent stories
-export type {}
+import type { Role } from './ws.js';
+
+export interface MeResponse {
+  id: string;
+  displayName: string;
+  email: string;
+  role: Role;
+  avatarUrl: string | null;
+  bannedAt: string | null;
+  mutedAt: string | null;
+}
