@@ -474,8 +474,9 @@ The upstream server is the **primary application host** — it handles all viewe
 - **NFR18:** Code style is enforced via Prettier integration; formatting violations are reported as lint errors by ESLint
 - **NFR19:** CI pipeline blocks merges with lint violations; all code must pass `pnpm lint` before deployment
 - **NFR20:** Lint enforcement applies equally to server, web, and shared type packages — no exemptions for legacy code
+- **NFR21:** Test coverage is collected on every CI run via Vitest's V8 coverage provider. Before coverage thresholds are enforced, a dedicated story audits the existing test suite, identifies untested paths critical to the user experience (auth flow, allowlist enforcement, session lifecycle, WebSocket state transitions), adds tests to cover those paths, and sets the initial per-package thresholds at the resulting baseline. CI blocks merges on coverage regression below those baselines thereafter.
 
-**Rationale:** Early code quality enforcement prevents technical debt accumulation and ensures consistent patterns across multiple developers/AI agents. This supports long-term maintainability and reduces defect rates.
+**Rationale:** Early code quality enforcement prevents technical debt accumulation and ensures consistent patterns across multiple developers/AI agents. Coverage thresholds anchored to real critical-path coverage — rather than an arbitrary target — are both achievable and meaningful. This supports long-term maintainability and reduces defect rates.
 
 ---
 

@@ -563,6 +563,41 @@ So that all current and future UI stories build on a consistent, spec-aligned de
 
 ---
 
+### Story 2.1c: Test Coverage Audit and Baseline Enforcement
+
+As a **developer**,
+I want the test suite audited for critical-path coverage gaps, those gaps covered, and the resulting percentages enforced as CI thresholds,
+So that coverage cannot silently degrade in future stories and the thresholds reflect genuine confidence in user-critical behavior.
+
+**Acceptance Criteria:**
+
+**Given** `vitest run --coverage` is executed across `apps/server` and `apps/web`
+**When** the coverage report is reviewed
+**Then** all untested or under-tested paths in the following categories are identified and documented: Google OAuth callback and token validation, allowlist enforcement logic, session creation and middleware, role/permission checks on protected routes, and any other path directly affecting a user's ability to authenticate or access the stream
+
+**Given** the identified coverage gaps have been documented
+**When** new tests are written to address them
+**Then** each critical-path gap from the audit has at minimum one test covering the happy path and one covering the primary failure/rejection path; tests are co-located (`*.test.ts`) and follow existing test conventions
+
+**Given** the new tests are committed and `vitest run --coverage` is re-run
+**When** the resulting coverage percentages are recorded
+**Then** `apps/server/vite.config.ts` (or `vitest.config.ts`) and `apps/web/vite.config.ts` define `test.coverage.thresholds` for lines, functions, branches, and statements at or below the recorded values; `@vitest/coverage-v8` is installed as a dev dependency in the relevant packages
+
+**Given** the coverage thresholds are configured
+**When** `pnpm --filter @manlycam/server test` or `pnpm --filter @manlycam/web test` is run with coverage below any threshold
+**Then** the process exits non-zero, causing the CI job to fail
+
+**Given** `server-ci.yml` and `web-ci.yml` are inspected
+**When** the test step is reviewed
+**Then** both workflows run `vitest run --coverage` (or equivalent) rather than bare `vitest run`, ensuring coverage collection and threshold enforcement occur on every CI run
+
+**Notes:**
+- The goal of this story is a meaningful baseline — not a high number. If the audit produces 58% line coverage after covering critical paths, 58% is the right threshold.
+- `@vitest/coverage-v8` is preferred over Istanbul: no instrumentation overhead, accurate branch tracking with native V8.
+- Agent (`apps/agent`) uses `go test`; Go coverage tooling (`-coverprofile`) is out of scope for this story.
+
+---
+
 ### Story 2.2: Allowlist Enforcement and Rejection Handling
 
 As **the system**,

@@ -274,6 +274,30 @@ Path-filtered GitHub Actions — each component releases independently on merge 
 **Rationale:**
 Early enforcement prevents tech debt accumulation and ensures consistent code patterns across multiple developers/AI agents. Airbnb-base provides battle-tested rules; TypeScript integration catches bugs; Prettier eliminates formatting arguments.
 
+### Test Coverage Strategy
+
+**Approach:** Coverage is collected on every CI run. Thresholds are not arbitrary targets — they are established by first auditing untested critical-path behavior, covering it, and then codifying the resulting numbers as the enforced baseline.
+
+**Tooling:**
+- **`@vitest/coverage-v8`** — V8 native coverage provider (no instrumentation overhead; accurate branch tracking)
+- Configured per-package in each `vite.config.ts` / `vitest.config.ts` under `test.coverage`
+- Collected metrics: lines, functions, branches, statements
+
+**Threshold Establishment Process (Story 2-1c):**
+1. Run `vitest run --coverage` across `apps/server` and `apps/web` to establish current baseline
+2. Review uncovered paths; prioritize those touching: auth flow, allowlist enforcement, session lifecycle, WebSocket state transitions, role/permission checks
+3. Write tests for identified critical-path gaps
+4. Re-run coverage; record resulting percentages as the per-package thresholds
+5. Commit thresholds to `vite.config.ts` / `vitest.config.ts`; CI enforces them from that point forward
+
+**CI Enforcement:**
+- Coverage collected via `vitest run --coverage` in both `server-ci.yml` and `web-ci.yml`
+- Vitest's built-in `coverage.thresholds` causes non-zero exit on regression — CI fails automatically
+- No separate coverage reporting service required for MVP (stdout output sufficient)
+
+**Rationale:**
+Thresholds anchored to real tested behavior are meaningful and achievable. Arbitrary targets breed either false confidence (too low) or test-padding (too high). The audit-first approach ensures coverage reflects genuine confidence in critical user journeys.
+
 ---
 
 ## Core Architectural Decisions
@@ -562,9 +586,10 @@ router.beforeEach(async (to) => {
 - Grafana agent on upstream server scrapes Pi metrics via frp API tunnel
 
 **Testing:**
-- Server: Vitest (unit + integration); Prisma test DB
-- Web: Vitest + Vue Test Utils
+- Server: Vitest (unit + integration); Prisma test DB; coverage via `@vitest/coverage-v8`
+- Web: Vitest + Vue Test Utils; coverage via `@vitest/coverage-v8`
 - Agent: `go test` (config parsing, command-building, version comparison); camera pipeline = on-device only
+- Coverage thresholds: established in Story 2-1c; enforced in CI thereafter
 - E2E: post-MVP
 
 ### Decision Impact Analysis
