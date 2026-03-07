@@ -15,7 +15,7 @@ export function initiateOAuth(): { state: string; authUrl: string } {
   const state = randomBytes(16).toString('hex');
   const params = new URLSearchParams({
     client_id: env.GOOGLE_CLIENT_ID,
-    redirect_uri: env.GOOGLE_REDIRECT_URI,
+    redirect_uri: `${env.BASE_URL}/api/auth/google/callback`,
     response_type: 'code',
     scope: 'openid email profile',
     state,
@@ -41,7 +41,7 @@ export async function handleCallback(
       code,
       client_id: env.GOOGLE_CLIENT_ID,
       client_secret: env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: env.GOOGLE_REDIRECT_URI,
+      redirect_uri: `${env.BASE_URL}/api/auth/google/callback`,
       grant_type: 'authorization_code',
     }),
   });

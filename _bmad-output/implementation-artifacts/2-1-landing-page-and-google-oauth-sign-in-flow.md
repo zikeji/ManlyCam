@@ -473,16 +473,15 @@ app.get('/*', (c) => c.html(indexHtml))
 
 ### ENV Variables Checklist
 
-`apps/server/.env` needs all of:
+`apps/server/.env` needs:
 ```
 NODE_ENV=development
 PORT=3000
-BASE_URL=http://localhost:3000
+BASE_URL=http://localhost:5173
 DATABASE_URL=postgresql://manlycam:password@localhost:5432/manlycam
 SESSION_SECRET=change-me-in-development
 GOOGLE_CLIENT_ID=<your-client-id>
 GOOGLE_CLIENT_SECRET=<your-client-secret>
-GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/google/callback
 HLS_SEGMENT_PATH=/tmp/hls
 FRP_STREAM_PORT=11935
 FRP_API_PORT=11936
@@ -491,7 +490,15 @@ PET_NAME=Manly
 SITE_NAME=ManlyCam
 ```
 
-Note: `SESSION_SECRET` is validated by `env.ts` but not used yet (sessions are stored in DB; a secret would be needed if using signed cookies — currently the ULID is the unforgeable session token).
+**Key Points:**
+- `GOOGLE_REDIRECT_URI` is automatically constructed from `BASE_URL + '/api/auth/google/callback'` — no need to set it separately
+- `BASE_URL` points to the **frontend origin**: where the SPA is accessible from the user's browser
+  - **Development with Vite:** `http://localhost:5173` (the Vite dev server, where the SPA runs)
+  - **Development without Vite:** `http://localhost:3000` (backend serves SPA directly)
+  - **Production:** `https://yourdomain.com` (your production domain)
+- This single `BASE_URL` is used for OAuth redirect construction, ensuring the callback returns to the correct frontend
+
+**Note:** `SESSION_SECRET` is validated by `env.ts` but not used yet (sessions are stored in DB; a secret would be needed if using signed cookies — currently the ULID is the unforgeable session token).
 
 ### Project Structure Notes
 
