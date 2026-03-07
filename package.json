@@ -27,7 +27,8 @@
       "@prisma/client",
       "@prisma/engines",
       "esbuild",
-      "prisma"
+      "prisma",
+      "vue-demi"
     ]
   }
 }
