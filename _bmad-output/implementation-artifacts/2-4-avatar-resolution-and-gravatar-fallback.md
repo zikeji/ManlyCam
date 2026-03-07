@@ -1,6 +1,6 @@
 # Story 2.4: Avatar Resolution and Gravatar Fallback
 
-Status: review
+Status: done
 
 ## Story
 

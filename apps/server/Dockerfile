@@ -19,7 +19,7 @@ RUN pnpm --filter @manlycam/server exec prisma generate
 RUN pnpm --filter @manlycam/types build
 
 # Compile TypeScript
-RUN pnpm --filter @manlycam/server exec tsc
+RUN pnpm --filter @manlycam/server exec tsc && chmod +x apps/server/dist/cli/index.js
 
 # Stage 2: Runtime
 FROM node:20-alpine AS runner
@@ -41,6 +41,9 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/apps/server/dist ./apps/server/dist
 COPY --from=builder /repo/apps/server/prisma ./apps/server/prisma
 COPY --from=builder /repo/node_modules/.pnpm ./node_modules/.pnpm
+
+# Make the admin CLI available globally in the container
+RUN ln -s /repo/node_modules/.bin/manlycam-admin /usr/local/bin/manlycam-admin
 
 WORKDIR /repo/apps/server
 
