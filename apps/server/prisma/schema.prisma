@@ -1,0 +1,84 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @db.Char(26)
+  googleSub    String    @unique @map("google_sub")
+  email        String    @unique
+  displayName  String    @map("display_name")
+  avatarUrl    String?   @map("avatar_url")
+  role         String    // 'Admin' | 'Moderator' | 'ViewerCompany' | 'ViewerGuest'
+  userTagText  String?   @map("user_tag_text")
+  userTagColor String?   @map("user_tag_color")
+  mutedAt      DateTime? @db.Timestamptz @map("muted_at")
+  bannedAt     DateTime? @db.Timestamptz @map("banned_at")
+  createdAt    DateTime  @default(now()) @db.Timestamptz @map("created_at")
+  lastSeenAt   DateTime? @db.Timestamptz @map("last_seen_at")
+
+  sessions        Session[]
+  messages        Message[]
+  deletedMessages Message[] @relation("MessageDeleter")
+  auditActions    AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @db.Char(26)
+  userId    String   @db.Char(26) @map("user_id")
+  createdAt DateTime @default(now()) @db.Timestamptz @map("created_at")
+  expiresAt DateTime @db.Timestamptz @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model AllowlistEntry {
+  id        String   @id @db.Char(26)
+  type      String   // 'domain' | 'email'
+  value     String
+  createdAt DateTime @default(now()) @db.Timestamptz @map("created_at")
+
+  @@unique([type, value])
+  @@map("allowlist_entries")
+}
+
+model Message {
+  id          String    @id @db.Char(26)
+  userId      String    @db.Char(26) @map("user_id")
+  content     String
+  editHistory Json?     @map("edit_history")
+  updatedAt   DateTime? @db.Timestamptz @map("updated_at")
+  deletedAt   DateTime? @db.Timestamptz @map("deleted_at")
+  deletedBy   String?   @db.Char(26) @map("deleted_by")
+  createdAt   DateTime  @default(now()) @db.Timestamptz @map("created_at")
+
+  user    User  @relation(fields: [userId], references: [id])
+  deleter User? @relation("MessageDeleter", fields: [deletedBy], references: [id])
+
+  @@index([userId])
+  @@index([deletedBy])
+  @@map("messages")
+}
+
+model AuditLog {
+  id          String   @id @db.Char(26)
+  action      String
+  actorId     String   @db.Char(26) @map("actor_id")
+  targetId    String?  @map("target_id")
+  metadata    Json?
+  performedAt DateTime @default(now()) @db.Timestamptz @map("performed_at")
+
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@map("audit_log")
+}
