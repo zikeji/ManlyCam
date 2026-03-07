@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Light mode — warm neutrals */
+  :root {
+    --background: 30 20% 96%;
+    --foreground: 20 10% 10%;
+    --card: 30 15% 100%;
+    --card-foreground: 20 10% 10%;
+    --popover: 30 15% 100%;
+    --popover-foreground: 20 10% 10%;
+    --primary: 25 50% 38%;
+    --primary-foreground: 30 20% 96%;
+    --secondary: 30 10% 90%;
+    --secondary-foreground: 20 10% 10%;
+    --muted: 30 10% 90%;
+    --muted-foreground: 30 5% 45%;
+    --accent: 30 10% 90%;
+    --accent-foreground: 20 10% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 30 10% 85%;
+    --input: 30 10% 85%;
+    --ring: 25 50% 38%;
+    --radius: 0.5rem;
+    /* Custom semantic tokens */
+    --sidebar: 30 12% 94%;
+    --live: 142 70% 45%;
+    --reconnecting: 38 95% 55%;
+    --offline-explicit: 30 5% 50%;
+  }
+
+  /* Dark mode — Manly's warm coat palette (default) */
+  .dark {
+    --background: 20 8% 10%;
+    --foreground: 30 15% 92%;
+    --card: 20 6% 14%;
+    --card-foreground: 30 15% 92%;
+    --popover: 20 6% 14%;
+    --popover-foreground: 30 15% 92%;
+    --primary: 25 50% 38%;
+    --primary-foreground: 30 15% 92%;
+    --secondary: 20 5% 18%;
+    --secondary-foreground: 30 15% 92%;
+    --muted: 20 5% 18%;
+    --muted-foreground: 30 5% 55%;
+    --accent: 20 5% 18%;
+    --accent-foreground: 30 15% 92%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 30 15% 92%;
+    --border: 25 5% 20%;
+    --input: 25 5% 20%;
+    --ring: 25 50% 38%;
+    --radius: 0.5rem;
+    /* Custom semantic tokens */
+    --sidebar: 20 5% 11%;
+    --live: 142 70% 45%;
+    --reconnecting: 38 95% 55%;
+    --offline-explicit: 30 5% 42%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Suppress all motion for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

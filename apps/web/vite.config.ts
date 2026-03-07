@@ -14,6 +14,9 @@ export const config = defineConfig({
       '/api': 'http://localhost:3000',
     },
   },
+  test: {
+    environment: 'jsdom',
+  },
 });
 
 // Tool configs require export default to function

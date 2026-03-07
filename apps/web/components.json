@@ -4,12 +4,11 @@
   "typescript": true,
   "tailwind": {
     "config": "tailwind.config.js",
-    "css": "src/assets/index.css",
+    "css": "src/assets/main.css",
     "baseColor": "slate",
     "cssVariables": true,
     "prefix": ""
   },
-  "framework": "vite",
   "aliases": {
     "components": "@/components",
     "composables": "@/composables",

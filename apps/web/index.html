@@ -2,9 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <script>
+      (function () {
+        var stored = localStorage.getItem('theme')
+        if (stored === 'light') {
+          document.documentElement.classList.remove('dark')
+        } else if (stored === 'dark') {
+          document.documentElement.classList.add('dark')
+        } else {
+          // No stored preference — use system; default to dark if no-preference
+          if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+            document.documentElement.classList.remove('dark')
+          } else {
+            document.documentElement.classList.add('dark')
+          }
+        }
+      })()
+    </script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>web</title>
+    <title>ManlyCam</title>
   </head>
   <body>
     <div id="app"></div>
