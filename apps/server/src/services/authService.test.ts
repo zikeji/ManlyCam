@@ -8,6 +8,11 @@ vi.mock('../db/client.js', () => ({
       deleteMany: vi.fn(),
       findUnique: vi.fn(),
     },
+    user: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+    },
   },
 }));
 
@@ -27,7 +32,7 @@ vi.mock('../env.js', () => ({
 }));
 
 import { prisma } from '../db/client.js';
-import { createSession, destroySession, getSessionUser, handleCallback } from './authService.js';
+import { createSession, destroySession, getSessionUser, handleCallback, processOAuthCallback } from './authService.js';
 
 describe('authService', () => {
   beforeEach(() => {
@@ -142,6 +147,87 @@ describe('authService', () => {
         displayName: 'Test User',
         avatarUrl: 'https://example.com/avatar.jpg',
       });
+    });
+
+    it('throws when token exchange returns non-ok response', async () => {
+      global.fetch = vi.fn().mockResolvedValueOnce({ ok: false });
+      await expect(handleCallback('code', 'state', 'state')).rejects.toThrow(
+        'Failed to exchange OAuth code',
+      );
+    });
+
+    it('throws when userinfo endpoint returns non-ok response', async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: 'tok' }) })
+        .mockResolvedValueOnce({ ok: false });
+      await expect(handleCallback('code', 'state', 'state')).rejects.toThrow(
+        'Failed to fetch Google user profile',
+      );
+    });
+  });
+
+  describe('processOAuthCallback', () => {
+    beforeEach(() => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ access_token: 'tok' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              sub: 'google-123',
+              email: 'user@example.com',
+              name: 'Test User',
+              picture: 'https://example.com/avatar.jpg',
+            }),
+        });
+    });
+
+    it('existing user: updates profile and creates session, returns redirectTo "/"', async () => {
+      const existingUser = { id: 'existing-user-id', googleSub: 'google-123', email: 'user@example.com' };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(existingUser as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({ ...existingUser, displayName: 'Test User' } as never);
+      vi.mocked(prisma.session.create).mockResolvedValue({} as never);
+
+      const result = await processOAuthCallback('code', 'state', 'state');
+
+      expect(prisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'existing-user-id' },
+          data: expect.objectContaining({
+            displayName: 'Test User',
+            avatarUrl: 'https://example.com/avatar.jpg',
+          }),
+        }),
+      );
+      expect(result.redirectTo).toBe('/');
+      expect(result.sessionId).toBe('01JTEST00000000000000000000');
+    });
+
+    it('new user: creates user with ViewerCompany role and creates session, returns redirectTo "/"', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.user.create).mockResolvedValue({
+        id: '01JTEST00000000000000000000',
+        role: 'ViewerCompany',
+      } as never);
+      vi.mocked(prisma.session.create).mockResolvedValue({} as never);
+
+      const result = await processOAuthCallback('code', 'state', 'state');
+
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            googleSub: 'google-123',
+            email: 'user@example.com',
+            role: 'ViewerCompany',
+          }),
+        }),
+      );
+      expect(result.redirectTo).toBe('/');
     });
   });
 });

@@ -16,6 +16,18 @@ export const config = defineConfig({
   },
   test: {
     environment: 'jsdom',
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.ts', 'src/**/*.vue'],
+      exclude: ['src/**/*.test.ts', 'src/main.ts'],
+      // Thresholds recorded from actual coverage run (Story 2.1c, 2026-03-07)
+      thresholds: {
+        lines: 23,
+        functions: 77,
+        branches: 80,
+        statements: 23,
+      },
+    },
   },
 });
 

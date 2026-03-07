@@ -27,7 +27,7 @@ jobs:
       - run: pnpm --filter @manlycam/server exec prisma generate
       - run: pnpm --filter @manlycam/server lint
       - run: pnpm --filter @manlycam/server typecheck
-      - run: pnpm --filter @manlycam/server test
+      - run: pnpm --filter @manlycam/server exec vitest run --coverage
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
