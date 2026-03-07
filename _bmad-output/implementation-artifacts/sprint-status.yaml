@@ -43,7 +43,7 @@ development_status:
   epic-1: in-progress
   1-1-initialize-monorepo-with-application-scaffolds-and-shared-types: done
   1-2-configure-prisma-schema-with-all-data-models-and-initial-migration: done
-  1-3-set-up-github-actions-ci-cd-pipelines: backlog
+  1-3-set-up-github-actions-ci-cd-pipelines: done
   1-4-create-deployment-reference-configs-and-environment-templates: backlog
   epic-1-retrospective: optional
 
