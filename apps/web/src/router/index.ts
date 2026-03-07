@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router';
 
 export const router = createRouter({
   history: createWebHistory(),
@@ -8,4 +8,4 @@ export const router = createRouter({
       component: () => import('../App.vue'),
     },
   ],
-})
+});

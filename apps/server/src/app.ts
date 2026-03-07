@@ -1,10 +1,10 @@
-import { Hono } from 'hono'
-import { healthRouter } from './routes/health.js'
+import { Hono } from 'hono';
+import { healthRouter } from './routes/health.js';
 
 export function createApp(): Hono {
-  const app = new Hono()
+  const app = new Hono();
 
-  app.route('/', healthRouter)
+  app.route('/', healthRouter);
 
-  return app
+  return app;
 }

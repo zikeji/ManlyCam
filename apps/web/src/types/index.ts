@@ -1,1 +1,1 @@
-export * from '@manlycam/types'
+export * from '@manlycam/types';

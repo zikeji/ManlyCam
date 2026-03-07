@@ -1,3 +1,3 @@
-import { monotonicFactory } from 'ulidx'
+import { monotonicFactory } from 'ulidx';
 
-export const ulid = monotonicFactory()
+export const ulid = monotonicFactory();

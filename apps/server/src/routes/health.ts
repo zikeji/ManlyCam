@@ -1,7 +1,5 @@
-import { Hono } from 'hono'
+import { Hono } from 'hono';
 
-export const healthRouter = new Hono()
+export const healthRouter = new Hono();
 
-healthRouter.get('/api/health', (c) => {
-  return c.json({ ok: true, uptime: process.uptime() })
-})
+healthRouter.get('/api/health', (c) => c.json({ ok: true, uptime: process.uptime() }));

@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod';
 
 const envSchema = z.object({
   PORT: z.string().min(1),
@@ -14,16 +14,16 @@ const envSchema = z.object({
   AGENT_API_KEY: z.string().min(1),
   PET_NAME: z.string().min(1),
   SITE_NAME: z.string().min(1),
-})
+});
 
-const result = envSchema.safeParse(process.env)
+const result = envSchema.safeParse(process.env);
 
 if (!result.success) {
   const missing = result.error.issues
     .map((issue) => `  - ${issue.path.join('.')}: ${issue.message}`)
-    .join('\n')
-  console.error(`[ManlyCam] Missing or invalid environment variables:\n${missing}`)
-  process.exit(1)
+    .join('\n');
+  console.error(`[ManlyCam] Missing or invalid environment variables:\n${missing}`);
+  process.exit(1);
 }
 
-export const env = result.data
+export const env = result.data;
