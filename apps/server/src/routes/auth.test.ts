@@ -133,5 +133,32 @@ describe('auth routes', () => {
       // expectedState will be null/undefined since cookie is missing
       expect(res.status).toBe(401);
     });
+
+    it('redirects to /rejected and does not set session cookie when user is not on allowlist', async () => {
+      vi.mocked(processOAuthCallback).mockResolvedValue({
+        sessionId: null,
+        redirectTo: '/rejected',
+      });
+      const app = createApp();
+      const res = await app.request('/api/auth/google/callback?code=auth-code&state=test-state', {
+        headers: { cookie: 'oauth_state=test-state' },
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/rejected');
+      const cookieHeader = res.headers.get('set-cookie') ?? '';
+      expect(cookieHeader).not.toContain('session_id=');
+    });
+
+    it('redirects to /banned and does not set session cookie when existing user is banned', async () => {
+      vi.mocked(processOAuthCallback).mockResolvedValue({ sessionId: null, redirectTo: '/banned' });
+      const app = createApp();
+      const res = await app.request('/api/auth/google/callback?code=auth-code&state=test-state', {
+        headers: { cookie: 'oauth_state=test-state' },
+      });
+      expect(res.status).toBe(302);
+      expect(res.headers.get('location')).toBe('/banned');
+      const cookieHeader = res.headers.get('set-cookie') ?? '';
+      expect(cookieHeader).not.toContain('session_id=');
+    });
   });
 });

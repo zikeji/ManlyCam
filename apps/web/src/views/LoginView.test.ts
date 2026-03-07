@@ -1,24 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { mount } from '@vue/test-utils';
 import LoginView from './LoginView.vue';
-
-// Mock ShadCN Button — handles asChild by rendering slot directly (no wrapper)
-vi.mock('@/components/ui/button', () => ({
-  Button: defineComponent({
-    name: 'Button',
-    props: { as: String, href: String, size: String, asChild: Boolean },
-    inheritAttrs: false,
-    setup(props, { slots, attrs }) {
-      return () => {
-        if (props.asChild && slots.default) {
-          return slots.default();
-        }
-        return h(props.as || 'button', { ...attrs, href: props.href }, slots.default?.());
-      };
-    },
-  }),
-}));
 
 describe('LoginView', () => {
   beforeEach(() => {
@@ -42,11 +24,11 @@ describe('LoginView', () => {
     expect(link.exists()).toBe(true);
   });
 
-  it('uses ShadCN Button component with asChild and size props (not a bare unstyled element)', () => {
+  it('sign-in link uses Google-spec button styling (white background, Google G logo)', () => {
     const wrapper = mount(LoginView);
-    const button = wrapper.findComponent({ name: 'Button' });
-    expect(button.exists()).toBe(true);
-    expect(button.props('asChild')).toBe(true);
-    expect(button.props('size')).toBe('lg');
+    const link = wrapper.find('[href="/api/auth/google"]');
+    expect(link.classes()).toContain('bg-white');
+    expect(link.find('svg').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Sign in with Google');
   });
 });

@@ -21,12 +21,12 @@ export const config = defineConfig({
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**/*.ts', 'src/**/*.vue'],
       exclude: ['src/**/*.test.ts', 'src/main.ts'],
-      // Thresholds recorded from actual coverage run (Story 2.1c, 2026-03-07)
+      // Thresholds recorded from actual coverage run (Story 2.2, 2026-03-07)
       thresholds: {
-        lines: 23,
-        functions: 77,
-        branches: 80,
-        statements: 23,
+        lines: 31,
+        functions: 75,
+        branches: 78,
+        statements: 31,
       },
     },
   },

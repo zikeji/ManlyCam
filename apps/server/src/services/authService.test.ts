@@ -13,6 +13,9 @@ vi.mock('../db/client.js', () => ({
       create: vi.fn(),
       update: vi.fn(),
     },
+    allowlistEntry: {
+      findFirst: vi.fn(),
+    },
   },
 }));
 
@@ -223,6 +226,12 @@ describe('authService', () => {
 
     it('new user: creates user with ViewerCompany role and creates session, returns redirectTo "/"', async () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.allowlistEntry.findFirst).mockResolvedValueOnce({
+        id: 'allowlist-1',
+        type: 'domain',
+        value: 'example.com',
+        createdAt: new Date(),
+      } as never);
       vi.mocked(prisma.user.create).mockResolvedValue({
         id: '01JTEST00000000000000000000',
         role: 'ViewerCompany',
@@ -241,6 +250,111 @@ describe('authService', () => {
         }),
       );
       expect(result.redirectTo).toBe('/');
+    });
+  });
+
+  describe('processOAuthCallback - allowlist enforcement (new users)', () => {
+    beforeEach(() => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null); // always new user
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: 'tok' }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              sub: 'google-123',
+              email: 'user@example.com',
+              name: 'Test User',
+              picture: 'https://example.com/avatar.jpg',
+            }),
+        });
+    });
+
+    it('domain match: creates user with ViewerCompany role, redirectTo "/"', async () => {
+      vi.mocked(prisma.allowlistEntry.findFirst).mockResolvedValueOnce({
+        id: 'al-1',
+        type: 'domain',
+        value: 'example.com',
+        createdAt: new Date(),
+      } as never);
+      vi.mocked(prisma.user.create).mockResolvedValue({
+        id: '01JTEST00000000000000000000',
+        role: 'ViewerCompany',
+      } as never);
+      vi.mocked(prisma.session.create).mockResolvedValue({} as never);
+
+      const result = await processOAuthCallback('code', 'state', 'state');
+
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ role: 'ViewerCompany' }) }),
+      );
+      expect(result).toEqual({ sessionId: '01JTEST00000000000000000000', redirectTo: '/' });
+    });
+
+    it('email-only match: creates user with ViewerGuest role, redirectTo "/"', async () => {
+      vi.mocked(prisma.allowlistEntry.findFirst)
+        .mockResolvedValueOnce(null) // no domain match
+        .mockResolvedValueOnce({
+          id: 'al-2',
+          type: 'email',
+          value: 'user@example.com',
+          createdAt: new Date(),
+        } as never);
+      vi.mocked(prisma.user.create).mockResolvedValue({
+        id: '01JTEST00000000000000000000',
+        role: 'ViewerGuest',
+      } as never);
+      vi.mocked(prisma.session.create).mockResolvedValue({} as never);
+
+      const result = await processOAuthCallback('code', 'state', 'state');
+
+      expect(prisma.user.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ role: 'ViewerGuest' }) }),
+      );
+      expect(result.redirectTo).toBe('/');
+    });
+
+    it('no allowlist match: returns null sessionId, redirectTo "/rejected", does not create user or session', async () => {
+      vi.mocked(prisma.allowlistEntry.findFirst).mockResolvedValue(null);
+
+      const result = await processOAuthCallback('code', 'state', 'state');
+
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(prisma.session.create).not.toHaveBeenCalled();
+      expect(result).toEqual({ sessionId: null, redirectTo: '/rejected' });
+    });
+  });
+
+  describe('processOAuthCallback - existing user ban check', () => {
+    beforeEach(() => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: 'tok' }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              sub: 'google-123',
+              email: 'user@example.com',
+              name: 'Test User',
+              picture: null,
+            }),
+        });
+    });
+
+    it('banned existing user: returns null sessionId, redirectTo "/banned", does not create session', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        id: 'user-1',
+        googleSub: 'google-123',
+        email: 'user@example.com',
+        bannedAt: new Date(),
+      } as never);
+
+      const result = await processOAuthCallback('code', 'state', 'state');
+
+      expect(prisma.session.create).not.toHaveBeenCalled();
+      expect(result).toEqual({ sessionId: null, redirectTo: '/banned' });
     });
   });
 });

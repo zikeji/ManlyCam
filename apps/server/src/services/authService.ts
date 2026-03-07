@@ -103,7 +103,7 @@ export async function processOAuthCallback(
   code: string,
   state: string,
   expectedState: string,
-): Promise<{ sessionId: string; redirectTo: string }> {
+): Promise<{ sessionId: string | null; redirectTo: string }> {
   const profile = await handleCallback(code, state, expectedState);
 
   const existingUser = await prisma.user.findUnique({
@@ -111,6 +111,10 @@ export async function processOAuthCallback(
   });
 
   if (existingUser) {
+    // Returning user: skip allowlist, only check ban
+    if (existingUser.bannedAt) {
+      return { sessionId: null, redirectTo: '/banned' };
+    }
     const updated = await prisma.user.update({
       where: { id: existingUser.id },
       data: {
@@ -119,11 +123,30 @@ export async function processOAuthCallback(
         lastSeenAt: new Date(),
       },
     });
+    // TODO(story 3.4): broadcast user:update WS message when WS hub is available
     const sessionId = await createSession(updated.id);
     return { sessionId, redirectTo: '/' };
   }
 
-  // New user: Story 2.2 will add allowlist check here
+  // New user: enforce allowlist
+  const emailDomain = profile.email.split('@')[1] ?? '';
+  const domainEntry = await prisma.allowlistEntry.findFirst({
+    where: { type: 'domain', value: emailDomain },
+  });
+
+  let role: string;
+  if (domainEntry) {
+    role = 'ViewerCompany';
+  } else {
+    const emailEntry = await prisma.allowlistEntry.findFirst({
+      where: { type: 'email', value: profile.email },
+    });
+    if (!emailEntry) {
+      return { sessionId: null, redirectTo: '/rejected' };
+    }
+    role = 'ViewerGuest';
+  }
+
   const userId = ulid();
   const newUser = await prisma.user.create({
     data: {
@@ -132,7 +155,7 @@ export async function processOAuthCallback(
       email: profile.email,
       displayName: profile.displayName,
       avatarUrl: profile.avatarUrl,
-      role: 'ViewerCompany', // Story 2.2 will set based on allowlist match type
+      role,
     },
   });
   const sessionId = await createSession(newUser.id);
