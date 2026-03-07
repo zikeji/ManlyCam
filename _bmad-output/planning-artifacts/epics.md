@@ -517,6 +517,52 @@ So that I can access the stream without creating a new account or remembering a 
 
 ---
 
+**Post-completion note (2026-03-07):** Story 2.1 was implemented and marked done before the design system gap was identified. `LoginView.vue` satisfies all functional acceptance criteria but does not yet match the UX specification visually — it was built on a bare Vite/Vue scaffold with no Tailwind, ShadCN-vue, or CSS custom properties in place. Story 2.1b addresses this gap and includes restyling `LoginView.vue` to match the spec.
+
+---
+
+### Story 2.1b: Design System Foundation and Landing Page Polish
+
+As a **developer**,
+I want Tailwind v3, ShadCN-vue, and the project's CSS custom property theme established in apps/web,
+So that all current and future UI stories build on a consistent, spec-aligned design system from this point forward.
+
+**Acceptance Criteria:**
+
+**Given** `apps/web/package.json` is inspected
+**When** dependencies are reviewed
+**Then** `tailwindcss@^3` (pinned), `@tailwindcss/vite`, `autoprefixer`, and `tailwind-merge` are present; `apps/web/tailwind.config.js` exists with `darkMode: 'class'` and content paths covering `src/**/*.{vue,ts}`; ShadCN-vue has been initialized (`components.json` present, `apps/web/src/components/ui/` contains at least `Button.vue` and `Avatar.vue`, `src/lib/utils.ts` exports `cn()`)
+
+**Given** `apps/web/src/assets/main.css` is inspected
+**When** its contents are reviewed
+**Then** it contains Tailwind directives and defines CSS custom properties for the Discord-warmed dark palette per the UX spec (at minimum: `--background`, `--foreground`, `--card`, `--card-foreground`, `--primary`, `--primary-foreground`, `--muted`, `--muted-foreground`, `--border`, `--ring`, `--radius`) in both `:root` (light) and `.dark` overrides
+
+**Given** the user has no system dark/light preference (`prefers-color-scheme` unset or `no-preference`)
+**When** the app loads for the first time
+**Then** the `.dark` class is applied to `<html>` by default
+
+**Given** the user has previously toggled the theme
+**When** the app loads
+**Then** `localStorage.getItem('theme')` is read and the correct class applied before first paint — no flash of incorrect theme on reload
+
+**Given** `prefers-color-scheme: light` is active in the user's OS
+**When** the app loads for the first time (no `localStorage` override)
+**Then** light mode is applied
+
+**Given** `prefers-reduced-motion: reduce` is set
+**When** any CSS transition or animation runs
+**Then** all transitions and animations in the design system are suppressed via `@media (prefers-reduced-motion: reduce)` in `main.css`
+
+**Given** an unauthenticated user visits `/`
+**When** `LoginView.vue` renders
+**Then** the page reflects the UX spec: warm dark background, centered card layout, `SITE_NAME` in a prominent heading, `PET_NAME` referenced in copy, a styled "Sign in with Google" button using the ShadCN `Button` component — not a bare `<button>` — and the overall aesthetic matches the warm/cozy tone specified in the UX design specification
+
+**And** `apps/web/public/favicon.svg` exists (placeholder SVG acceptable; final Manly tooth SVG is a post-MVP design asset) and `index.html` links to it
+
+**And** `apps/web/src/main.ts` imports `./assets/main.css` as the global stylesheet
+
+---
+
 ### Story 2.2: Allowlist Enforcement and Rejection Handling
 
 As **the system**,
