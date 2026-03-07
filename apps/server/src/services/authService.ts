@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import { env } from '../env.js';
 import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
@@ -9,6 +9,12 @@ interface GoogleProfile {
   email: string;
   displayName: string;
   avatarUrl: string | null;
+}
+
+function resolveAvatarUrl(googleAvatarUrl: string | null, email: string): string {
+  if (googleAvatarUrl) return googleAvatarUrl;
+  const hash = createHash('md5').update(email.toLowerCase().trim()).digest('hex');
+  return `https://www.gravatar.com/avatar/${hash}?d=identicon&s=128`;
 }
 
 export function initiateOAuth(): { state: string; authUrl: string } {
@@ -119,7 +125,7 @@ export async function processOAuthCallback(
       where: { id: existingUser.id },
       data: {
         displayName: profile.displayName,
-        avatarUrl: profile.avatarUrl,
+        avatarUrl: resolveAvatarUrl(profile.avatarUrl, profile.email),
         lastSeenAt: new Date(),
       },
     });
@@ -154,7 +160,7 @@ export async function processOAuthCallback(
       googleSub: profile.googleSub,
       email: profile.email,
       displayName: profile.displayName,
-      avatarUrl: profile.avatarUrl,
+      avatarUrl: resolveAvatarUrl(profile.avatarUrl, profile.email),
       role,
     },
   });

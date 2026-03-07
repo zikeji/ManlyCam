@@ -326,6 +326,69 @@ describe('authService', () => {
     });
   });
 
+  describe('processOAuthCallback - gravatar fallback (no Google picture)', () => {
+    beforeEach(() => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () => Promise.resolve({ access_token: 'tok' }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              sub: 'google-456',
+              email: 'user@example.com',
+              name: 'No Picture User',
+              picture: undefined, // Google did not provide a picture
+            }),
+        });
+    });
+
+    it('new user: sets avatarUrl to Gravatar URL when Google provides no picture', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      vi.mocked(prisma.allowlistEntry.findFirst).mockResolvedValueOnce({
+        id: 'al-1',
+        type: 'domain',
+        value: 'example.com',
+        createdAt: new Date(),
+      } as never);
+      vi.mocked(prisma.user.create).mockResolvedValue({
+        id: '01JTEST00000000000000000000',
+        role: 'ViewerCompany',
+      } as never);
+      vi.mocked(prisma.session.create).mockResolvedValue({} as never);
+
+      await processOAuthCallback('code', 'state', 'state');
+
+      const createCall = vi.mocked(prisma.user.create).mock.calls[0]![0];
+      const avatarUrl = createCall.data.avatarUrl as string;
+      expect(avatarUrl).toMatch(/^https:\/\/www\.gravatar\.com\/avatar\//);
+      expect(avatarUrl).toContain('?d=identicon&s=128');
+    });
+
+    it('returning user: sets avatarUrl to Gravatar URL when Google provides no picture', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        id: 'existing-user-id',
+        googleSub: 'google-456',
+        email: 'user@example.com',
+        bannedAt: null,
+      } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue({
+        id: 'existing-user-id',
+      } as never);
+      vi.mocked(prisma.session.create).mockResolvedValue({} as never);
+
+      await processOAuthCallback('code', 'state', 'state');
+
+      const updateCall = vi.mocked(prisma.user.update).mock.calls[0]![0];
+      const avatarUrl = updateCall.data.avatarUrl as string;
+      expect(avatarUrl).toMatch(/^https:\/\/www\.gravatar\.com\/avatar\//);
+      expect(avatarUrl).toContain('?d=identicon&s=128');
+    });
+  });
+
   describe('processOAuthCallback - existing user ban check', () => {
     beforeEach(() => {
       global.fetch = vi
