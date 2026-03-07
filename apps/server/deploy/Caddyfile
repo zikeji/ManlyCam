@@ -1,0 +1,44 @@
+# apps/server/deploy/Caddyfile
+# Caddy v2 — automatic TLS via Let's Encrypt (ACME)
+#
+# Bare-metal deployment: Caddy reverse proxy with auto TLS
+#
+# Prerequisites:
+#   - Caddy v2 installed on the host
+#   - DNS A record for your domain pointing to this server
+#   - apps/web/dist/ built and placed at /opt/manlycam/web/dist
+#   - Hono server running on localhost:3000 (via docker-compose.yml or systemd unit)
+#   - frps service listening on localhost:7000 (or update FRP server address in server config)
+#
+# Usage (standalone):
+#   export SITE_DOMAIN=cam.example.com
+#   export ACME_EMAIL=admin@example.com
+#   caddy run --config Caddyfile
+#
+# Or (systemd-managed):
+#   sudo cp Caddyfile /etc/caddy/
+#   # Edit /etc/caddy/Caddyfile and set SITE_DOMAIN and ACME_EMAIL env vars
+#   sudo systemctl reload caddy
+
+{$SITE_DOMAIN} {
+    # Automatic TLS — Caddy obtains and renews certs from Let's Encrypt using ACME_EMAIL
+    tls {$ACME_EMAIL}
+
+    # API routes — proxy to Hono server
+    handle /api/* {
+        reverse_proxy localhost:3000
+    }
+
+    # WebSocket endpoint — proxy to Hono
+    # Note: Caddy handles WebSocket upgrade automatically; no special headers needed
+    handle /ws {
+        reverse_proxy localhost:3000
+    }
+
+    # Static SPA files — serve Vue dist with SPA fallback for client-side routing
+    handle {
+        root * /opt/manlycam/web/dist
+        file_server
+        try_files {path} /index.html
+    }
+}

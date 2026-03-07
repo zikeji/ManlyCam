@@ -1,0 +1,38 @@
+# apps/server/deploy/traefik/traefik.yml
+# Traefik v3 static configuration
+# Mount this file at /etc/traefik/traefik.yml in the Traefik container
+# (see docker-compose.yml in this directory for volume mount)
+#
+# This file configures entrypoints, automatic TLS via Let's Encrypt, and the
+# Docker provider (which reads labels from running containers to define routes).
+
+entryPoints:
+  # HTTP entrypoint — redirects all traffic to HTTPS
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+  # HTTPS entrypoint — all production traffic enters here
+  websecure:
+    address: ":443"
+
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      # ⚠️ REQUIRED: Replace with a real email address — Let's Encrypt sends cert expiry notices here
+      # Before deploying, edit this file and replace admin@example.com with your email
+      # This is a limitation of TOML syntax — environment variable substitution not supported
+      email: admin@example.com
+      # Cert storage file — must be on a persistent volume (see docker-compose.yml)
+      storage: /letsencrypt/acme.json
+      # HTTP-01 challenge — Traefik temporarily serves a token on port 80 to prove domain ownership
+      httpChallenge:
+        entryPoint: web
+
+providers:
+  docker:
+    # Only expose containers that have traefik.enable=true label
+    exposedByDefault: false

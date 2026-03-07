@@ -1,0 +1,13 @@
+# apps/server/deploy/traefik/frps.toml
+# frp server (frps) configuration — frp v0.5x+ TOML format
+# Mount this file into the frps container (see docker-compose.yml in this directory)
+#
+# Fill in the token to match the Pi agent's config.toml [frp] auth_token
+
+# Port frpc clients (Pi agent) connect to establish tunnels
+bindPort = 7000
+
+[auth]
+method = "token"
+# Must match auth_token in the Pi agent's config.toml [frp] section
+token = "change-me-to-a-random-secret"

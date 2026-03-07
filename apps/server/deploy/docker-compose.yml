@@ -1,0 +1,76 @@
+# apps/server/deploy/docker-compose.yml
+# Simple deployment: Hono server + PostgreSQL
+# TLS is handled externally (host-level Caddy/nginx) or by Traefik variant.
+# See traefik/ subdirectory for a fully Docker-native TLS option.
+#
+# Usage:
+#   1. cp apps/server/.env.example .env
+#   2. Edit .env with your values (POSTGRES_PASSWORD, BASE_URL, Google OAuth credentials, etc.)
+#   3. Edit frps.toml and set [auth] token to a secure random secret
+#      (must match Pi agent's [frp] auth_token in config.example.toml)
+#   4. docker compose --env-file .env up -d
+
+services:
+  server:
+    # Image published to GHCR by CI — replace owner with your GitHub username/org
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-your-github-username}/manlycam-server:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # HTTP server port (must match the exposed port above)
+      PORT: "3000"
+      # Public base URL — e.g. https://cam.example.com (used for OAuth redirects)
+      BASE_URL: "${BASE_URL}"
+      # PostgreSQL connection string — references the postgres service below
+      DATABASE_URL: "postgresql://manlycam:${POSTGRES_PASSWORD}@postgres:5432/manlycam"
+      # Secret used to sign sessions (min 32 chars)
+      SESSION_SECRET: "${SESSION_SECRET}"
+      # Google OAuth 2.0 credentials
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      GOOGLE_REDIRECT_URI: "${GOOGLE_REDIRECT_URI}"
+      # Directory where HLS segments are written by the transcoding pipeline
+      HLS_SEGMENT_PATH: "/tmp/manlycam/hls"
+      # frp remote ports exposed by frps for stream ingestion and agent API proxy
+      FRP_STREAM_PORT: "${FRP_STREAM_PORT:-11935}"
+      FRP_API_PORT: "${FRP_API_PORT:-11936}"
+      # Secret API key the Pi agent uses to authenticate with the server
+      AGENT_API_KEY: "${AGENT_API_KEY}"
+      # Configurable instance identity (FR55)
+      PET_NAME: "${PET_NAME:-Manly}"
+      SITE_NAME: "${SITE_NAME:-ManlyCam}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frps:
+    image: snowdreamtech/frps:latest
+    restart: unless-stopped
+    ports:
+      - "7000:7000"    # frpc client connections — Pi agent connects here to establish tunnels
+      # 11935 and 11936 are not published — the server container reaches frps directly
+      # over the Docker network using the service name (frps:11935, frps:11936)
+    volumes:
+      # frps.toml must be present alongside this compose file — copy and fill in the token
+      - ./frps.toml:/etc/frp/frps.toml:ro
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manlycam
+      POSTGRES_USER: manlycam
+      # Set POSTGRES_PASSWORD in your .env file — never hardcode this value
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manlycam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  # Named volume for PostgreSQL data — persists across container restarts
+  pgdata:

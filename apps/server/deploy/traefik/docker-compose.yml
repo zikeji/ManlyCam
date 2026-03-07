@@ -1,0 +1,122 @@
+# apps/server/deploy/traefik/docker-compose.yml
+# Full deployment: Traefik (TLS) + Hono server + PostgreSQL
+# Traefik manages Let's Encrypt certificates automatically via Docker labels.
+#
+# Usage:
+#   1. cp apps/server/.env.example .env
+#   2. Edit .env with your values:
+#      - SITE_DOMAIN: your actual domain (e.g., cam.example.com)
+#      - POSTGRES_PASSWORD: secure random password
+#      - ACME_EMAIL: your email for Let's Encrypt cert notifications
+#      - Google OAuth credentials, etc.
+#   3. Edit traefik.yml and replace admin@example.com with your email address
+#      (this is required for Let's Encrypt ACME to work)
+#   4. Edit frps.toml and set [auth] token to a secure random secret
+#      (must match Pi agent's [frp] auth_token)
+#   5. docker compose --env-file .env up -d
+
+services:
+  traefik:
+    image: traefik:v3
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Docker socket (read-only) — lets Traefik discover container labels
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Static config file (read-only)
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+      # Persistent volume for Let's Encrypt cert storage
+      - letsencrypt:/letsencrypt
+    networks:
+      - proxy
+
+  server:
+    # Image published to GHCR by CI — replace owner with your GitHub username/org
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-your-github-username}/manlycam-server:latest
+    restart: unless-stopped
+    environment:
+      PORT: "3000"
+      # Public base URL — constructed from SITE_DOMAIN env var
+      BASE_URL: "https://${SITE_DOMAIN}"
+      # PostgreSQL connection string — references the postgres service below
+      DATABASE_URL: "postgresql://manlycam:${POSTGRES_PASSWORD}@postgres:5432/manlycam"
+      # Secret used to sign sessions (min 32 chars)
+      SESSION_SECRET: "${SESSION_SECRET}"
+      # Google OAuth 2.0 credentials
+      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      # OAuth redirect — automatically uses SITE_DOMAIN
+      GOOGLE_REDIRECT_URI: "https://${SITE_DOMAIN}/auth/google/callback"
+      # Directory where HLS segments are written by the transcoding pipeline
+      HLS_SEGMENT_PATH: "/tmp/manlycam/hls"
+      # frp remote ports exposed by frps for stream ingestion and agent API proxy
+      FRP_STREAM_PORT: "${FRP_STREAM_PORT:-11935}"
+      FRP_API_PORT: "${FRP_API_PORT:-11936}"
+      # Secret API key the Pi agent uses to authenticate with the server
+      AGENT_API_KEY: "${AGENT_API_KEY}"
+      # Configurable instance identity (FR55)
+      PET_NAME: "${PET_NAME:-Manly}"
+      SITE_NAME: "${SITE_NAME:-ManlyCam}"
+    labels:
+      # Enable Traefik routing for this container
+      - "traefik.enable=true"
+      # Route all requests for SITE_DOMAIN to this service
+      # Both /api/* and /ws are routed here; Traefik handles WS upgrade at the transport level
+      - "traefik.http.routers.manlycam.rule=Host(`${SITE_DOMAIN}`)"
+      - "traefik.http.routers.manlycam.entrypoints=websecure"
+      - "traefik.http.routers.manlycam.tls.certresolver=letsencrypt"
+      # Tell Traefik which port the container listens on
+      - "traefik.http.services.manlycam.loadbalancer.server.port=3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - proxy
+      - internal
+
+  frps:
+    image: snowdreamtech/frps:latest
+    restart: unless-stopped
+    ports:
+      - "7000:7000"    # frpc client connections — Pi agent connects here to establish tunnels
+      # 11935 and 11936 are not published — the server container reaches frps directly
+      # over the internal Docker network using the service name (frps:11935, frps:11936)
+    volumes:
+      # frps.toml must be present in the traefik/ directory alongside this compose file
+      - ./frps.toml:/etc/frp/frps.toml:ro
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: manlycam
+      POSTGRES_USER: manlycam
+      # Set POSTGRES_PASSWORD in your .env file — never hardcode this value
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U manlycam"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+networks:
+  # proxy network — shared between Traefik and services it routes to
+  proxy:
+    external: false
+  # internal network — postgres is not reachable from outside the compose project
+  internal:
+    external: false
+
+volumes:
+  # Named volume for PostgreSQL data — persists across container restarts
+  pgdata:
+  # Named volume for Let's Encrypt certificate storage — do not delete
+  letsencrypt:

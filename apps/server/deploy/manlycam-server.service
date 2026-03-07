@@ -1,0 +1,44 @@
+# apps/server/deploy/manlycam-server.service
+# Systemd unit for bare-metal deployment (no Docker)
+#
+# Setup:
+#   1. Create system user: sudo useradd --system --no-create-home manlycam
+#   2. Copy server build:  sudo cp -r apps/server/dist /opt/manlycam/server/
+#   3. Copy env file:      sudo cp apps/server/.env.example /etc/manlycam/server.env
+#                          sudo nano /etc/manlycam/server.env  # fill in real values
+#                          sudo chmod 640 /etc/manlycam/server.env
+#                          sudo chown root:manlycam /etc/manlycam/server.env
+#   4. Install unit:       sudo cp manlycam-server.service /etc/systemd/system/
+#   5. Enable service:     sudo systemctl daemon-reload && sudo systemctl enable --now manlycam-server
+
+[Unit]
+Description=ManlyCam Server (Hono + ffmpeg)
+Documentation=https://github.com/zikeji/ManlyCam
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=manlycam
+Group=manlycam
+
+# All env vars sourced from this file — keeps secrets out of the process list and journal
+EnvironmentFile=/etc/manlycam/server.env
+
+WorkingDirectory=/opt/manlycam/server
+
+# Assumes tsc build output is at /opt/manlycam/server/dist/index.js
+ExecStart=/usr/bin/node dist/index.js
+
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=manlycam-server
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

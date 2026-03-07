@@ -1,46 +1,59 @@
 # ManlyCam Agent Configuration
 # Copy this file to config.toml and fill in your values.
 # Format: TOML (https://toml.io)
+#
+# Field names here are authoritative — the Go config struct in Story 3.1 will
+# be implemented to match exactly these names. Do not rename fields.
 
 [stream]
-# Camera device path (e.g. /dev/video0 on Linux)
-device = "/dev/video0"
+# Output frame width in pixels
+width = 2328
 
-# Target video bitrate in kbps
-bitrate = 2000
+# Output frame height in pixels
+height = 1748
 
-# Frame rate (fps)
-fps = 30
+# Target frame rate (fps)
+framerate = 30
 
-# Video resolution (width x height)
-width = 1280
-height = 720
+# Video codec passed to rpicam-vid (e.g. "mjpeg", "h264")
+codec = "mjpeg"
 
-# HLS segment duration in seconds
-segment_duration = 2
+# Horizontally flip the camera image (true/false)
+hflip = true
+
+# Vertically flip the camera image (true/false)
+vflip = true
+
+# Local TCP port rpicam-vid listens on; the frp stream tunnel connects here.
+# rpicam-vid command built by the agent:
+#   rpicam-vid -t 0 --width {width} --height {height} --framerate {framerate} \
+#     --codec {codec} [--hflip] [--vflip] --inline --listen \
+#     -o tcp://0.0.0.0:{output_port}
+output_port = 5000
 
 [frp]
-# Address of the ManlyCam server running frps
-server_addr = "your-server-hostname-or-ip"
+# Hostname or IP address of the ManlyCam server running frps
+server_addr = "upstream.example.com"
 
 # Port frps is listening on for client connections
 server_port = 7000
 
-# Authentication token (must match frps config on server)
-token = "change-me-to-a-random-secret"
+# Authentication token — must match the auth_token set in frps config on the server
+# Note: field name is auth_token (NOT token)
+auth_token = "change-me-to-a-random-secret"
 
-# Local port where libcamera/ffmpeg pushes RTMP/SRT stream
-local_port = 1935
-
-# Remote port frps will expose on the server side
+[frp.stream]
+# Remote port frps exposes for stream ingestion; ffmpeg on the server connects here
 remote_port = 11935
 
+[frp.api]
+# Local port the Pi agent's HTTP server listens on (receives camera control commands)
+local_port = 8080
+
+# Remote port frps exposes for the API proxy; the Hono server connects here
+remote_port = 11936
+
 [update]
-# GitHub repo to check for new releases (owner/repo)
-repo = "zikeji/ManlyCam"
-
-# Channel: "stable" or "edge" (pre-release)
-channel = "stable"
-
-# Check for updates on startup
-check_on_start = true
+# GitHub Releases API URL for update checks
+# The agent fetches this URL to discover the latest release asset download URL
+update_url = "https://api.github.com/repos/zikeji/ManlyCam/releases/latest"
