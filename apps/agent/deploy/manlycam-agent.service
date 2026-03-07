@@ -1,0 +1,17 @@
+[Unit]
+Description=ManlyCam Agent — camera streaming and frp tunnel service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/manlycam
+ExecStart=/usr/local/bin/manlycam-agent start --config /etc/manlycam/config.toml
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

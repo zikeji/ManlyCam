@@ -1,0 +1,46 @@
+# ManlyCam Agent Configuration
+# Copy this file to config.toml and fill in your values.
+# Format: TOML (https://toml.io)
+
+[stream]
+# Camera device path (e.g. /dev/video0 on Linux)
+device = "/dev/video0"
+
+# Target video bitrate in kbps
+bitrate = 2000
+
+# Frame rate (fps)
+fps = 30
+
+# Video resolution (width x height)
+width = 1280
+height = 720
+
+# HLS segment duration in seconds
+segment_duration = 2
+
+[frp]
+# Address of the ManlyCam server running frps
+server_addr = "your-server-hostname-or-ip"
+
+# Port frps is listening on for client connections
+server_port = 7000
+
+# Authentication token (must match frps config on server)
+token = "change-me-to-a-random-secret"
+
+# Local port where libcamera/ffmpeg pushes RTMP/SRT stream
+local_port = 1935
+
+# Remote port frps will expose on the server side
+remote_port = 11935
+
+[update]
+# GitHub repo to check for new releases (owner/repo)
+repo = "zikeji/ManlyCam"
+
+# Channel: "stable" or "edge" (pre-release)
+channel = "stable"
+
+# Check for updates on startup
+check_on_start = true

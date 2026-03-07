@@ -1,0 +1,22 @@
+{
+  "name": "manlycam",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --recursive --parallel run dev",
+    "build": "pnpm --recursive run build",
+    "lint": "pnpm --recursive run lint",
+    "typecheck": "pnpm --recursive run typecheck"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}
