@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { AllowlistEntry } from '@prisma/client';
 
 vi.mock('../db/client.js', () => ({
   prisma: {
@@ -11,6 +12,12 @@ vi.mock('../db/client.js', () => ({
 
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => '01TESTULID00000000000000001') }));
 
+vi.mock('../lib/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+  },
+}));
+
 import { prisma } from '../db/client.js';
 import { addDomain, removeDomain, addEmail, removeEmail } from './allowlistService.js';
 
@@ -21,7 +28,13 @@ describe('allowlistService', () => {
 
   describe('addDomain', () => {
     it('upserts with type="domain" and a ULID id', async () => {
-      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue({} as never);
+      const mockEntry: AllowlistEntry = {
+        id: '01TESTULID00000000000000001',
+        type: 'domain',
+        value: 'company.com',
+        createdAt: new Date(),
+      };
+      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue(mockEntry);
       await addDomain('company.com');
       expect(prisma.allowlistEntry.upsert).toHaveBeenCalledWith({
         where: { type_value: { type: 'domain', value: 'company.com' } },
@@ -31,8 +44,18 @@ describe('allowlistService', () => {
     });
 
     it('handles duplicate gracefully (no error thrown)', async () => {
-      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue({} as never);
+      const mockEntry: AllowlistEntry = {
+        id: '01TESTULID00000000000000001',
+        type: 'domain',
+        value: 'company.com',
+        createdAt: new Date(),
+      };
+      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue(mockEntry);
       await expect(addDomain('company.com')).resolves.toBeUndefined();
+    });
+
+    it('throws on invalid domain format', async () => {
+      await expect(addDomain('invalid domain!!!')).rejects.toThrow('Invalid domain format');
     });
   });
 
@@ -52,9 +75,15 @@ describe('allowlistService', () => {
   });
 
   describe('addEmail', () => {
-    it('upserts with type="email" and a ULID id', async () => {
-      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue({} as never);
-      await addEmail('guest@gmail.com');
+    it('upserts with type="email" and a ULID id, normalized to lowercase', async () => {
+      const mockEntry: AllowlistEntry = {
+        id: '01TESTULID00000000000000001',
+        type: 'email',
+        value: 'guest@gmail.com',
+        createdAt: new Date(),
+      };
+      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue(mockEntry);
+      await addEmail('Guest@Gmail.com');
       expect(prisma.allowlistEntry.upsert).toHaveBeenCalledWith({
         where: { type_value: { type: 'email', value: 'guest@gmail.com' } },
         create: { id: '01TESTULID00000000000000001', type: 'email', value: 'guest@gmail.com' },
@@ -63,15 +92,26 @@ describe('allowlistService', () => {
     });
 
     it('handles duplicate gracefully (no error thrown)', async () => {
-      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue({} as never);
+      const mockEntry: AllowlistEntry = {
+        id: '01TESTULID00000000000000001',
+        type: 'email',
+        value: 'guest@gmail.com',
+        createdAt: new Date(),
+      };
+      vi.mocked(prisma.allowlistEntry.upsert).mockResolvedValue(mockEntry);
       await expect(addEmail('guest@gmail.com')).resolves.toBeUndefined();
+    });
+
+    it('throws on invalid email format', async () => {
+      await expect(addEmail('notanemail')).rejects.toThrow('Invalid email format');
+      await expect(addEmail('missing@domain')).rejects.toThrow('Invalid email format');
     });
   });
 
   describe('removeEmail', () => {
-    it('calls deleteMany for type="email" + value', async () => {
+    it('calls deleteMany for type="email" + normalized value', async () => {
       vi.mocked(prisma.allowlistEntry.deleteMany).mockResolvedValue({ count: 1 });
-      await removeEmail('guest@gmail.com');
+      await removeEmail('Guest@Gmail.com');
       expect(prisma.allowlistEntry.deleteMany).toHaveBeenCalledWith({
         where: { type: 'email', value: 'guest@gmail.com' },
       });

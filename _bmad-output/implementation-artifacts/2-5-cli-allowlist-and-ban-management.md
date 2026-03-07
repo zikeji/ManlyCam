@@ -1,6 +1,6 @@
 # Story 2.5: CLI Allowlist and Ban Management
 
-Status: review
+Status: done
 
 ## Story
 
@@ -436,6 +436,26 @@ apps/server/src/cli/commands/users.ts (new)
 apps/server/src/cli/commands/.gitkeep (deleted)
 apps/server/vitest.config.ts (modified)
 
+## Code Review Fixes
+
+**Performed:** 2026-03-07 (adversarial code review)
+
+**Issues Found & Fixed:**
+
+1. **Email case sensitivity bug** (HIGH) — `removeEmail()` and `banUser()` now normalize emails to lowercase, preventing orphaned entries and lookup failures
+2. **Email format validation** (MEDIUM) — `addEmail()` validates format using regex `/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/`
+3. **Domain format validation** (MEDIUM) — `addDomain()` validates format using regex `/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i`
+4. **Race condition in banUser** (MEDIUM) — Added try-catch to handle Prisma P2025 error if user deleted between findUnique and transaction
+5. **CLI help text** (LOW) — Enhanced usage message with full action descriptions and examples
+6. **Missing logging** (LOW) — Added structured logging to service operations (allowlist_entry_added, user_banned, etc.)
+7. **Test type safety** (LOW) — Replaced `as never` casts with proper `AllowlistEntry` and `User` types, added 5 new test cases
+
+**Results:**
+- All 61 tests pass (5 new tests added)
+- Coverage improved: statements 86.14% → 86.75%, lines 86.14% → 86.75%
+- All thresholds met: lines ✓ 86.75%, branches ✓ 89.02%, functions ✓ 82.6%
+
 ## Change Log
 
-- 2026-03-07: Story 2.5 implemented — CLI allowlist & ban management service layer and entry point; 13 new tests; coverage thresholds raised (Date: 2026-03-07)
+- 2026-03-07: Story 2.5 code review completed — fixed 7 issues; improved email/domain validation, race condition handling, logging, and test coverage
+- 2026-03-07: Story 2.5 implemented — CLI allowlist & ban management service layer and entry point; 13 new tests; coverage thresholds raised

@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { Prisma } from '@prisma/client';
+import type { User } from '@prisma/client';
 
 vi.mock('../db/client.js', () => ({
   prisma: {
@@ -13,6 +15,12 @@ vi.mock('../db/client.js', () => ({
   },
 }));
 
+vi.mock('../lib/logger.js', () => ({
+  logger: {
+    info: vi.fn(),
+  },
+}));
+
 import { prisma } from '../db/client.js';
 import { banUser, unbanUser } from './userService.js';
 
@@ -22,6 +30,14 @@ describe('userService', () => {
   });
 
   describe('banUser', () => {
+    it('normalizes email to lowercase before lookup', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      await expect(banUser('User@Example.COM')).rejects.toThrow();
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
+      });
+    });
+
     it('throws if user not found', async () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
       await expect(banUser('nobody@example.com')).rejects.toThrow(
@@ -31,11 +47,24 @@ describe('userService', () => {
     });
 
     it('executes atomic transaction setting bannedAt and deleting sessions', async () => {
-      const mockUser = { id: 'user-1', email: 'user@example.com' };
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser as never);
+      const mockUser: User = {
+        id: 'user-1',
+        googleSub: 'google-1',
+        email: 'user@example.com',
+        displayName: 'Test User',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTagText: null,
+        userTagColor: null,
+        mutedAt: null,
+        bannedAt: null,
+        createdAt: new Date(),
+        lastSeenAt: null,
+      };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
       vi.mocked(prisma.$transaction).mockResolvedValue([
-        { id: 'user-1', bannedAt: new Date() } as never,
-        { count: 2 } as never,
+        { ...mockUser, bannedAt: new Date() },
+        { count: 2 },
       ]);
 
       const result = await banUser('user@example.com');
@@ -51,18 +80,65 @@ describe('userService', () => {
     });
 
     it('returns correct sessionCount from transaction result', async () => {
-      vi.mocked(prisma.user.findUnique).mockResolvedValue({ id: 'user-2' } as never);
+      const mockUser: User = {
+        id: 'user-2',
+        googleSub: 'google-2',
+        email: 'user2@example.com',
+        displayName: 'Test User 2',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTagText: null,
+        userTagColor: null,
+        mutedAt: null,
+        bannedAt: null,
+        createdAt: new Date(),
+        lastSeenAt: null,
+      };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
       vi.mocked(prisma.$transaction).mockResolvedValue([
-        { id: 'user-2', bannedAt: new Date() } as never,
-        { count: 5 } as never,
+        { ...mockUser, bannedAt: new Date() },
+        { count: 5 },
       ]);
 
       const result = await banUser('user2@example.com');
       expect(result.sessionCount).toBe(5);
     });
+
+    it('catches race condition when user is deleted before transaction', async () => {
+      const mockUser: User = {
+        id: 'user-1',
+        googleSub: 'google-1',
+        email: 'user@example.com',
+        displayName: 'Test User',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTagText: null,
+        userTagColor: null,
+        mutedAt: null,
+        bannedAt: null,
+        createdAt: new Date(),
+        lastSeenAt: null,
+      };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
+      const error = new Prisma.PrismaClientKnownRequestError('Record not found', {
+        code: 'P2025',
+        clientVersion: '0.0.1',
+      });
+      vi.mocked(prisma.$transaction).mockRejectedValue(error);
+
+      await expect(banUser('user@example.com')).rejects.toThrow('User not found: user@example.com');
+    });
   });
 
   describe('unbanUser', () => {
+    it('normalizes email to lowercase before lookup', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      await expect(unbanUser('User@Example.COM')).rejects.toThrow();
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'user@example.com' },
+      });
+    });
+
     it('throws if user not found', async () => {
       vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
       await expect(unbanUser('nobody@example.com')).rejects.toThrow(
@@ -72,9 +148,22 @@ describe('userService', () => {
     });
 
     it('sets bannedAt to null for existing user', async () => {
-      const mockUser = { id: 'user-1', email: 'user@example.com' };
-      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser as never);
-      vi.mocked(prisma.user.update).mockResolvedValue(mockUser as never);
+      const mockUser: User = {
+        id: 'user-1',
+        googleSub: 'google-1',
+        email: 'user@example.com',
+        displayName: 'Test User',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTagText: null,
+        userTagColor: null,
+        mutedAt: null,
+        bannedAt: new Date(),
+        createdAt: new Date(),
+        lastSeenAt: null,
+      };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
+      vi.mocked(prisma.user.update).mockResolvedValue({ ...mockUser, bannedAt: null });
 
       await unbanUser('user@example.com');
 
