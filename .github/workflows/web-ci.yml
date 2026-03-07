@@ -14,6 +14,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      checks: write
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -28,6 +30,12 @@ jobs:
       - run: pnpm --filter @manlycam/web lint
       - run: pnpm --filter @manlycam/web typecheck
       - run: pnpm --filter @manlycam/web exec vitest run --coverage
+      - name: Report coverage
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          json-summary-path: apps/web/coverage/coverage-summary.json
+          json-final-path: apps/web/coverage/coverage-final.json
+          vite-config-path: apps/web/vite.config.ts
       - run: pnpm --filter @manlycam/web build
       - name: Log in to GHCR
         uses: docker/login-action@v3

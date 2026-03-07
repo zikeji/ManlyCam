@@ -18,6 +18,7 @@ export const config = defineConfig({
     environment: 'jsdom',
     coverage: {
       provider: 'v8',
+      reporter: ['text', 'json-summary', 'json'],
       include: ['src/**/*.ts', 'src/**/*.vue'],
       exclude: ['src/**/*.test.ts', 'src/main.ts'],
       // Thresholds recorded from actual coverage run (Story 2.1c, 2026-03-07)
