@@ -11,14 +11,33 @@ export const useAuth = () => {
   const fetchCurrentUser = async (): Promise<void> => {
     try {
       user.value = await apiFetch<MeResponse>('/api/me');
-    } catch {
-      user.value = null;
+    } catch (err) {
+      // Distinguish between auth errors and network errors
+      const isAuthError = err instanceof Error && 'code' in err && err.code === 'UNAUTHORIZED';
+      if (isAuthError) {
+        user.value = null;
+      } else {
+        console.warn('Failed to fetch user, will retry:', err);
+      }
     }
   };
 
   const logout = async (): Promise<void> => {
-    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    try {
+      const res = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      if (!res.ok) {
+        throw new Error(`Logout failed with status ${res.status}`);
+      }
+    } catch (err) {
+      console.error('Logout failed:', err);
+      // Note: In a real app, would use a toast notification system
+      // For now, log the error and return early to prevent logout
+      return;
+    }
     user.value = null;
+    // Lazy import to avoid test environment issues (window undefined)
+    const { invalidateRouterCache } = await import('@/router');
+    invalidateRouterCache();
     await router.push('/');
   };
 

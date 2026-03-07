@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { env } from './env.js';
 import { AppError } from './lib/errors.js';
@@ -12,6 +13,8 @@ import { authMiddleware } from './middleware/auth.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { meRouter } from './routes/me.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export function createApp() {
   const app = new Hono<AppEnv>();
@@ -29,9 +32,11 @@ export function createApp() {
 
   // SPA catch-all: serve Vue dist in production
   if (env.NODE_ENV === 'production') {
-    app.use('/*', serveStatic({ root: '../web/dist' }));
+    const distPath = join(__dirname, '../../web/dist');
+    app.use('/*', serveStatic({ root: distPath }));
     app.get('/*', (c) => {
-      const indexHtml = readFileSync(join(process.cwd(), '../web/dist/index.html'), 'utf-8');
+      const indexHtmlPath = join(distPath, 'index.html');
+      const indexHtml = readFileSync(indexHtmlPath, 'utf-8');
       return c.html(indexHtml);
     });
   }

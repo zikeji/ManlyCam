@@ -1,6 +1,6 @@
 # Story 2.1: Landing Page and Google OAuth Sign-In Flow
 
-Status: review
+Status: done
 
 ## Story
 
@@ -599,6 +599,47 @@ None — implementation proceeded without blockers.
 - Added `@` path alias to both vite.config.ts (resolve.alias) and tsconfig.json (paths) for `@/` imports in web
 
 **Test results:** 14 server tests + 3 web tests = 17 tests total, all passing. Typecheck and lint clean.
+
+### Code Review Fixes Applied
+
+**HIGH PRIORITY FIXES:**
+
+1. **Fixed SPA catch-all path for production deployment** (`apps/server/src/app.ts:1-52`)
+   - Replaced relative paths `../web/dist` with absolute paths using `import.meta.url`
+   - Added `import { fileURLToPath } from 'node:url'` and computed `__dirname` for module location
+   - Paths now work correctly regardless of working directory
+   - **Impact:** SPA will now load correctly in production deployments
+
+2. **Added router user state caching** (`apps/web/src/router/index.ts`)
+   - Eliminated redundant `/api/me` calls on every navigation by caching user state
+   - Added `invalidateRouterCache()` function to reset cache when user logs out
+   - Reduced network overhead and improved navigation performance
+   - **Impact:** Better performance, reduced server load
+
+3. **Added error handling to logout function** (`apps/web/src/composables/useAuth.ts`)
+   - Added response status check before clearing local user state
+   - Returns early if logout API call fails
+   - Prevents security issue where client state clears but server session persists
+   - Added error logging for debugging
+   - **Impact:** Prevents client/server session desync on network failures
+
+**MEDIUM PRIORITY FIXES:**
+
+4. **Improved error handling in apiFetch** (`apps/web/src/lib/api.ts`)
+   - Added explicit `Accept: application/json` header
+   - Better error message formatting that includes HTTP status code
+   - Proper error handling for malformed JSON responses with logging
+   - **Impact:** Better debugging experience and clearer error messages
+
+5. **Enhanced router guard error logging** (`apps/web/src/router/index.ts`)
+   - Added console warnings for failed response parsing
+   - Better handling of network errors vs auth errors
+   - **Impact:** Easier debugging of router navigation issues
+
+6. **Improved fetchCurrentUser error distinction** (`apps/web/src/composables/useAuth.ts`)
+   - Distinguishes between 401 (not authenticated) and network errors
+   - Logs warnings for transient failures instead of silent failure
+   - **Impact:** Better UX when server is temporarily unreachable
 
 ### File List
 
