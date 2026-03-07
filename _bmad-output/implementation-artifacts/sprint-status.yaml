@@ -54,7 +54,7 @@ development_status:
   2-1b-design-system-foundation-and-landing-page-polish: done
   2-1c-test-coverage-audit-and-baseline-enforcement: done
   2-2-allowlist-enforcement-and-rejection-handling: done
-  2-3-session-persistence-and-auth-middleware: backlog
+  2-3-session-persistence-and-auth-middleware: review
   2-4-avatar-resolution-and-gravatar-fallback: backlog
   2-5-cli-allowlist-and-ban-management: backlog
   epic-2-retrospective: optional

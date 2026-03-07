@@ -15,8 +15,11 @@ RUN pnpm install --frozen-lockfile
 # Generate Prisma client (must run before build so TS can resolve generated types)
 RUN pnpm --filter @manlycam/server exec prisma generate
 
+# Build shared types package first (server tsc paths resolve to dist/*.d.ts)
+RUN pnpm --filter @manlycam/types build
+
 # Compile TypeScript
-RUN pnpm --filter @manlycam/server build
+RUN pnpm --filter @manlycam/server exec tsc
 
 # Stage 2: Runtime
 FROM node:20-alpine AS runner

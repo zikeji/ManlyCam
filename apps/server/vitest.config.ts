@@ -7,11 +7,11 @@ export const vitestConfig = defineConfig({
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/index.ts'],
-      // Thresholds recorded from actual coverage run (Story 2.2, 2026-03-07)
+      // Thresholds recorded from actual coverage run (Story 2.3, 2026-03-07)
       thresholds: {
         lines: 83,
-        functions: 73,
-        branches: 85,
+        functions: 75,
+        branches: 86,
         statements: 83,
       },
     },

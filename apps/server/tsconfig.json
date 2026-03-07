@@ -10,8 +10,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "paths": {
-      "@manlycam/types": ["../../packages/types/src/index.ts"],
-      "@manlycam/types/*": ["../../packages/types/src/*"]
+      "@manlycam/types": ["../../packages/types/dist/index.d.ts"],
+      "@manlycam/types/*": ["../../packages/types/dist/*"]
     }
   },
   "exclude": ["node_modules", "dist", "vitest.config.ts"]

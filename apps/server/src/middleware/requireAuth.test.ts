@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../env.js', () => ({
   env: { NODE_ENV: 'test', BASE_URL: 'http://localhost:3000' },
@@ -16,8 +16,12 @@ import { getSessionUser } from '../services/authService.js';
 import type { AppEnv } from '../lib/types.js';
 
 describe('requireAuth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('passes to next handler when user is authenticated', async () => {
-    const mockUser = { id: 'user-1', email: 'test@example.com' };
+    const mockUser = { id: 'user-1', email: 'test@example.com', bannedAt: null };
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
 
     const app = new Hono<AppEnv>();
@@ -45,6 +49,23 @@ describe('requireAuth', () => {
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error.code).toBe('UNAUTHORIZED');
-    expect(body.error).toEqual({ code: 'UNAUTHORIZED' });
+    expect(body.error.message).toBeDefined();
+  });
+
+  it('returns 401 BANNED when authenticated user is banned', async () => {
+    const bannedUser = { id: 'user-1', email: 'test@example.com', bannedAt: new Date() };
+    vi.mocked(getSessionUser).mockResolvedValue(bannedUser as never);
+
+    const app = new Hono<AppEnv>();
+    app.use('*', authMiddleware);
+    app.use('*', requireAuth);
+    app.get('/protected', (c) => c.json({ ok: true }));
+
+    const res = await app.request('/protected', {
+      headers: { cookie: 'session_id=banned-user-session' },
+    });
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error.code).toBe('BANNED');
   });
 });
