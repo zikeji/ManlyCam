@@ -25,7 +25,7 @@ vi.mock('../middleware/auth.js', () => ({
 }));
 
 import { createApp } from '../app.js';
-import { initiateOAuth, destroySession } from '../services/authService.js';
+import { initiateOAuth, destroySession, processOAuthCallback } from '../services/authService.js';
 
 describe('auth routes', () => {
   beforeEach(() => {
@@ -92,16 +92,23 @@ describe('auth routes', () => {
   });
 
   describe('GET /api/auth/google/callback', () => {
-    it('validates state parameter against cookie (CSRF protection)', async () => {
-      const app = createApp();
-      const res = await app.request('/api/auth/google/callback?code=auth-code&state=wrong-state', {
-        headers: { cookie: 'oauth_state=cookie-state' },
+    it('completes successful OAuth callback and sets session cookie', async () => {
+      vi.mocked(processOAuthCallback).mockResolvedValue({
+        sessionId: 'session-123',
+        redirectTo: '/',
       });
-      // State validation happens in processOAuthCallback which is mocked
-      // The route handler accepts all three parameters, so we get here
-      // The mock returns undefined, causing destructuring error → 500
-      // This is a limitation of the mock setup; the real validation is tested via processOAuthCallback tests
-      expect(res.status).toBe(500); // Mocked processOAuthCallback returns undefined
+      const app = createApp();
+      const res = await app.request('/api/auth/google/callback?code=auth-code&state=test-state', {
+        headers: { cookie: 'oauth_state=test-state' },
+      });
+      expect(res.status).toBe(302);
+      const location = res.headers.get('location');
+      expect(location).toBe('/');
+      const cookieHeader = res.headers.get('set-cookie') ?? '';
+      expect(cookieHeader).toContain('session_id=session-123');
+      expect(cookieHeader).toContain('HttpOnly');
+      expect(cookieHeader).toContain('SameSite=Strict');
+      expect(cookieHeader).toContain('Max-Age=' + 60 * 60 * 24 * 30);
     });
 
     it('returns 401 when state parameter is missing', async () => {

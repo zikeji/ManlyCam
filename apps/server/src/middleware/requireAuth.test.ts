@@ -45,5 +45,6 @@ describe('requireAuth', () => {
     expect(res.status).toBe(401);
     const body = await res.json();
     expect(body.error.code).toBe('UNAUTHORIZED');
+    expect(body.error).toEqual({ code: 'UNAUTHORIZED' });
   });
 });
