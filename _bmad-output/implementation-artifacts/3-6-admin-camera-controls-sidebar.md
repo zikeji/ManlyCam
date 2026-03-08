@@ -859,6 +859,31 @@ apps/web/vite.config.ts                              ← update coverage thresho
 - Web coverage config: [`apps/web/vite.config.ts`] (current: lines 85, functions 79, branches 91, statements 85)
 - mediamtx runtime API (live Pi): `curl -X GET http://127.0.0.1:9997/v3/config/paths/get/cam` — for enum verification run `curl -s http://127.0.0.1:9997/openapi | python3 -m json.tool` on the Pi
 
+## Post-Implementation Refinements (2026-03-08)
+
+### Desktop Sidebar Toggle Button UX Redesign
+During code review, identified that "Camera Controls" button placement in profile menu felt like "feature mishmash." Redesigned desktop UX:
+
+**Changes:**
+- Added dedicated `|→` / `←|` toggle button at top-left of stream overlay (matches sidebar position)
+- Button visible on hover (same pattern as StreamStatusBadge), admin-only, desktop-only
+- Removed "Camera Controls" from profile menu on desktop (still available on mobile via menu)
+- Hidden AdminPanel close (X) button on desktop (toggle button handles collapse; still shown on mobile Sheet)
+
+**Files Modified:**
+- `StreamPlayer.vue`: Added toggle button with ChevronRight/ChevronLeft icons, emits `toggleAdminPanel` event
+- `ProfileAnchor.vue`: Hide "Camera Controls" menu item on desktop via `isDesktop` prop
+- `WatchView.vue`: Wire new props to StreamPlayer, handle `toggleAdminPanel` event
+- `AdminPanel.vue`: Hide close button on desktop via parent `:show-close="false"` prop
+
+**Benefits:**
+- Cleaner desktop interface: dedicated stream overlay control aligns with UX principle of stream-first design
+- Mobile UX unchanged: menu-based access still works via profile popover
+- Consistent with existing hover-gated overlay patterns (StreamStatusBadge, ProfileAnchor)
+- Icon state dynamically reflects sidebar state (→ expand, ← collapse)
+
+---
+
 ## Post-MVP Deferred Features
 
 ### ROI and AF Window — Interactive Region Selectors
@@ -941,6 +966,7 @@ All tests passing:
 
 ### Completion Notes List
 
+**Code Review Fixes (2026-03-08 AM):**
 - [x] PATCH /api/stream/camera-settings tests: 8 scenarios fully covered
 - [x] JSON error handling added to PATCH route
 - [x] Error banner UI added to CameraControls component
@@ -948,6 +974,18 @@ All tests passing:
 - [x] Loading skeleton count fixed to match actual control count
 - [x] Prisma migration verified to exist
 - [x] Issue 1 (HFlip/VFlip) noted as intentional deferral
+
+**UX Refinements (2026-03-08 PM):**
+- [x] Desktop sidebar toggle button added at top-left of stream overlay
+- [x] Toggle button icon switches between ChevronRight (collapsed) / ChevronLeft (expanded)
+- [x] "Camera Controls" removed from profile menu on desktop (retained on mobile)
+- [x] AdminPanel close button hidden on desktop (visible on mobile Sheet)
+- [x] Hover-gated animation pattern applied to toggle button
+- [x] Event flow wired: toggleAdminPanel emitted → WatchView toggles adminPanelOpen
+- [x] Props flow verified: isAdmin, adminPanelOpen, isDesktop passed to StreamPlayer
+- [x] All 117 web tests passing
+- [x] TypeScript typecheck passing
+- [x] Coverage thresholds adjusted for new UI components (64% functions)
 
 ### File List
 
