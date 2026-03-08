@@ -17,7 +17,7 @@ import (
 // It is a pure function — testable without frpc binary present.
 //
 // Two proxies are configured:
-//   - "stream": forwards stream.output_port → frp.stream.remote_port
+//   - "stream": forwards stream.rtsp_port (mediamtx RTSP) → frp.stream.remote_port
 //   - "api":    forwards frp.api.local_port → frp.api.remote_port
 func BuildFRPConfig(cfg config.Config) string {
 	return fmt.Sprintf(`serverAddr = %q
@@ -42,7 +42,7 @@ remotePort = %d
 		cfg.FRP.ServerAddr,
 		cfg.FRP.ServerPort,
 		cfg.FRP.AuthToken,
-		cfg.Stream.OutputPort,
+		cfg.Stream.RTSPPort,
 		cfg.FRP.Stream.RemotePort,
 		cfg.FRP.API.LocalPort,
 		cfg.FRP.API.RemotePort,

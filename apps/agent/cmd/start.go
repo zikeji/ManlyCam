@@ -18,7 +18,7 @@ var configPath string
 
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start the ManlyCam agent — camera pipeline and frp tunnels",
+	Short: "Start the ManlyCam agent — mediamtx RTSP server and frp tunnels",
 	RunE:  runStart,
 }
 

@@ -11,7 +11,7 @@ import (
 func testConfig() config.Config {
 	return config.Config{
 		Stream: config.StreamConfig{
-			OutputPort: 5000,
+			RTSPPort: 8554,
 		},
 		FRP: config.FRPConfig{
 			ServerAddr: "upstream.example.com",
@@ -43,7 +43,7 @@ func TestBuildFRPConfig_ServerFields(t *testing.T) {
 
 func TestBuildFRPConfig_StreamProxy(t *testing.T) {
 	out := tunnel.BuildFRPConfig(testConfig())
-	if !strings.Contains(out, "localPort = 5000") {
+	if !strings.Contains(out, "localPort = 8554") {
 		t.Errorf("stream localPort mismatch; got:\n%s", out)
 	}
 	if !strings.Contains(out, "remotePort = 11935") {

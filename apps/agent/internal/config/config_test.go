@@ -13,10 +13,10 @@ const validTOML = `
 width = 2328
 height = 1748
 framerate = 30
-codec = "mjpeg"
 hflip = true
 vflip = true
-output_port = 5000
+rtsp_port = 8554
+api_port = 9997
 
 [frp]
 server_addr = "upstream.example.com"
@@ -27,7 +27,7 @@ auth_token = "supersecret"
 remote_port = 11935
 
 [frp.api]
-local_port = 8080
+local_port = 9997
 remote_port = 11936
 
 [update]
@@ -59,17 +59,17 @@ func TestLoad_ValidTOML(t *testing.T) {
 	if cfg.Stream.Framerate != 30 {
 		t.Errorf("Stream.Framerate = %d, want 30", cfg.Stream.Framerate)
 	}
-	if cfg.Stream.Codec != "mjpeg" {
-		t.Errorf("Stream.Codec = %q, want %q", cfg.Stream.Codec, "mjpeg")
-	}
 	if !cfg.Stream.HFlip {
 		t.Error("Stream.HFlip = false, want true")
 	}
 	if !cfg.Stream.VFlip {
 		t.Error("Stream.VFlip = false, want true")
 	}
-	if cfg.Stream.OutputPort != 5000 {
-		t.Errorf("Stream.OutputPort = %d, want 5000", cfg.Stream.OutputPort)
+	if cfg.Stream.RTSPPort != 8554 {
+		t.Errorf("Stream.RTSPPort = %d, want 8554", cfg.Stream.RTSPPort)
+	}
+	if cfg.Stream.APIPort != 9997 {
+		t.Errorf("Stream.APIPort = %d, want 9997", cfg.Stream.APIPort)
 	}
 	if cfg.FRP.ServerAddr != "upstream.example.com" {
 		t.Errorf("FRP.ServerAddr = %q, want %q", cfg.FRP.ServerAddr, "upstream.example.com")
@@ -83,8 +83,8 @@ func TestLoad_ValidTOML(t *testing.T) {
 	if cfg.FRP.Stream.RemotePort != 11935 {
 		t.Errorf("FRP.Stream.RemotePort = %d, want 11935", cfg.FRP.Stream.RemotePort)
 	}
-	if cfg.FRP.API.LocalPort != 8080 {
-		t.Errorf("FRP.API.LocalPort = %d, want 8080", cfg.FRP.API.LocalPort)
+	if cfg.FRP.API.LocalPort != 9997 {
+		t.Errorf("FRP.API.LocalPort = %d, want 9997", cfg.FRP.API.LocalPort)
 	}
 	if cfg.FRP.API.RemotePort != 11936 {
 		t.Errorf("FRP.API.RemotePort = %d, want 11936", cfg.FRP.API.RemotePort)
@@ -94,7 +94,8 @@ func TestLoad_ValidTOML(t *testing.T) {
 func TestLoad_MissingServerAddr(t *testing.T) {
 	const tomlContent = `
 [stream]
-output_port = 5000
+rtsp_port = 8554
+api_port = 9997
 
 [frp]
 server_port = 7000
@@ -128,8 +129,8 @@ func TestLoad_InvalidServerPort(t *testing.T) {
 width = 1920
 height = 1080
 framerate = 30
-codec = "h264"
-output_port = 5000
+rtsp_port = 8554
+api_port = 9997
 
 [frp]
 server_addr = "upstream.example.com"
@@ -140,7 +141,7 @@ auth_token = "secret"
 remote_port = 11935
 
 [frp.api]
-local_port = 8080
+local_port = 9997
 remote_port = 11936
 `
 	path := writeTempConfig(t, tomlContent)
@@ -156,8 +157,8 @@ func TestLoad_InvalidWidth(t *testing.T) {
 width = 0
 height = 1080
 framerate = 30
-codec = "h264"
-output_port = 5000
+rtsp_port = 8554
+api_port = 9997
 
 [frp]
 server_addr = "upstream.example.com"
@@ -168,7 +169,7 @@ auth_token = "secret"
 remote_port = 11935
 
 [frp.api]
-local_port = 8080
+local_port = 9997
 remote_port = 11936
 `
 	path := writeTempConfig(t, tomlContent)
@@ -178,13 +179,13 @@ remote_port = 11936
 	}
 }
 
-func TestLoad_MissingCodec(t *testing.T) {
+func TestLoad_MissingAPIPort(t *testing.T) {
 	const tomlContent = `
 [stream]
 width = 1920
 height = 1080
 framerate = 30
-output_port = 5000
+rtsp_port = 8554
 
 [frp]
 server_addr = "upstream.example.com"
@@ -195,12 +196,39 @@ auth_token = "secret"
 remote_port = 11935
 
 [frp.api]
-local_port = 8080
+local_port = 9997
 remote_port = 11936
 `
 	path := writeTempConfig(t, tomlContent)
 	_, err := config.Load(path)
 	if err == nil {
-		t.Fatal("Load() expected error for missing codec, got nil")
+		t.Fatal("Load() expected error for missing api_port, got nil")
+	}
+}
+
+func TestLoad_MissingRTSPPort(t *testing.T) {
+	const tomlContent = `
+[stream]
+width = 1920
+height = 1080
+framerate = 30
+api_port = 9997
+
+[frp]
+server_addr = "upstream.example.com"
+server_port = 7000
+auth_token = "secret"
+
+[frp.stream]
+remote_port = 11935
+
+[frp.api]
+local_port = 9997
+remote_port = 11936
+`
+	path := writeTempConfig(t, tomlContent)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("Load() expected error for missing rtsp_port, got nil")
 	}
 }

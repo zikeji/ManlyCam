@@ -1,85 +1,89 @@
 package camera_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/zikeji/ManlyCam/apps/agent/internal/camera"
 	"github.com/zikeji/ManlyCam/apps/agent/internal/config"
 )
 
-func TestBuildArgs_HFlipVFlip(t *testing.T) {
-	cfg := config.StreamConfig{
-		Width: 1920, Height: 1080, Framerate: 30, Codec: "h264",
-		HFlip: true, VFlip: true, OutputPort: 5000,
-	}
-	args := camera.BuildArgs(cfg)
-	if !contains(args, "--hflip") {
-		t.Error("expected --hflip in args when hflip=true")
-	}
-	if !contains(args, "--vflip") {
-		t.Error("expected --vflip in args when vflip=true")
+func TestBuildMTXConfig_RTSPPort(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 1920, Height: 1080, Framerate: 30}
+	out := camera.BuildMTXConfig(cfg)
+	if !strings.Contains(out, ":8554") {
+		t.Errorf("expected :8554 in config; got:\n%s", out)
 	}
 }
 
-func TestBuildArgs_NoFlip(t *testing.T) {
-	cfg := config.StreamConfig{
-		Width: 1920, Height: 1080, Framerate: 30, Codec: "h264",
-		HFlip: false, VFlip: false, OutputPort: 5000,
+func TestBuildMTXConfig_APIAddress(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 1920, Height: 1080, Framerate: 30}
+	out := camera.BuildMTXConfig(cfg)
+	if !strings.Contains(out, "api: yes") {
+		t.Errorf("expected api: yes; got:\n%s", out)
 	}
-	args := camera.BuildArgs(cfg)
-	if contains(args, "--hflip") {
-		t.Error("expected --hflip NOT in args when hflip=false")
-	}
-	if contains(args, "--vflip") {
-		t.Error("expected --vflip NOT in args when vflip=false")
+	if !strings.Contains(out, `apiAddress: "127.0.0.1:9997"`) {
+		t.Errorf("expected apiAddress: \"127.0.0.1:9997\"; got:\n%s", out)
 	}
 }
 
-func TestBuildArgs_OutputAndCodec(t *testing.T) {
-	cfg := config.StreamConfig{
-		Width: 640, Height: 480, Framerate: 15, Codec: "mjpeg",
-		OutputPort: 5000,
+func TestBuildMTXConfig_Dimensions(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 2328, Height: 1748, Framerate: 30}
+	out := camera.BuildMTXConfig(cfg)
+	if !strings.Contains(out, "rpiCameraWidth: 2328") {
+		t.Errorf("expected rpiCameraWidth: 2328; got:\n%s", out)
 	}
-	args := camera.BuildArgs(cfg)
-	if !containsPair(args, "-o", "tcp://0.0.0.0:5000") {
-		t.Errorf("expected -o tcp://0.0.0.0:5000 in args; got %v", args)
+	if !strings.Contains(out, "rpiCameraHeight: 1748") {
+		t.Errorf("expected rpiCameraHeight: 1748; got:\n%s", out)
 	}
-	if !containsPair(args, "--codec", "mjpeg") {
-		t.Errorf("expected --codec mjpeg in args; got %v", args)
-	}
-}
-
-func TestBuildArgs_Dimensions(t *testing.T) {
-	cfg := config.StreamConfig{
-		Width: 2328, Height: 1748, Framerate: 30, Codec: "h264",
-		OutputPort: 5000,
-	}
-	args := camera.BuildArgs(cfg)
-	if !containsPair(args, "--width", "2328") {
-		t.Errorf("expected --width 2328 in args; got %v", args)
-	}
-	if !containsPair(args, "--height", "1748") {
-		t.Errorf("expected --height 1748 in args; got %v", args)
-	}
-	if !containsPair(args, "--framerate", "30") {
-		t.Errorf("expected --framerate 30 in args; got %v", args)
+	if !strings.Contains(out, "rpiCameraFPS: 30") {
+		t.Errorf("expected rpiCameraFPS: 30; got:\n%s", out)
 	}
 }
 
-func contains(args []string, s string) bool {
-	for _, a := range args {
-		if a == s {
-			return true
-		}
+func TestBuildMTXConfig_HFlipVFlip(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 1920, Height: 1080, Framerate: 30, HFlip: true, VFlip: true}
+	out := camera.BuildMTXConfig(cfg)
+	if !strings.Contains(out, "rpiCameraHFlip: true") {
+		t.Errorf("expected rpiCameraHFlip: true; got:\n%s", out)
 	}
-	return false
+	if !strings.Contains(out, "rpiCameraVFlip: true") {
+		t.Errorf("expected rpiCameraVFlip: true; got:\n%s", out)
+	}
 }
 
-func containsPair(args []string, key, val string) bool {
-	for i := 0; i < len(args)-1; i++ {
-		if args[i] == key && args[i+1] == val {
-			return true
-		}
+func TestBuildMTXConfig_NoFlip(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 1920, Height: 1080, Framerate: 30}
+	out := camera.BuildMTXConfig(cfg)
+	if !strings.Contains(out, "rpiCameraHFlip: false") {
+		t.Errorf("expected rpiCameraHFlip: false; got:\n%s", out)
 	}
-	return false
+	if !strings.Contains(out, "rpiCameraVFlip: false") {
+		t.Errorf("expected rpiCameraVFlip: false; got:\n%s", out)
+	}
+}
+
+func TestBuildMTXConfig_TuningFile(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 1920, Height: 1080, Framerate: 30,
+		TuningFile: "/usr/share/libcamera/ipa/rpi/vc4/imx519.json"}
+	out := camera.BuildMTXConfig(cfg)
+	if !strings.Contains(out, "rpiCameraTuningFile: /usr/share/libcamera/ipa/rpi/vc4/imx519.json") {
+		t.Errorf("expected rpiCameraTuningFile in config; got:\n%s", out)
+	}
+}
+
+func TestBuildMTXConfig_NoTuningFile(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 1920, Height: 1080, Framerate: 30}
+	out := camera.BuildMTXConfig(cfg)
+	if strings.Contains(out, "rpiCameraTuningFile") {
+		t.Errorf("expected no rpiCameraTuningFile when not set; got:\n%s", out)
+	}
+}
+
+func TestBuildMTXConfig_StreamPath(t *testing.T) {
+	cfg := config.StreamConfig{RTSPPort: 8554, APIPort: 9997, Width: 1920, Height: 1080, Framerate: 30}
+	out := camera.BuildMTXConfig(cfg)
+	if !strings.Contains(out, "source: rpiCamera") {
+		t.Errorf("expected source: rpiCamera; got:\n%s", out)
+	}
 }

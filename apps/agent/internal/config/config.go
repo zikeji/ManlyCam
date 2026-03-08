@@ -15,15 +15,19 @@ type Config struct {
 	Update UpdateConfig `toml:"update"`
 }
 
-// StreamConfig holds rpicam-vid camera pipeline settings.
+// StreamConfig holds mediamtx camera pipeline settings.
+// mediamtx supervises the libcamera source internally and exposes:
+//   - RTSP at rtsp://localhost:<rtsp_port>/cam  (frp stream tunnel)
+//   - HTTP API at 127.0.0.1:<api_port>          (frp api tunnel → server proxy for Story 3.6 controls)
 type StreamConfig struct {
-	Width      int    `toml:"width"`
-	Height     int    `toml:"height"`
-	Framerate  int    `toml:"framerate"`
-	Codec      string `toml:"codec"`
-	HFlip      bool   `toml:"hflip"`
-	VFlip      bool   `toml:"vflip"`
-	OutputPort int    `toml:"output_port"`
+	Width     int  `toml:"width"`
+	Height    int  `toml:"height"`
+	Framerate int  `toml:"framerate"`
+	HFlip     bool `toml:"hflip"`
+	VFlip     bool `toml:"vflip"`
+	RTSPPort    int    `toml:"rtsp_port"`
+	APIPort     int    `toml:"api_port"`
+	TuningFile  string `toml:"tuning_file"`
 }
 
 // FRPConfig holds frpc tunnel settings.
@@ -81,20 +85,23 @@ func (c *Config) validate() error {
 	if c.FRP.AuthToken == "" {
 		return fmt.Errorf("config: frp.auth_token is required")
 	}
-	if c.Stream.OutputPort == 0 {
-		return fmt.Errorf("config: stream.output_port is required")
+	if c.Stream.RTSPPort == 0 {
+		return fmt.Errorf("config: stream.rtsp_port is required")
 	}
-	if c.Stream.OutputPort < 1 || c.Stream.OutputPort > 65535 {
-		return fmt.Errorf("config: stream.output_port must be 1-65535, got %d", c.Stream.OutputPort)
+	if c.Stream.RTSPPort < 1 || c.Stream.RTSPPort > 65535 {
+		return fmt.Errorf("config: stream.rtsp_port must be 1-65535, got %d", c.Stream.RTSPPort)
+	}
+	if c.Stream.APIPort == 0 {
+		return fmt.Errorf("config: stream.api_port is required")
+	}
+	if c.Stream.APIPort < 1 || c.Stream.APIPort > 65535 {
+		return fmt.Errorf("config: stream.api_port must be 1-65535, got %d", c.Stream.APIPort)
 	}
 	if c.Stream.Width <= 0 {
 		return fmt.Errorf("config: stream.width must be positive, got %d", c.Stream.Width)
 	}
 	if c.Stream.Height <= 0 {
 		return fmt.Errorf("config: stream.height must be positive, got %d", c.Stream.Height)
-	}
-	if c.Stream.Codec == "" {
-		return fmt.Errorf("config: stream.codec is required")
 	}
 	if c.FRP.Stream.RemotePort < 1 || c.FRP.Stream.RemotePort > 65535 {
 		return fmt.Errorf("config: frp.stream.remote_port must be 1-65535, got %d", c.FRP.Stream.RemotePort)
