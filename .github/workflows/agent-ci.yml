@@ -18,7 +18,7 @@ jobs:
     if: "!startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       checks: write
       pull-requests: write
     defaults:
@@ -33,7 +33,8 @@ jobs:
       - uses: gwatts/go-coverage-action@v2
         with:
           coverage-threshold: 38
-          cover-pkg: ./internal/camera,./internal/config,./internal/tunnel
+          cover-pkg: github.com/zikeji/ManlyCam/apps/agent/internal/camera,github.com/zikeji/ManlyCam/apps/agent/internal/config,github.com/zikeji/ManlyCam/apps/agent/internal/tunnel
+          working-directory: apps/agent
       - name: Cross-compile ARM check
         run: GOOS=linux GOARCH=arm GOARM=7 go build -o /dev/null ./...
 
