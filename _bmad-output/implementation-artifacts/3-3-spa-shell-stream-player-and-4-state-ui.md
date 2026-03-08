@@ -1,6 +1,6 @@
 # Story 3.3: SPA Shell, Stream Player, and 4-State UI
 
-Status: review
+Status: done
 
 ## Story
 
