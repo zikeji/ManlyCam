@@ -11,7 +11,9 @@ export const useAdminStream = () => {
     try {
       await apiFetch('/api/stream/start', { method: 'POST' });
     } catch (err) {
-      error.value = err instanceof ApiFetchError ? err.message : 'Failed to start stream';
+      const message = err instanceof ApiFetchError ? err.message : 'Failed to start stream';
+      console.error('[AdminStream]', message, err);
+      error.value = message;
     } finally {
       isLoading.value = false;
     }
@@ -23,7 +25,9 @@ export const useAdminStream = () => {
     try {
       await apiFetch('/api/stream/stop', { method: 'POST' });
     } catch (err) {
-      error.value = err instanceof ApiFetchError ? err.message : 'Failed to stop stream';
+      const message = err instanceof ApiFetchError ? err.message : 'Failed to stop stream';
+      console.error('[AdminStream]', message, err);
+      error.value = message;
     } finally {
       isLoading.value = false;
     }
