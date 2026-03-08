@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { wsHub } from '../services/wsHub.js';
 import { streamService } from '../services/streamService.js';
+import { logger } from '../lib/logger.js';
 import type { AppEnv } from '../lib/types.js';
 import type { WsMessage } from '@manlycam/types';
 import type { createNodeWebSocket } from '@hono/node-ws';
@@ -22,8 +23,13 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
         const dispose = wsHub.addClient({ send: (data) => ws.send(data) });
         disposeMap.set(ws as object, dispose);
 
-        const initMsg: WsMessage = { type: 'stream:state', payload: streamService.getState() };
-        ws.send(JSON.stringify(initMsg));
+        try {
+          const initMsg: WsMessage = { type: 'stream:state', payload: streamService.getState() };
+          ws.send(JSON.stringify(initMsg));
+        } catch (err) {
+          logger.warn({ err }, 'Failed to send initial stream state on WS open');
+          ws.close();
+        }
       },
       onClose(_evt, ws) {
         disposeMap.get(ws as object)?.();

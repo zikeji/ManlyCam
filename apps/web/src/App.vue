@@ -14,7 +14,7 @@ provide(WS_INJECTION_KEY, ws);
 watch(user, (u) => {
   if (u) ws.connect();
   else ws.disconnect();
-}, { immediate: true });
+});
 
 onMounted(() => {
   fetchCurrentUser();
