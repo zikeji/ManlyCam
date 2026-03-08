@@ -46,7 +46,7 @@ describe('GET /api/me', () => {
 
   it('returns 401 UNAUTHORIZED when no session cookie', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null);
-    const app = createApp();
+    const { app } = createApp();
     const res = await app.request('/api/me');
     expect(res.status).toBe(401);
     const body = await res.json();
@@ -55,7 +55,7 @@ describe('GET /api/me', () => {
 
   it('returns user profile shape with all fields present', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
-    const app = createApp();
+    const { app } = createApp();
     const res = await app.request('/api/me', {
       headers: { cookie: 'session_id=valid-session' },
     });
@@ -79,7 +79,7 @@ describe('GET /api/me', () => {
       bannedAt: null,
       mutedAt: null,
     } as never);
-    const app = createApp();
+    const { app } = createApp();
     const res = await app.request('/api/me', {
       headers: { cookie: 'session_id=valid-session' },
     });

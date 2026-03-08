@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createNodeWebSocket } from '@hono/node-ws';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -14,6 +15,7 @@ import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { meRouter } from './routes/me.js';
 import { streamRouter } from './routes/stream.js';
+import { createWsRouter } from './routes/ws.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +33,11 @@ export function createApp() {
   app.route('/', authRouter);
   app.route('/', meRouter);
   app.route('/', streamRouter);
+
+  // WebSocket — createNodeWebSocket must receive the app instance before routes are added
+  // so it can intercept upgrade requests through the full middleware pipeline.
+  const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
+  app.route('/', createWsRouter(upgradeWebSocket));
 
   // SPA catch-all: serve Vue dist in production
   if (env.NODE_ENV === 'production') {
@@ -55,5 +62,5 @@ export function createApp() {
     return c.json({ error: { code: 'INTERNAL_ERROR', message: 'Internal server error' } }, 500);
   });
 
-  return app;
+  return { app, injectWebSocket };
 }

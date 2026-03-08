@@ -12,6 +12,7 @@ export const config = defineConfig({
   server: {
     proxy: {
       '/api': 'http://localhost:3000',
+      '/ws': { target: 'ws://localhost:3000', ws: true },
     },
   },
   test: {
@@ -21,12 +22,13 @@ export const config = defineConfig({
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**/*.ts', 'src/**/*.vue'],
       exclude: ['src/**/*.test.ts', 'src/main.ts'],
-      // Thresholds recorded from actual coverage run (Story 3.3, 2026-03-08)
+      // Thresholds recorded from actual coverage run (Story 3.4, 2026-03-08)
+      // useWebSocket.ts added; lines/statements improve with composable coverage
       thresholds: {
-        lines: 65,
-        functions: 83,
-        branches: 89,
-        statements: 65,
+        lines: 69,
+        functions: 86,
+        branches: 92,
+        statements: 69,
       },
     },
   },

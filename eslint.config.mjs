@@ -100,7 +100,7 @@ export default [
     },
   },
 
-  // Web: type-aware linting with web tsconfig
+  // Web: type-aware linting with web tsconfig + browser globals
   {
     files: ['apps/web/**/*.ts', 'apps/web/**/*.tsx'],
     languageOptions: {
@@ -108,6 +108,10 @@ export default [
       parserOptions: {
         project: path.resolve(__dirname, 'apps/web/tsconfig.json'),
         tsconfigRootDir: __dirname,
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.vitest,
       },
     },
   },

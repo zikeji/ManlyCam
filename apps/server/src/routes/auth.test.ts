@@ -39,7 +39,7 @@ describe('auth routes', () => {
 
   describe('GET /api/auth/google', () => {
     it('redirects to Google OAuth URL', async () => {
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google');
       expect(res.status).toBe(302);
       const location = res.headers.get('location');
@@ -47,7 +47,7 @@ describe('auth routes', () => {
     });
 
     it('sets oauth_state cookie with correct security attributes', async () => {
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google');
       const cookieHeader = res.headers.get('set-cookie') ?? '';
       expect(cookieHeader).toContain('oauth_state=');
@@ -57,7 +57,7 @@ describe('auth routes', () => {
     });
 
     it('calls initiateOAuth to generate state and URL', async () => {
-      const app = createApp();
+      const { app } = createApp();
       await app.request('/api/auth/google');
       expect(initiateOAuth).toHaveBeenCalledOnce();
     });
@@ -66,7 +66,7 @@ describe('auth routes', () => {
   describe('POST /api/auth/logout', () => {
     it('returns { ok: true }', async () => {
       vi.mocked(destroySession).mockResolvedValue();
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/logout', { method: 'POST' });
       expect(res.status).toBe(200);
       const body = await res.json();
@@ -75,7 +75,7 @@ describe('auth routes', () => {
 
     it('calls destroySession with the session ID', async () => {
       vi.mocked(destroySession).mockResolvedValue();
-      const app = createApp();
+      const { app } = createApp();
       await app.request('/api/auth/logout', {
         method: 'POST',
         headers: { cookie: 'session_id=test-session-123' },
@@ -85,7 +85,7 @@ describe('auth routes', () => {
 
     it('clears session_id cookie with correct attributes', async () => {
       vi.mocked(destroySession).mockResolvedValue();
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/logout', {
         method: 'POST',
         headers: { cookie: 'session_id=some-session' },
@@ -102,7 +102,7 @@ describe('auth routes', () => {
         sessionId: 'session-123',
         redirectTo: '/',
       });
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google/callback?code=auth-code&state=test-state', {
         headers: { cookie: 'oauth_state=test-state' },
       });
@@ -117,7 +117,7 @@ describe('auth routes', () => {
     });
 
     it('returns 401 when state parameter is missing', async () => {
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google/callback?code=auth-code', {
         headers: { cookie: 'oauth_state=test-state' },
       });
@@ -125,7 +125,7 @@ describe('auth routes', () => {
     });
 
     it('returns 401 when code parameter is missing', async () => {
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google/callback?state=test-state', {
         headers: { cookie: 'oauth_state=test-state' },
       });
@@ -133,7 +133,7 @@ describe('auth routes', () => {
     });
 
     it('returns 401 when oauth_state cookie is missing', async () => {
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google/callback?code=auth-code&state=some-state');
       // expectedState will be null/undefined since cookie is missing
       expect(res.status).toBe(401);
@@ -144,7 +144,7 @@ describe('auth routes', () => {
         sessionId: null,
         redirectTo: '/rejected',
       });
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google/callback?code=auth-code&state=test-state', {
         headers: { cookie: 'oauth_state=test-state' },
       });
@@ -156,7 +156,7 @@ describe('auth routes', () => {
 
     it('redirects to /banned and does not set session cookie when existing user is banned', async () => {
       vi.mocked(processOAuthCallback).mockResolvedValue({ sessionId: null, redirectTo: '/banned' });
-      const app = createApp();
+      const { app } = createApp();
       const res = await app.request('/api/auth/google/callback?code=auth-code&state=test-state', {
         headers: { cookie: 'oauth_state=test-state' },
       });
