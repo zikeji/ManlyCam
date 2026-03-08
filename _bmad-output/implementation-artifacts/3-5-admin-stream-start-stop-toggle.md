@@ -1,6 +1,6 @@
 # Story 3.5: Admin Stream Start/Stop Toggle
 
-Status: review
+Status: done
 
 ## Story
 
@@ -438,6 +438,25 @@ apps/web/vite.config.ts                   ← update coverage thresholds
 - Web coverage config: [`apps/web/vite.config.ts`]
 - Story 3.4 (WS hub, real-time broadcast, `setAdminToggle` already broadcasts): [`_bmad-output/implementation-artifacts/3-4-websocket-hub-and-real-time-state-broadcasting.md`]
 - Story 3.3 (SPA shell, 4-state UI, `ClientStreamState` type): [`_bmad-output/implementation-artifacts/3-3-spa-shell-stream-player-and-4-state-ui.md`]
+
+## Senior Developer Review (AI)
+
+**Reviewer:** Zikeji (Claude AI) | **Date:** 2026-03-08
+
+### Review Outcome: ✅ APPROVED
+
+**Findings:** 1 Medium issue identified and fixed:
+- Added console.error() logging to useAdminStream.ts error handlers per AC #3 requirement ("log to console and show an error indicator")
+- Both startStream() and stopStream() now log errors to DevTools console with [AdminStream] tag for debugging visibility
+- Commit: `4e63e60` — all tests passing
+
+**Coverage:** Server 84/90/87/84, Web 85/79/91/85 (ProfileAnchor visual functions tested via composable integration)
+
+**Security:** ✅ Auth guards enforced (requireAuth + requireRole), no XSS/injection risks, error messages sanitized for UI display
+
+**Code Quality:** Clean implementation, proper async/await patterns, graceful error handling, no crashes
+
+---
 
 ## Dev Agent Record
 
