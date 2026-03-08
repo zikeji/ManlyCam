@@ -1,17 +1,25 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue';
+import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import type { ClientStreamState } from '@/composables/useStream';
 import { useAuth } from '@/composables/useAuth';
 import { useWhep } from '@/composables/useWhep';
+import { Button } from '@/components/ui/button';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 import StateOverlay from './StateOverlay.vue';
 import ProfileAnchor from './ProfileAnchor.vue';
 
 const props = defineProps<{
   streamState: ClientStreamState;
+  isAdmin?: boolean;
+  adminPanelOpen?: boolean;
+  isDesktop?: boolean;
 }>();
 
-const emit = defineEmits<{ openCameraControls: [] }>();
+const emit = defineEmits<{
+  openCameraControls: []
+  toggleAdminPanel: []
+}>();
 
 const petName = import.meta.env.VITE_PET_NAME as string;
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -99,13 +107,35 @@ onUnmounted(() => {
       <StreamStatusBadge :state="streamState" />
     </div>
 
+    <!-- Admin sidebar toggle: top-left, desktop only, admin only, hover-gated -->
+    <div
+      v-if="isAdmin && isDesktop"
+      class="absolute top-4 left-4 transition-opacity duration-300 pointer-events-auto"
+      :class="overlayVisible(streamState, isHovered) ? 'opacity-100' : 'opacity-0'"
+    >
+      <Button
+        variant="ghost"
+        size="icon"
+        class="rounded p-0 w-9 h-9 text-foreground hover:bg-accent"
+        @click="emit('toggleAdminPanel')"
+        :aria-label="adminPanelOpen ? 'Hide admin panel' : 'Show admin panel'"
+      >
+        <ChevronRight v-if="!adminPanelOpen" class="w-4 h-4" />
+        <ChevronLeft v-else class="w-4 h-4" />
+      </Button>
+    </div>
+
     <!-- Profile anchor: bottom-left, hover-gated (same behavior as top overlay) -->
     <div
       v-if="user"
       class="absolute inset-x-0 bottom-0 flex items-end p-3 transition-opacity duration-150"
       :class="overlayVisible(streamState, isHovered) ? 'opacity-100' : 'opacity-0'"
     >
-      <ProfileAnchor v-model:popover-open="profilePopoverOpen" @open-camera-controls="emit('openCameraControls')" />
+      <ProfileAnchor
+        v-model:popover-open="profilePopoverOpen"
+        :isDesktop="isDesktop"
+        @open-camera-controls="emit('openCameraControls')"
+      />
     </div>
   </div>
 </template>

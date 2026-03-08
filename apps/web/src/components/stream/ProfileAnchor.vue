@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, withDefaults } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 import { useStream } from '@/composables/useStream';
 import { useAdminStream } from '@/composables/useAdminStream';
@@ -7,6 +7,10 @@ import { Role } from '@manlycam/types';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+
+withDefaults(defineProps<{
+  isDesktop?: boolean;
+}>(), { isDesktop: false });
 
 const isOpen = defineModel<boolean>('popoverOpen', { default: false });
 const emit = defineEmits<{ openCameraControls: [] }>();
@@ -84,7 +88,9 @@ const handleLogout = async () => {
           <span v-else>{{ toggleLabel }}</span>
         </button>
 
+        <!-- Camera Controls button: mobile only (hidden on desktop where toggle button is used) -->
         <button
+          v-if="!isDesktop"
           class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
           @click="() => { isOpen = false; emit('openCameraControls'); }"
         >

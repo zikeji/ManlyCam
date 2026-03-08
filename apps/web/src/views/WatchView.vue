@@ -32,6 +32,7 @@ watch(adminPanelOpen, (newValue) => {
 const isAdmin = computed(() => user.value?.role === Role.Admin);
 
 const handleOpenCameraControls = () => { adminPanelOpen.value = !adminPanelOpen.value; };
+const handleToggleAdminPanel = () => { adminPanelOpen.value = !adminPanelOpen.value; };
 
 onMounted(() => {
   initStream();
@@ -60,7 +61,7 @@ onMounted(() => {
         data-sidebar-left
         class="w-[280px] shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-r border-[hsl(var(--border))]"
       >
-        <AdminPanel @close="adminPanelOpen = false" />
+        <AdminPanel :show-close="false" @close="adminPanelOpen = false" />
       </aside>
     </Transition>
 
@@ -68,7 +69,11 @@ onMounted(() => {
     <main class="flex-1 min-w-0 flex items-center justify-center bg-black">
       <StreamPlayer
         :streamState="streamState"
+        :isAdmin="isAdmin"
+        :adminPanelOpen="adminPanelOpen"
+        :isDesktop="isDesktop"
         @open-camera-controls="handleOpenCameraControls"
+        @toggle-admin-panel="handleToggleAdminPanel"
       />
     </main>
 
