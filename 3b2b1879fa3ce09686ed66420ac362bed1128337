@@ -1,0 +1,1 @@
+{"go-coverage-action-fmt":1,"coverage_pct":34.166666666666664,"pkg_stats":{"github.com/zikeji/ManlyCam/apps/agent/internal/camera":[19.230769230769234],"github.com/zikeji/ManlyCam/apps/agent/internal/config":[78.94736842105263],"github.com/zikeji/ManlyCam/apps/agent/internal/tunnel":[3.3333333333333335]},"skipped_count":0}
