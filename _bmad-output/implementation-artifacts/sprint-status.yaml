@@ -49,7 +49,7 @@ development_status:
   epic-1-retrospective: done
   epic-1-documentation-updates: done  # Comprehensive documentation review completed 2026-03-07
 
-  epic-2: in-progress
+  epic-2: done
   2-1-landing-page-and-google-oauth-sign-in-flow: done
   2-1b-design-system-foundation-and-landing-page-polish: done
   2-1c-test-coverage-audit-and-baseline-enforcement: done
@@ -57,10 +57,10 @@ development_status:
   2-3-session-persistence-and-auth-middleware: done
   2-4-avatar-resolution-and-gravatar-fallback: done
   2-5-cli-allowlist-and-ban-management: done
-  epic-2-retrospective: optional
+  epic-2-retrospective: done  # Completed 2026-03-07
 
-  epic-3: backlog
-  3-1-pi-agent-camera-pipeline-and-frp-tunnels: backlog
+  epic-3: in-progress
+  3-1-pi-agent-camera-pipeline-and-frp-tunnels: done
   3-2-server-frp-stream-ingestion-and-hls-transcoding: backlog
   3-3-spa-shell-stream-player-and-4-state-ui: backlog
   3-4-websocket-hub-and-real-time-state-broadcasting: backlog

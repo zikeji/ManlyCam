@@ -17,6 +17,10 @@ jobs:
   test:
     if: "!startsWith(github.ref, 'refs/tags/')"
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
     defaults:
       run:
         working-directory: apps/agent
@@ -26,7 +30,10 @@ jobs:
         with:
           go-version-file: 'apps/agent/go.mod'
       - run: go vet ./...
-      - run: go test ./...
+      - uses: gwatts/go-coverage-action@v2
+        with:
+          coverage-threshold: 38
+          cover-pkg: ./internal/camera,./internal/config,./internal/tunnel
       - name: Cross-compile ARM check
         run: GOOS=linux GOARCH=arm GOARM=7 go build -o /dev/null ./...
 

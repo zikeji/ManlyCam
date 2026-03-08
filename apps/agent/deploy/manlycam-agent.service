@@ -9,7 +9,7 @@ User=pi
 WorkingDirectory=/home/pi/manlycam
 ExecStart=/usr/local/bin/manlycam-agent start --config /etc/manlycam/config.toml
 Restart=on-failure
-RestartSec=10
+RestartSec=5s
 StandardOutput=journal
 StandardError=journal
 
