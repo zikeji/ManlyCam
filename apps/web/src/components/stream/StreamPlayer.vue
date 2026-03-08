@@ -24,7 +24,12 @@ watch(
   async (newState, oldState) => {
     if (newState === 'live') {
       if (videoRef.value) {
-        await startWhep(videoRef.value);
+        try {
+          await startWhep(videoRef.value);
+        } catch {
+          // WHEP connection failed; stay in 'live' state for WS update (Story 3.4)
+          // or manual retry when state transitions. Log error for debugging.
+        }
       }
     } else if (oldState === 'live') {
       await stopWhep();

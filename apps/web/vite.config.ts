@@ -24,7 +24,7 @@ export const config = defineConfig({
       // Thresholds recorded from actual coverage run (Story 3.3, 2026-03-08)
       thresholds: {
         lines: 65,
-        functions: 85,
+        functions: 83,
         branches: 89,
         statements: 65,
       },

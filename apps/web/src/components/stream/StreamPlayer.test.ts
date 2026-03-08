@@ -112,4 +112,39 @@ describe('StreamPlayer', () => {
       expect(badgeContainer.classes()).toContain('top-4');
     }
   });
+
+  it('handles startWhep error gracefully without crashing', async () => {
+    mockStartWhep.mockRejectedValueOnce(new Error('WHEP POST failed: 500'));
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    // Transition to live — startWhep will reject
+    await wrapper.setProps({ streamState: 'live' });
+    await flushPromises();
+    // Component should remain mounted and handle error gracefully
+    expect(wrapper.exists()).toBe(true);
+  });
+
+  it('top gradient and badge container are hidden when live and not hovering', async () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    const badgeContainer = wrapper.find('[data-badge-container]');
+    // Initially not hovered, so overlay should be hidden
+    expect(badgeContainer.classes()).toContain('opacity-0');
+  });
+
+  it('top gradient and badge container are visible when live and hovering', async () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    const container = wrapper.find('[data-stream-container]');
+    // Simulate hover
+    await container.trigger('mouseenter');
+    const badgeContainer = wrapper.find('[data-badge-container]');
+    // Should show overlay on hover
+    expect(badgeContainer.classes()).toContain('opacity-100');
+  });
+
+  it('calls stopWhep on unmount', async () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    await flushPromises();
+    wrapper.unmount();
+    // stopWhep should be called on unmount
+    expect(mockStopWhep).toHaveBeenCalled();
+  });
 });
