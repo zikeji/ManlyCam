@@ -90,7 +90,7 @@ describe('POST /api/stream/whep', () => {
           status: 201,
           headers: {
             'Content-Type': 'application/sdp',
-            Location: '/whep/cam/session-abc',
+            Location: '/cam/whep/session-abc',
           },
         }),
       ),

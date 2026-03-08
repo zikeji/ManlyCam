@@ -19,6 +19,7 @@ export function buildMTXConfig(): string {
       `hlsAddress: ":0"`,
       `srtAddress: ":0"`,
       `webrtcAddress: ":${env.MTX_WEBRTC_PORT}"`,
+      `api: yes`,
       `apiAddress: "127.0.0.1:${env.MTX_API_PORT}"`,
       '',
       'paths:',

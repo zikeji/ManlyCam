@@ -1,0 +1,115 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
+import StreamPlayer from './StreamPlayer.vue';
+
+// Module-level mock instances so the component and test share the same references
+const mockStartWhep = vi.fn().mockResolvedValue(undefined);
+const mockStopWhep = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('@/composables/useWhep', () => ({
+  useWhep: () => ({
+    startWhep: mockStartWhep,
+    stopWhep: mockStopWhep,
+  }),
+}));
+
+describe('StreamPlayer', () => {
+  beforeEach(() => {
+    import.meta.env.VITE_PET_NAME = 'Buddy';
+  });
+
+  afterEach(() => {
+    mockStartWhep.mockClear();
+    mockStopWhep.mockClear();
+  });
+
+  it('renders Skeleton when state is connecting', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    expect(wrapper.find('[data-skeleton]').exists()).toBe(true);
+  });
+
+  it('does NOT render Skeleton when state is live', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    expect(wrapper.find('[data-skeleton]').exists()).toBe(false);
+  });
+
+  it('renders video element with role="img" and aria-label', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    const video = wrapper.find('video');
+    expect(video.exists()).toBe(true);
+    expect(video.attributes('role')).toBe('img');
+    expect(video.attributes('aria-label')).toContain('Buddy');
+  });
+
+  it('renders StateOverlay with variant="unreachable" when unreachable', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'unreachable' } });
+    const overlay = wrapper.findComponent({ name: 'StateOverlay' });
+    expect(overlay.exists()).toBe(true);
+    expect(overlay.props('variant')).toBe('unreachable');
+  });
+
+  it('renders StateOverlay with variant="explicit-offline" when explicit-offline', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'explicit-offline' } });
+    const overlay = wrapper.findComponent({ name: 'StateOverlay' });
+    expect(overlay.exists()).toBe(true);
+    expect(overlay.props('variant')).toBe('explicit-offline');
+  });
+
+  it('does NOT render StateOverlay when connecting', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    const overlay = wrapper.findComponent({ name: 'StateOverlay' });
+    expect(overlay.exists()).toBe(false);
+  });
+
+  it('does NOT render StateOverlay when live', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    const overlay = wrapper.findComponent({ name: 'StateOverlay' });
+    expect(overlay.exists()).toBe(false);
+  });
+
+  it('renders StreamStatusBadge', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    const badge = wrapper.findComponent({ name: 'StreamStatusBadge' });
+    expect(badge.exists()).toBe(true);
+    expect(badge.props('state')).toBe('connecting');
+  });
+
+  it('calls startWhep when streamState transitions to live', async () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    await wrapper.setProps({ streamState: 'live' });
+    await flushPromises();
+    expect(mockStartWhep).toHaveBeenCalled();
+  });
+
+  it('calls stopWhep when streamState leaves live', async () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    await flushPromises();
+    mockStopWhep.mockClear(); // clear the call from immediate watch
+    await wrapper.setProps({ streamState: 'unreachable' });
+    await flushPromises();
+    expect(mockStopWhep).toHaveBeenCalled();
+  });
+
+  it('container uses 16:9 aspect ratio', () => {
+    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    const container = wrapper.find('[data-stream-container]');
+    expect(container.exists()).toBe(true);
+    expect(container.classes().join(' ')).toMatch(/aspect-video/);
+  });
+
+  it('badge container is NOT rendered for explicit-offline or unreachable (StateOverlay owns status UI)', () => {
+    for (const state of ['explicit-offline', 'unreachable'] as const) {
+      const wrapper = mount(StreamPlayer, { props: { streamState: state } });
+      expect(wrapper.find('[data-badge-container]').exists()).toBe(false);
+    }
+  });
+
+  it('badge container is rendered at top-4 for live and connecting', () => {
+    for (const state of ['live', 'connecting'] as const) {
+      const wrapper = mount(StreamPlayer, { props: { streamState: state } });
+      const badgeContainer = wrapper.find('[data-badge-container]');
+      expect(badgeContainer.exists()).toBe(true);
+      expect(badgeContainer.classes()).toContain('top-4');
+    }
+  });
+});

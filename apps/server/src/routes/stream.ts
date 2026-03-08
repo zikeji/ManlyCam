@@ -20,7 +20,7 @@ streamRouter.get('/api/stream/state', requireAuth, (c) => {
 // PATCH  /api/stream/whep/:session — trickle ICE candidate exchange
 // DELETE /api/stream/whep/:session — close session
 
-const mtxWhepBase = () => `http://127.0.0.1:${env.MTX_WEBRTC_PORT}/whep/cam`;
+const mtxWhepBase = () => `http://127.0.0.1:${env.MTX_WEBRTC_PORT}/cam/whep`;
 
 streamRouter.post('/api/stream/whep', requireAuth, async (c) => {
   const res = await fetch(mtxWhepBase(), {
@@ -29,14 +29,29 @@ streamRouter.post('/api/stream/whep', requireAuth, async (c) => {
     body: await c.req.text(),
   });
 
+  // Hop-by-hop headers must not be forwarded — mixing Transfer-Encoding + Content-Length
+  // in the same response is an HTTP protocol violation that Node.js rejects.
+  // content-length is also dropped; Response() recalculates it from the string body.
+  const HOP_BY_HOP = new Set([
+    'connection',
+    'keep-alive',
+    'transfer-encoding',
+    'content-length',
+    'te',
+    'trailer',
+    'upgrade',
+    'proxy-authenticate',
+    'proxy-authorization',
+  ]);
+
   const headers = new Headers();
   for (const [key, value] of res.headers.entries()) {
+    if (HOP_BY_HOP.has(key.toLowerCase())) continue;
     if (key.toLowerCase() === 'location') {
       // Rewrite mediamtx's session path to our proxy path so the browser sends
       // subsequent PATCH/DELETE through Hono (where auth is enforced).
-      // mediamtx: /whep/cam/{uuid}  →  us: /api/stream/whep/{uuid}
-      // (Only POST returns Location; PATCH/DELETE return 204 No Content without bodies/headers)
-      headers.set('Location', value.replace(/^\/whep\/cam/, '/api/stream/whep'));
+      // mediamtx: /cam/whep/{uuid}  →  us: /api/stream/whep/{uuid}
+      headers.set('Location', value.replace(/^\/cam\/whep/, '/api/stream/whep'));
     } else {
       headers.set(key, value);
     }
@@ -55,8 +70,20 @@ streamRouter.on(['PATCH', 'DELETE'], '/api/stream/whep/:session', requireAuth, a
     body: c.req.method === 'PATCH' ? await c.req.text() : undefined,
   });
   // 204 No Content (typical PATCH response) forbids a body — always use null.
-  return new Response(null, {
-    status: res.status,
-    headers: Object.fromEntries(res.headers.entries()),
-  });
+  // Strip hop-by-hop headers for the same reason as the POST handler above.
+  const HOP_BY_HOP = new Set([
+    'connection',
+    'keep-alive',
+    'transfer-encoding',
+    'content-length',
+    'te',
+    'trailer',
+    'upgrade',
+    'proxy-authenticate',
+    'proxy-authorization',
+  ]);
+  const forwardedHeaders = Object.fromEntries(
+    [...res.headers.entries()].filter(([k]) => !HOP_BY_HOP.has(k.toLowerCase())),
+  );
+  return new Response(null, { status: res.status, headers: forwardedHeaders });
 });
