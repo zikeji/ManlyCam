@@ -1,6 +1,4 @@
 export const CAMERA_CONTROLS_ALLOWLIST = [
-  'rpiCameraHFlip',
-  'rpiCameraVFlip',
   'rpiCameraBrightness',
   'rpiCameraContrast',
   'rpiCameraSaturation',
@@ -13,13 +11,11 @@ export const CAMERA_CONTROLS_ALLOWLIST = [
   'rpiCameraMetering',
   'rpiCameraGain',
   'rpiCameraEV',
-  'rpiCameraROI',
   'rpiCameraHDR',
   'rpiCameraAfMode',
   'rpiCameraAfRange',
   'rpiCameraAfSpeed',
   'rpiCameraLensPosition',
-  'rpiCameraAfWindow',
   'rpiCameraFlickerPeriod',
   'rpiCameraTextOverlayEnable',
   'rpiCameraTextOverlay',
@@ -48,22 +44,6 @@ export interface CameraControlMeta {
 
 export const CAMERA_CONTROL_META: CameraControlMeta[] = [
   // --- Image ---
-  {
-    key: 'rpiCameraHFlip',
-    label: 'Horizontal Flip',
-    section: 'Image',
-    type: 'switch',
-    defaultValue: false,
-    description: 'Mirror image horizontally. Applied on next Pi reconnect if camera is active.',
-  },
-  {
-    key: 'rpiCameraVFlip',
-    label: 'Vertical Flip',
-    section: 'Image',
-    type: 'switch',
-    defaultValue: false,
-    description: 'Flip image vertically. Applied on next Pi reconnect if camera is active.',
-  },
   {
     key: 'rpiCameraBrightness',
     label: 'Brightness',
@@ -258,22 +238,6 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     defaultValue: 0,
     showIf: { key: 'rpiCameraAfMode', value: 'manual' },
     description: 'Manual focus distance in diopters. Only active when AF Mode = Manual.',
-  },
-  {
-    key: 'rpiCameraAfWindow',
-    label: 'AF Window',
-    section: 'Autofocus',
-    type: 'text',
-    defaultValue: '',
-    description: 'Format: "x,y,width,height" normalized 0.0–1.0. Empty = full frame.',
-  },
-  {
-    key: 'rpiCameraROI',
-    label: 'Region of Interest',
-    section: 'Image',
-    type: 'text',
-    defaultValue: '',
-    description: 'Format: "x,y,width,height" normalized 0.0–1.0. Empty = full sensor.',
   },
   // --- Overlay ---
   {

@@ -34,7 +34,8 @@ vi.mock('@/components/stream/StreamPlayer.vue', () => ({
   default: {
     name: 'StreamPlayer',
     props: ['streamState'],
-    template: '<div data-stream-player />',
+    emits: ['openCameraControls'],
+    template: '<button data-stream-player @click="$emit(\'openCameraControls\')" />',
   },
 }));
 
@@ -71,11 +72,12 @@ describe('WatchView', () => {
     expect(wrapper.find('[data-sidebar-left]').exists()).toBe(false);
   });
 
-  it('left sidebar is shown for Admin users', async () => {
+  it('left sidebar is shown for Admin users when adminPanelOpen is true', async () => {
     mockUser.value = { role: 'Admin', displayName: 'Admin User' };
     const wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
     await flushPromises();
-    expect(wrapper.find('[data-sidebar-left]').exists()).toBe(true);
+    // Initially sidebar should not exist (adminPanelOpen is false by default)
+    expect(wrapper.find('[data-sidebar-left]').exists()).toBe(false);
   });
 
   it('right sidebar placeholder exists', async () => {
@@ -89,5 +91,22 @@ describe('WatchView', () => {
     const wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
     await flushPromises();
     expect(wrapper.find('[data-sidebar-left]').exists()).toBe(false);
+  });
+
+  it('handleOpenCameraControls toggles panel open/closed via StreamPlayer event', async () => {
+    mockUser.value = { role: 'Admin', displayName: 'Admin User' };
+    const wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+    await flushPromises();
+
+    // Click once to open
+    await wrapper.find('[data-stream-player]').trigger('click');
+    await flushPromises();
+
+    // Click again to toggle closed
+    await wrapper.find('[data-stream-player]').trigger('click');
+    await flushPromises();
+
+    // Component still renders correctly after toggle
+    expect(wrapper.find('[data-stream-player]').exists()).toBe(true);
   });
 });

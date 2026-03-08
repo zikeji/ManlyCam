@@ -859,6 +859,20 @@ apps/web/vite.config.ts                              ← update coverage thresho
 - Web coverage config: [`apps/web/vite.config.ts`] (current: lines 85, functions 79, branches 91, statements 85)
 - mediamtx runtime API (live Pi): `curl -X GET http://127.0.0.1:9997/v3/config/paths/get/cam` — for enum verification run `curl -s http://127.0.0.1:9997/openapi | python3 -m json.tool` on the Pi
 
+## Post-MVP Deferred Features
+
+### ROI and AF Window — Interactive Region Selectors
+
+`rpiCameraROI` (Region of Interest) and `rpiCameraAfWindow` (Autofocus Window) were removed from the camera controls UI and server allowlist. Both accept a normalized `"x,y,width,height"` string (floats 0.0–1.0). A free-text input is unusable in practice — an invalid or out-of-range value crashes the stream (mediamtx/libcamera reject malformed input with no graceful recovery).
+
+**Recommended post-MVP implementation:**
+- Render an interactive crop/region overlay on top of the live stream (an SVG or canvas layer)
+- The user drags a rectangle on the stream; the UI computes the normalized coordinates and writes them as a formatted string
+- Only valid, clamped values are ever sent to the Pi
+- This avoids free-text input and the associated crash risk entirely
+
+Deferred until a story that includes the stream overlay UI work.
+
 ## Dev Agent Record
 
 ### Agent Model Used

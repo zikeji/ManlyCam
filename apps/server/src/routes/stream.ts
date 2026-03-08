@@ -104,58 +104,68 @@ streamRouter.post('/api/stream/start', requireAuth, requireRole([Role.Admin]), a
 });
 
 // GET /api/stream/camera-settings
-streamRouter.get('/api/stream/camera-settings', requireAuth, requireRole([Role.Admin]), async (c) => {
-  const rows = await prisma.cameraSettings.findMany();
-  const settings: Record<string, unknown> = {};
-  for (const row of rows) {
-    settings[row.key] = JSON.parse(row.value);
-  }
-  return c.json({ settings, piReachable: streamService.isPiReachable() });
-});
+streamRouter.get(
+  '/api/stream/camera-settings',
+  requireAuth,
+  requireRole([Role.Admin]),
+  async (c) => {
+    const rows = await prisma.cameraSettings.findMany();
+    const settings: Record<string, unknown> = {};
+    for (const row of rows) {
+      settings[row.key] = JSON.parse(row.value);
+    }
+    return c.json({ settings, piReachable: streamService.isPiReachable() });
+  },
+);
 
 // PATCH /api/stream/camera-settings
-streamRouter.patch('/api/stream/camera-settings', requireAuth, requireRole([Role.Admin]), async (c) => {
-  const body = await c.req.json<Record<string, unknown>>();
-  const allowlist = new Set(CAMERA_CONTROLS_ALLOWLIST);
+streamRouter.patch(
+  '/api/stream/camera-settings',
+  requireAuth,
+  requireRole([Role.Admin]),
+  async (c) => {
+    const body = await c.req.json<Record<string, unknown>>();
+    const allowlist = new Set(CAMERA_CONTROLS_ALLOWLIST);
 
-  for (const key of Object.keys(body)) {
-    if (!allowlist.has(key as never)) {
-      throw new AppError(`Unknown camera control key: ${key}`, 'INVALID_CAMERA_KEY', 400);
-    }
-  }
-
-  // Persist to DB
-  await Promise.all(
-    Object.entries(body).map(([key, value]) =>
-      prisma.cameraSettings.upsert({
-        where: { key },
-        update: { value: JSON.stringify(value) },
-        create: { key, value: JSON.stringify(value) },
-      })
-    )
-  );
-
-  // Forward to Pi via frp tunnel
-  if (!streamService.isPiReachable()) {
-    return c.json({ ok: true, piOffline: true });
-  }
-
-  try {
-    const res = await fetch(
-      `http://${env.FRP_HOST}:${env.FRP_API_PORT}/v3/config/paths/patch/cam`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+    for (const key of Object.keys(body)) {
+      if (!allowlist.has(key as never)) {
+        throw new AppError(`Unknown camera control key: ${key}`, 'INVALID_CAMERA_KEY', 400);
       }
-    );
-    if (!res.ok) {
-      const text = await res.text();
-      return c.json({ ok: false, error: text });
     }
-    return c.json({ ok: true });
-  } catch (err) {
-    logger.error({ err }, 'camera: failed to PATCH mediamtx');
-    return c.json({ ok: false, error: 'Failed to reach Pi camera API' });
-  }
-});
+
+    // Persist to DB
+    await Promise.all(
+      Object.entries(body).map(([key, value]) =>
+        prisma.cameraSettings.upsert({
+          where: { key },
+          update: { value: JSON.stringify(value) },
+          create: { key, value: JSON.stringify(value) },
+        }),
+      ),
+    );
+
+    // Forward to Pi via frp tunnel
+    if (!streamService.isPiReachable()) {
+      return c.json({ ok: true, piOffline: true });
+    }
+
+    try {
+      const res = await fetch(
+        `http://${env.FRP_HOST}:${env.FRP_API_PORT}/v3/config/paths/patch/cam`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!res.ok) {
+        const text = await res.text();
+        return c.json({ ok: false, error: text });
+      }
+      return c.json({ ok: true });
+    } catch (err) {
+      logger.error({ err }, 'camera: failed to PATCH mediamtx');
+      return c.json({ ok: false, error: 'Failed to reach Pi camera API' });
+    }
+  },
+);

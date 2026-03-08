@@ -175,10 +175,13 @@ export class StreamService {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
-        }
+        },
       );
       if (!res.ok) {
-        logger.warn({ status: res.status }, 'stream: failed to re-apply camera settings on reconnect');
+        logger.warn(
+          { status: res.status },
+          'stream: failed to re-apply camera settings on reconnect',
+        );
       } else {
         logger.info({ count: rows.length }, 'stream: re-applied camera settings on Pi reconnect');
       }

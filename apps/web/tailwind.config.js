@@ -51,7 +51,7 @@ export const tailwindConfig = {
       },
     },
   },
-  plugins: [],
+  plugins: [require('tailwindcss-animate')],
 }
 
 // Tool configs require export default to function

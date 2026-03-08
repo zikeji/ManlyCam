@@ -4,7 +4,11 @@ import { useCameraControls } from './useCameraControls';
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
   ApiFetchError: class ApiFetchError extends Error {
-    constructor(message: string) {
+    constructor(
+      message: string,
+      public status = 0,
+      public code = 'UNKNOWN',
+    ) {
       super(message);
       this.name = 'ApiFetchError';
     }
@@ -55,7 +59,7 @@ describe('useCameraControls', () => {
   });
 
   it('fetchSettings sets error on ApiFetchError', async () => {
-    const error = new ApiFetchError('Network error');
+    const error = new ApiFetchError('Network error', 0);
     vi.mocked(apiFetch).mockRejectedValue(error);
 
     const { fetchSettings, lastError, isLoading } = useCameraControls();
@@ -96,7 +100,7 @@ describe('useCameraControls', () => {
   });
 
   it('patchSetting reverts on network error', async () => {
-    const error = new ApiFetchError('Network error');
+    const error = new ApiFetchError('Network error', 0);
     vi.mocked(apiFetch).mockRejectedValue(error);
 
     const { patchSetting, settings, lastError } = useCameraControls();

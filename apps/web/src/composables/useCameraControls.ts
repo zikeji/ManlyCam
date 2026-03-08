@@ -12,7 +12,7 @@ export function useCameraControls() {
     isLoading.value = true;
     try {
       const data = await apiFetch<{ settings: CameraSettingsMap; piReachable: boolean }>(
-        '/api/stream/camera-settings'
+        '/api/stream/camera-settings',
       );
       settings.value = data.settings;
       piReachable.value = data.piReachable;
@@ -34,7 +34,7 @@ export function useCameraControls() {
     try {
       const result = await apiFetch<{ ok: boolean; piOffline?: boolean; error?: string }>(
         '/api/stream/camera-settings',
-        { method: 'PATCH', body: JSON.stringify({ [key]: value }) }
+        { method: 'PATCH', body: JSON.stringify({ [key]: value }) },
       );
       if (!result.ok) {
         console.error('[CameraControls] PATCH failed:', result.error);

@@ -215,7 +215,7 @@ describe('StreamService camera reapply', () => {
 
     // Verify the reapply PATCH was called
     const calls = mockFetch.mock.calls;
-    const patchCall = calls.find((c) => c[0]?.includes('/v3/config/paths/patch/cam'));
+    const patchCall = calls.find((c) => String(c[0]).includes('/v3/config/paths/patch/cam'));
     expect(patchCall).toBeDefined();
     if (patchCall) {
       expect(patchCall[1]?.method).toBe('PATCH');
@@ -236,7 +236,7 @@ describe('StreamService camera reapply', () => {
 
     // Make prisma.findMany throw
     vi.mocked(prisma.cameraSettings.findMany).mockRejectedValueOnce(
-      new Error('DB connection error')
+      new Error('DB connection error'),
     );
 
     await service.pollMediamtxState();
