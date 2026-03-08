@@ -197,7 +197,7 @@ The Raspberry Pi Zero W 2 is a **thin frp agent**, not an application server. It
 | Tunnel | Purpose | MVP |
 |---|---|---|
 | Stream proxy | Forwards camera stream to upstream for distribution to viewers | ✅ Yes |
-| API proxy | Forwards camera control API (v4l2-ctl) to upstream backend | ✅ Yes |
+| API proxy | Forwards Pi's mediamtx HTTP API to upstream server for camera control | ✅ Yes |
 | SSH tunnel | Allows remote SSH access to Pi via upstream | ❌ Post-MVP |
 
 **Binary and Deployment:**
@@ -312,7 +312,7 @@ The upstream server is the **primary application host** — it handles all viewe
 - Viewer list visible to all authenticated users
 
 *Camera Controls:*
-- Camera settings sidebar (privileged users only): all v4l2-ctl controls, real-time effect
+- Camera settings sidebar (admin only): mediamtx `rpiCamera` runtime parameters (brightness, contrast, AWB, gain, exposure, focus, etc.), real-time effect via mediamtx HTTP API proxy
 
 *Roles & Permissions:*
 - Role hierarchy: Admin → Moderator → Viewer (Company) → Viewer (Guest)
@@ -349,7 +349,7 @@ The upstream server is the **primary application host** — it handles all viewe
 |---|---|---|
 | frp relay performance at 10–20 viewers | Infrastructure concern, not technical blocker | Scale upstream server vertically/horizontally as needed |
 | Google OAuth avatar scope | Resolved — `openid email profile` | Gravatar fallback if profile image unavailable |
-| v4l2 API proxy chain complexity | No PoC; SunnyPilot/SunnyLink is validated prior art | Follow SunnyLink pattern; scope camera controls as isolated module |
+| Camera control implementation | mediamtx HTTP API proxied via frp tunnel; settings persisted in DB and re-applied on Pi reconnect | Resolved during 3.2c pivot — see 3-6 architecture notes |
 | Stream stops unexpectedly | Primary failure mode | systemd restart-on-failure; upstream detects tunnel drop and shows graceful state |
 | PII in CI artifacts | Pi binary must never contain sensitive config | Config file separated from binary at install time; CI artifacts are clean |
 
@@ -375,7 +375,7 @@ The upstream server is the **primary application host** — it handles all viewe
 - **FR11:** Admin users can start and stop the stream from the web UI on any device
 - **FR12:** When the Pi is unreachable and the stream toggle is set to live, the UI displays a "check back soon" message
 - **FR13:** When the stream is stopped by an admin, all active viewer sessions immediately reflect the offline state
-- **FR14:** Admin users can adjust camera settings (all v4l2-ctl exposed controls) from the web UI with real-time effect on the stream
+- **FR14:** Admin users can adjust camera settings (brightness, contrast, AWB, gain, exposure, focus, and other runtime parameters) from the web UI with real-time effect on the stream
 - **FR15:** Admin users can access camera settings controls from a collapsible sidebar in the web UI
 
 ### Chat

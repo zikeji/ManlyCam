@@ -17,6 +17,22 @@ date: '2026-03-05'
 
 _This document builds collaboratively through step-by-step discovery. Sections are appended as we work through each architectural decision together._
 
+> **⚠️ Architecture Pivots (recorded 2026-03-08, during Epic 3 implementation)**
+>
+> The sections below reflect the original planned architecture. Several decisions were superseded during implementation. The pivot story artifacts are the authoritative record; this notice summarizes what changed so future story generation uses the correct approach.
+>
+> | Area | Original | Current | Story |
+> |------|----------|---------|-------|
+> | Pi camera pipeline | `rpicam-vid --listen` subprocess → MPEG-TS TCP | **mediamtx** with `rpiCamera` source → RTSP | [3-2b](../implementation-artifacts/3-2b-mediamtx-rtsp-architecture-pivot.md) |
+> | Server stream relay | ffmpeg → HLS segments (`HLS_SEGMENT_PATH`) | **mediamtx** subprocess → WebRTC WHEP (proxied via Hono) | [3-2c](../implementation-artifacts/3-2c-webrtc-via-mediamtx.md) |
+> | Browser stream player | `hls.js` (HLS) | **WebRTC WHEP** client (`POST /api/stream/whep`) | [3-2c](../implementation-artifacts/3-2c-webrtc-via-mediamtx.md) |
+> | Camera controls | v4l2-ctl commands via Pi agent HTTP wrapper | **mediamtx HTTP API** (`PATCH /v3/config/paths/patch/cam`) proxied via frp API tunnel | [3-6 notes](../implementation-artifacts/3-6-camera-controls-architecture-notes.md) |
+> | frp stream tunnel | MPEG-TS TCP, `local_port = 5000` | **RTSP TCP, `local_port = 8554`** | [3-2b](../implementation-artifacts/3-2b-mediamtx-rtsp-architecture-pivot.md) |
+> | frp API tunnel | Pi agent HTTP (`local_port = 8080`) | **mediamtx HTTP API (`local_port = 9997`)** | [3-6 notes](../implementation-artifacts/3-6-camera-controls-architecture-notes.md) |
+> | Pi reachability detection | ffmpeg process events | **mediamtx API polling** (`GET /v3/paths/get/cam`, `ready: true`) | [3-2c](../implementation-artifacts/3-2c-webrtc-via-mediamtx.md) |
+>
+> Stale references to `rpicam-vid`, `ffmpeg`, `HLS`, `hls.js`, `v4l2-ctl`, `output_port`, `codec`, and `HLS_SEGMENT_PATH` throughout the sections below reflect the original design and have been superseded.
+
 ## Project Context Analysis
 
 ### Requirements Overview
@@ -184,8 +200,8 @@ go get github.com/spf13/cobra
 ```
 
 **Pi agent responsibilities:**
-- **Camera pipeline:** Launch and supervise `rpicam-vid` subprocess; pipe H.264 MPEG-TS output into frp stream tunnel → upstream ffmpeg
-- **Camera control:** Receive v4l2-ctl commands from upstream via frp API tunnel; apply to camera subprocess in real time
+- **Camera pipeline:** Launch and supervise `mediamtx` subprocess with `rpiCamera` source; camera stays active regardless of consumer connections; RTSP exposed at `:8554/cam` and tunneled to server via frp stream tunnel (see 3-2b pivot)
+- **Camera control:** frp API tunnel exposes mediamtx HTTP API (`:9997`) to server; server proxies `PATCH /v3/config/paths/patch/cam` for runtime camera parameter changes (see 3-6 architecture notes)
 - **frp client:** Maintain two persistent tunnels (stream proxy + API proxy) with auto-reconnect on drop
 - **Captive portal:** WiFi config portal when no known network reachable on boot
 - **Self-update:** `manlycam-agent --self-update` — compares running version against latest release at configured `update_url` (defaults to this repo's GitHub Releases API, TBD); overridable in `/etc/manlycam/config.toml`; downloads ARM artifact, replaces binary, restarts systemd service
@@ -221,16 +237,16 @@ Path-filtered GitHub Actions — each component releases independently on merge 
 | CSS | Tailwind v3 + CSS variables | shadcn-vue theming; dark mode via `.dark`; v4 upgrade deferred until shadcn-vue ships v4 support |
 | Resizable panels | `splitpanes` via shadcn-vue | Vue-native equivalent |
 | State management | Vue 3 Composition API + `@vueuse/core` | No Pinia needed at this scale |
-| Stream playback | `hls.js` | HLS client; native HLS fallback |
+| Stream playback | WebRTC WHEP | `POST /api/stream/whep` — sub-second latency; HLS eliminated (see 3-2c pivot) |
 | Backend framework | Hono 4 | TypeScript-native, minimal, excellent WS |
 | ORM | Prisma 6 | TypeScript schema + migrations |
 | Database | PostgreSQL | Relational: users, roles, chat, audit log |
 | WS fan-out | In-process EventEmitter | Single instance; appropriate for 10–20 viewers; Redis seam documented |
-| Stream transcoding | ffmpeg → HLS | Pi sends H.264; upstream transcodes; single bitrate MVP |
+| Stream transcoding | mediamtx → WebRTC | Pi mediamtx RTSP → server mediamtx WHEP; no ffmpeg (see 3-2c pivot) |
 | Admin CLI | Node.js in `apps/server/src/cli/` | Shared Prisma client; no separate deploy |
 | Pi agent language | Go 1.24 | ARM cross-compile, single binary, systemd |
 | Pi self-update | `manlycam-agent --self-update` | Bundled in agent; config-driven update URL |
-| Pi camera pipeline | `rpicam-vid` subprocess → frp → ffmpeg | Agent supervises camera; upstream transcodes |
+| Pi camera pipeline | mediamtx `rpiCamera` source → RTSP → frp | Camera always-on regardless of consumers; RTSP tunneled to server (see 3-2b pivot) |
 | Containerisation | Docker (server + web) | Rolling deploy via CI/CD |
 | Reverse proxy options | Caddy, nginx, Traefik (all in `deploy/`) | Traefik for Docker-native; Caddy for simplicity; nginx for familiarity |
 | CI/CD | GitHub Actions, path-filtered | Independent release cycles; agent semver, server/web rolling |
@@ -427,11 +443,12 @@ type WsMessage =
   | { type: 'user:update';         payload: UserProfile }  -- profile change: name, avatar, label, tag color, role
 ```
 
-**Camera Control API Chain:**
-- Web UI → `POST /api/camera/control { control: string, value: number | string }`
-- Hono (Admin/Moderator auth) → HTTP through frp API proxy → Pi agent local HTTP server
-- Pi agent applies v4l2-ctl to `rpicam-vid` subprocess
-- Response: `{ ok: true }` or `{ ok: false, error: string }`
+**Camera Control API Chain (updated — see 3-6 architecture notes):**
+- Web UI → `PATCH /api/stream/camera-settings { rpiCameraBrightness: ..., ... }`
+- Hono (Admin auth) → persists to `CameraSettings` DB table → `PATCH frps:FRP_API_PORT/v3/config/paths/patch/cam`
+- frp API tunnel (local_port = 9997) → mediamtx HTTP API on Pi → live rpiCamera source update
+- On Pi reconnect, server re-applies all persisted `CameraSettings` rows
+- Note: v4l2-ctl is **not used** — mediamtx owns the camera via libcamera directly
 
 **Error Response Standard:**
 ```typescript
@@ -499,26 +516,20 @@ dashboard_user = "admin"
 dashboard_pwd = "change-me"
 ```
 
-**Tunnel Configuration (defined by Pi agent `frpc.toml`):**
+**Tunnel Configuration (defined by Pi agent `frpc.toml`, generated by `tunnel.BuildFRPConfig()`):**
 The agent (`frpc` on Pi) defines two tunnels:
-1. **Stream tunnel** → Forwards Pi's rpicam-vid output to frps remote port 11935 (ffmpeg ingestion)
-2. **API tunnel** → Forwards Hono backend commands to Pi's local HTTP server (camera control)
+1. **Stream tunnel** → Forwards Pi's mediamtx RTSP to frps remote port 11935 (server mediamtx ingestion)
+2. **API tunnel** → Forwards Pi's mediamtx HTTP API to frps remote port 11936 (server camera control proxy)
 
-Example frpc sections (on Pi):
+Current frpc sections (on Pi) — see `apps/agent/deploy/config.example.toml`:
 ```toml
-[stream]
-type = tcp
-local_ip = 127.0.0.1
-local_port = 5000        # rpicam-vid listens here
-remote_port = 11935      # frps exposes this to ffmpeg
-# Upstream ffmpeg: ffmpeg -i tcp://localhost:11935 ...
+[frp.stream]
+local_port = 8554        # mediamtx RTSP port
+remote_port = 11935      # server mediamtx source: rtsp://frps:11935/cam
 
-[api]
-type = tcp
-local_ip = 127.0.0.1
-local_port = 8080        # Pi agent HTTP server (receives camera control)
-remote_port = 11936      # frps exposes this to Hono backend
-# Hono: curl http://localhost:11936/camera/brightness ...
+[frp.api]
+local_port = 9997        # mediamtx HTTP API (loopback-only on Pi)
+remote_port = 11936      # server proxies camera control commands here
 ```
 
 **Deployment Context:**
