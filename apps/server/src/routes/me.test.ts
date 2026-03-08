@@ -9,6 +9,11 @@ vi.mock('../env.js', () => ({
 
 vi.mock('../db/client.js', () => ({ prisma: {} }));
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid') }));
+vi.mock('../services/streamService.js', () => ({
+  streamService: { getState: vi.fn(), start: vi.fn(), stop: vi.fn(), setAdminToggle: vi.fn() },
+  StreamService: vi.fn(),
+}));
+vi.mock('../services/wsHub.js', () => ({ wsHub: { broadcast: vi.fn(), addClient: vi.fn() } }));
 vi.mock('../services/authService.js', () => ({
   initiateOAuth: vi.fn(),
   processOAuthCallback: vi.fn(),

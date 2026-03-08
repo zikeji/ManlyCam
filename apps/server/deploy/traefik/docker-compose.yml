@@ -49,11 +49,14 @@ services:
       GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
       # OAuth redirect — automatically uses SITE_DOMAIN
       GOOGLE_REDIRECT_URI: "https://${SITE_DOMAIN}/auth/google/callback"
-      # Directory where HLS segments are written by the transcoding pipeline
-      HLS_SEGMENT_PATH: "/tmp/manlycam/hls"
-      # frp remote ports exposed by frps for stream ingestion and agent API proxy
-      FRP_STREAM_PORT: "${FRP_STREAM_PORT:-11935}"
+      # frp host and remote ports — server connects to frps on the internal Docker network
+      # FRP_HOST is the Docker service name for frps; resolved by Docker bridge DNS
+      FRP_HOST: frps
+      FRP_RTSP_PORT: "${FRP_RTSP_PORT:-11935}"
       FRP_API_PORT: "${FRP_API_PORT:-11936}"
+      # mediamtx ports (process spawned by server; not externally exposed — Hono proxies WHEP)
+      MTX_WEBRTC_PORT: "${MTX_WEBRTC_PORT:-8889}"
+      MTX_API_PORT: "${MTX_API_PORT:-9997}"
       # Secret API key the Pi agent uses to authenticate with the server
       AGENT_API_KEY: "${AGENT_API_KEY}"
       # Configurable instance identity (FR55)

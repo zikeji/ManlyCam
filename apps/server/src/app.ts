@@ -13,6 +13,7 @@ import { authMiddleware } from './middleware/auth.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { meRouter } from './routes/me.js';
+import { streamRouter } from './routes/stream.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,6 +30,7 @@ export function createApp() {
   app.route('/', healthRouter);
   app.route('/', authRouter);
   app.route('/', meRouter);
+  app.route('/', streamRouter);
 
   // SPA catch-all: serve Vue dist in production
   if (env.NODE_ENV === 'production') {
