@@ -103,6 +103,9 @@ func (c *Config) validate() error {
 	if c.Stream.Height <= 0 {
 		return fmt.Errorf("config: stream.height must be positive, got %d", c.Stream.Height)
 	}
+	if c.Stream.Framerate <= 0 {
+		return fmt.Errorf("config: stream.framerate must be positive, got %d", c.Stream.Framerate)
+	}
 	if c.FRP.Stream.RemotePort < 1 || c.FRP.Stream.RemotePort > 65535 {
 		return fmt.Errorf("config: frp.stream.remote_port must be 1-65535, got %d", c.FRP.Stream.RemotePort)
 	}

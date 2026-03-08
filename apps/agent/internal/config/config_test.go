@@ -232,3 +232,31 @@ remote_port = 11936
 		t.Fatal("Load() expected error for missing rtsp_port, got nil")
 	}
 }
+
+func TestLoad_InvalidFramerate(t *testing.T) {
+	const tomlContent = `
+[stream]
+width = 1920
+height = 1080
+framerate = 0
+rtsp_port = 8554
+api_port = 9997
+
+[frp]
+server_addr = "upstream.example.com"
+server_port = 7000
+auth_token = "secret"
+
+[frp.stream]
+remote_port = 11935
+
+[frp.api]
+local_port = 9997
+remote_port = 11936
+`
+	path := writeTempConfig(t, tomlContent)
+	_, err := config.Load(path)
+	if err == nil {
+		t.Fatal("Load() expected error for invalid framerate (0), got nil")
+	}
+}

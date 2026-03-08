@@ -109,10 +109,7 @@ describe('POST /api/stream/whep', () => {
 
   it('passes through mediamtx error responses', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response('no stream', { status: 404 })),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('no stream', { status: 404 })));
 
     const res = await createApp().request('/api/stream/whep', {
       ...authHeaders,
@@ -137,10 +134,7 @@ describe('PATCH /api/stream/whep/:session', () => {
 
   it('proxies trickle ICE candidate to mediamtx', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response(null, { status: 204 })),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
 
     const res = await createApp().request('/api/stream/whep/session-abc', {
       ...authHeaders,
@@ -165,10 +159,7 @@ describe('DELETE /api/stream/whep/:session', () => {
 
   it('proxies session close to mediamtx', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue(new Response(null, { status: 200 })),
-    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
 
     const res = await createApp().request('/api/stream/whep/session-abc', {
       ...authHeaders,

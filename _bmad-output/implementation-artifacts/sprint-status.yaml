@@ -61,7 +61,7 @@ development_status:
 
   epic-3: in-progress
   3-1-pi-agent-camera-pipeline-and-frp-tunnels: done
-  3-2-server-frp-stream-ingestion-and-hls-transcoding: review
+  3-2-server-frp-stream-ingestion-and-hls-transcoding: done
   3-2b-mediamtx-rtsp-architecture-pivot: done  # unplanned: rpicam-vid --listen caused camera lock on disconnect; pivot to mediamtx+RTSP decouples camera from server lifetime; corrects both 3.1 (Pi agent) and 3.2 (server transport)
   3-2c-webrtc-via-mediamtx: done  # unplanned: HLS gave 15s browser latency vs 2s RTSP; server-side mediamtx now does RTSP→WebRTC; Hono proxies WHEP with auth; removes HLS entirely
   3-3-spa-shell-stream-player-and-4-state-ui: backlog

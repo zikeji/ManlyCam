@@ -35,6 +35,7 @@ streamRouter.post('/api/stream/whep', requireAuth, async (c) => {
       // Rewrite mediamtx's session path to our proxy path so the browser sends
       // subsequent PATCH/DELETE through Hono (where auth is enforced).
       // mediamtx: /whep/cam/{uuid}  →  us: /api/stream/whep/{uuid}
+      // (Only POST returns Location; PATCH/DELETE return 204 No Content without bodies/headers)
       headers.set('Location', value.replace(/^\/whep\/cam/, '/api/stream/whep'));
     } else {
       headers.set(key, value);

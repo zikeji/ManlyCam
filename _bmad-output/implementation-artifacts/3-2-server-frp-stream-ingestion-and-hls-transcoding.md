@@ -1,6 +1,6 @@
 # Story 3.2: Server — frp Stream Ingestion and HLS Transcoding
 
-Status: review
+Status: done
 
 ## Story
 
