@@ -11,6 +11,8 @@ const props = defineProps<{
   streamState: ClientStreamState;
 }>();
 
+const emit = defineEmits<{ openCameraControls: [] }>();
+
 const petName = import.meta.env.VITE_PET_NAME as string;
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isHovered = ref(false);
@@ -103,7 +105,7 @@ onUnmounted(() => {
       class="absolute inset-x-0 bottom-0 flex items-end p-3 transition-opacity duration-150"
       :class="overlayVisible(streamState, isHovered) ? 'opacity-100' : 'opacity-0'"
     >
-      <ProfileAnchor v-model:popover-open="profilePopoverOpen" />
+      <ProfileAnchor v-model:popover-open="profilePopoverOpen" @open-camera-controls="emit('openCameraControls')" />
     </div>
   </div>
 </template>

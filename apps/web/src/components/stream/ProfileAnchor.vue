@@ -9,6 +9,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
 const isOpen = defineModel<boolean>('popoverOpen', { default: false });
+const emit = defineEmits<{ openCameraControls: [] }>();
 
 const { user, logout } = useAuth();
 const { streamState } = useStream();
@@ -84,10 +85,8 @@ const handleLogout = async () => {
         </button>
 
         <button
-          class="w-full text-left px-2 py-1.5 text-sm rounded opacity-50 cursor-not-allowed"
-          aria-disabled="true"
-          tabindex="-1"
-          @click.prevent
+          class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
+          @click="() => { isOpen = false; emit('openCameraControls'); }"
         >
           Camera Controls
         </button>

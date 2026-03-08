@@ -1,0 +1,295 @@
+export const CAMERA_CONTROLS_ALLOWLIST = [
+  'rpiCameraHFlip',
+  'rpiCameraVFlip',
+  'rpiCameraBrightness',
+  'rpiCameraContrast',
+  'rpiCameraSaturation',
+  'rpiCameraSharpness',
+  'rpiCameraExposure',
+  'rpiCameraAWB',
+  'rpiCameraAWBGains',
+  'rpiCameraDenoise',
+  'rpiCameraShutter',
+  'rpiCameraMetering',
+  'rpiCameraGain',
+  'rpiCameraEV',
+  'rpiCameraROI',
+  'rpiCameraHDR',
+  'rpiCameraAfMode',
+  'rpiCameraAfRange',
+  'rpiCameraAfSpeed',
+  'rpiCameraLensPosition',
+  'rpiCameraAfWindow',
+  'rpiCameraFlickerPeriod',
+  'rpiCameraTextOverlayEnable',
+  'rpiCameraTextOverlay',
+] as const;
+
+export type CameraControlKey = (typeof CAMERA_CONTROLS_ALLOWLIST)[number];
+export type CameraSettingsMap = Partial<Record<CameraControlKey, unknown>>;
+
+export type CameraControlType = 'switch' | 'slider' | 'select' | 'number' | 'text' | 'dual-number';
+export type CameraControlSection = 'Image' | 'Exposure' | 'White Balance' | 'Autofocus' | 'Overlay';
+
+export interface CameraControlMeta {
+  key: CameraControlKey;
+  label: string;
+  section: CameraControlSection;
+  type: CameraControlType;
+  min?: number;
+  max?: number;
+  step?: number;
+  defaultValue: unknown;
+  options?: Array<{ value: string; label: string }>;
+  /** Key/value pair that must match for this control to be shown */
+  showIf?: { key: CameraControlKey; value: unknown };
+  description?: string;
+}
+
+export const CAMERA_CONTROL_META: CameraControlMeta[] = [
+  // --- Image ---
+  {
+    key: 'rpiCameraHFlip',
+    label: 'Horizontal Flip',
+    section: 'Image',
+    type: 'switch',
+    defaultValue: false,
+    description: 'Mirror image horizontally. Applied on next Pi reconnect if camera is active.',
+  },
+  {
+    key: 'rpiCameraVFlip',
+    label: 'Vertical Flip',
+    section: 'Image',
+    type: 'switch',
+    defaultValue: false,
+    description: 'Flip image vertically. Applied on next Pi reconnect if camera is active.',
+  },
+  {
+    key: 'rpiCameraBrightness',
+    label: 'Brightness',
+    section: 'Image',
+    type: 'slider',
+    min: -1.0,
+    max: 1.0,
+    step: 0.01,
+    defaultValue: 0,
+  },
+  {
+    key: 'rpiCameraContrast',
+    label: 'Contrast',
+    section: 'Image',
+    type: 'slider',
+    min: 0.0,
+    max: 32.0,
+    step: 0.1,
+    defaultValue: 1,
+  },
+  {
+    key: 'rpiCameraSaturation',
+    label: 'Saturation',
+    section: 'Image',
+    type: 'slider',
+    min: 0.0,
+    max: 32.0,
+    step: 0.1,
+    defaultValue: 1,
+  },
+  {
+    key: 'rpiCameraSharpness',
+    label: 'Sharpness',
+    section: 'Image',
+    type: 'slider',
+    min: 0.0,
+    max: 16.0,
+    step: 0.1,
+    defaultValue: 1,
+  },
+  {
+    key: 'rpiCameraHDR',
+    label: 'HDR',
+    section: 'Image',
+    type: 'switch',
+    defaultValue: false,
+  },
+  // --- Exposure ---
+  {
+    key: 'rpiCameraExposure',
+    label: 'Exposure Mode',
+    section: 'Exposure',
+    type: 'select',
+    defaultValue: 'normal',
+    options: [
+      { value: 'normal', label: 'Normal' },
+      { value: 'short', label: 'Short' },
+      { value: 'long', label: 'Long' },
+      { value: 'custom', label: 'Custom' },
+    ],
+  },
+  {
+    key: 'rpiCameraShutter',
+    label: 'Shutter Speed (µs)',
+    section: 'Exposure',
+    type: 'number',
+    min: 0,
+    max: 200000,
+    step: 100,
+    defaultValue: 0,
+    description: '0 = auto. Value in microseconds.',
+  },
+  {
+    key: 'rpiCameraGain',
+    label: 'Analogue Gain',
+    section: 'Exposure',
+    type: 'slider',
+    min: 0,
+    max: 16.0,
+    step: 0.1,
+    defaultValue: 0,
+    description: '0 = auto.',
+  },
+  {
+    key: 'rpiCameraEV',
+    label: 'Exposure Compensation (EV)',
+    section: 'Exposure',
+    type: 'slider',
+    min: -8.0,
+    max: 8.0,
+    step: 0.1,
+    defaultValue: 0,
+  },
+  {
+    key: 'rpiCameraMetering',
+    label: 'Metering Mode',
+    section: 'Exposure',
+    type: 'select',
+    defaultValue: 'centre',
+    options: [
+      { value: 'centre', label: 'Centre' },
+      { value: 'spot', label: 'Spot' },
+      { value: 'matrix', label: 'Matrix' },
+      { value: 'custom', label: 'Custom' },
+    ],
+  },
+  {
+    key: 'rpiCameraFlickerPeriod',
+    label: 'Anti-Flicker Period (µs)',
+    section: 'Exposure',
+    type: 'number',
+    min: 0,
+    max: 20000,
+    step: 1,
+    defaultValue: 0,
+    description: '0 = disabled. For 50Hz: 10000µs. For 60Hz: 8333µs.',
+  },
+  // --- White Balance ---
+  {
+    key: 'rpiCameraAWB',
+    label: 'Auto White Balance',
+    section: 'White Balance',
+    type: 'select',
+    defaultValue: 'auto',
+    options: [
+      { value: 'auto', label: 'Auto' },
+      { value: 'incandescent', label: 'Incandescent' },
+      { value: 'tungsten', label: 'Tungsten' },
+      { value: 'fluorescent', label: 'Fluorescent' },
+      { value: 'indoor', label: 'Indoor' },
+      { value: 'daylight', label: 'Daylight' },
+      { value: 'cloudy', label: 'Cloudy' },
+      { value: 'custom', label: 'Custom (manual gains)' },
+    ],
+  },
+  {
+    key: 'rpiCameraAWBGains',
+    label: 'AWB Gains [Red, Blue]',
+    section: 'White Balance',
+    type: 'dual-number',
+    min: 0.0,
+    max: 8.0,
+    step: 0.01,
+    defaultValue: [0, 0],
+    showIf: { key: 'rpiCameraAWB', value: 'custom' },
+    description: 'Manual red and blue channel gains. Only active when AWB Mode = Custom.',
+  },
+  // --- Autofocus ---
+  {
+    key: 'rpiCameraAfMode',
+    label: 'Autofocus Mode',
+    section: 'Autofocus',
+    type: 'select',
+    defaultValue: 'continuous',
+    options: [
+      { value: 'continuous', label: 'Continuous' },
+      { value: 'auto', label: 'Auto (trigger)' },
+      { value: 'manual', label: 'Manual' },
+    ],
+  },
+  {
+    key: 'rpiCameraAfRange',
+    label: 'Autofocus Range',
+    section: 'Autofocus',
+    type: 'select',
+    defaultValue: 'normal',
+    options: [
+      { value: 'normal', label: 'Normal' },
+      { value: 'macro', label: 'Macro' },
+      { value: 'full', label: 'Full' },
+    ],
+  },
+  {
+    key: 'rpiCameraAfSpeed',
+    label: 'Autofocus Speed',
+    section: 'Autofocus',
+    type: 'select',
+    defaultValue: 'normal',
+    options: [
+      { value: 'normal', label: 'Normal' },
+      { value: 'fast', label: 'Fast' },
+    ],
+  },
+  {
+    key: 'rpiCameraLensPosition',
+    label: 'Lens Position (diopters)',
+    section: 'Autofocus',
+    type: 'slider',
+    min: 0.0,
+    max: 32.0,
+    step: 0.1,
+    defaultValue: 0,
+    showIf: { key: 'rpiCameraAfMode', value: 'manual' },
+    description: 'Manual focus distance in diopters. Only active when AF Mode = Manual.',
+  },
+  {
+    key: 'rpiCameraAfWindow',
+    label: 'AF Window',
+    section: 'Autofocus',
+    type: 'text',
+    defaultValue: '',
+    description: 'Format: "x,y,width,height" normalized 0.0–1.0. Empty = full frame.',
+  },
+  {
+    key: 'rpiCameraROI',
+    label: 'Region of Interest',
+    section: 'Image',
+    type: 'text',
+    defaultValue: '',
+    description: 'Format: "x,y,width,height" normalized 0.0–1.0. Empty = full sensor.',
+  },
+  // --- Overlay ---
+  {
+    key: 'rpiCameraTextOverlayEnable',
+    label: 'Enable Text Overlay',
+    section: 'Overlay',
+    type: 'switch',
+    defaultValue: false,
+  },
+  {
+    key: 'rpiCameraTextOverlay',
+    label: 'Overlay Text',
+    section: 'Overlay',
+    type: 'text',
+    defaultValue: '%Y-%m-%d %H:%M:%S - MediaMTX',
+    showIf: { key: 'rpiCameraTextOverlayEnable', value: true },
+    description: 'Supports strftime format codes.',
+  },
+];

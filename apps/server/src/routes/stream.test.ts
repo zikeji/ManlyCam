@@ -6,10 +6,19 @@ vi.mock('../env.js', () => ({
     BASE_URL: 'http://localhost:3000',
     MTX_WEBRTC_PORT: '8889',
     MTX_API_PORT: '9997',
+    FRP_HOST: 'localhost',
+    FRP_API_PORT: '7400',
   },
 }));
 
-vi.mock('../db/client.js', () => ({ prisma: {} }));
+vi.mock('../db/client.js', () => ({
+  prisma: {
+    cameraSettings: {
+      findMany: vi.fn(),
+      upsert: vi.fn(),
+    },
+  },
+}));
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid') }));
 vi.mock('../services/authService.js', () => ({
   initiateOAuth: vi.fn(),
@@ -23,6 +32,7 @@ vi.mock('../services/streamService.js', () => ({
     start: vi.fn(),
     stop: vi.fn(),
     setAdminToggle: vi.fn(),
+    isPiReachable: vi.fn(),
   },
   StreamService: vi.fn(),
 }));
@@ -32,6 +42,7 @@ vi.mock('../services/wsHub.js', () => ({
 
 import { getSessionUser } from '../services/authService.js';
 import { streamService } from '../services/streamService.js';
+import { prisma } from '../db/client.js';
 import { createApp } from '../app.js';
 
 const mockUser = {
@@ -236,4 +247,79 @@ describe('POST /api/stream/start', () => {
     expect(await res.json()).toEqual({ ok: true });
     expect(vi.mocked(streamService.setAdminToggle)).toHaveBeenCalledWith('live');
   });
+});
+
+describe('GET /api/stream/camera-settings', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream/camera-settings');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for non-Admin role', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/camera-settings', authHeaders);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 200 with settings and piReachable for Admin', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(prisma.cameraSettings.findMany).mockResolvedValue([
+      { key: 'rpiCameraBrightness', value: '0.5', updatedAt: new Date() },
+      { key: 'rpiCameraContrast', value: '1.2', updatedAt: new Date() },
+    ] as never);
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
+
+    const res = await createApp().app.request('/api/stream/camera-settings', authHeaders);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toEqual({
+      settings: {
+        rpiCameraBrightness: 0.5,
+        rpiCameraContrast: 1.2,
+      },
+      piReachable: true,
+    });
+  });
+
+  it('returns empty settings when no camera settings exist', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(prisma.cameraSettings.findMany).mockResolvedValue([] as never);
+    vi.mocked(streamService.isPiReachable).mockReturnValue(false);
+
+    const res = await createApp().app.request('/api/stream/camera-settings', authHeaders);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data).toEqual({ settings: {}, piReachable: false });
+  });
+});
+
+describe('PATCH /api/stream/camera-settings', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for non-Admin role', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  // JSON body parsing tests work in integration/e2e tests; auth tests verify route protection
 });

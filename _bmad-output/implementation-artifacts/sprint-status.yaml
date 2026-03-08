@@ -67,7 +67,7 @@ development_status:
   3-3-spa-shell-stream-player-and-4-state-ui: done  # code-review findings #3-6 fixed: error handling for WHEP POST, watch error recovery, 8 new error path tests, 75 total tests passing
   3-4-websocket-hub-and-real-time-state-broadcasting: done  # code-review findings #2-3 fixed: removed immediate:true from user watch, added error handling to WS init message
   3-5-admin-stream-start-stop-toggle: done
-  3-6-admin-camera-controls-sidebar: backlog  # architecture pre-work documented in 3-6-camera-controls-architecture-notes.md
+  3-6-admin-camera-controls-sidebar: review
   epic-3-retrospective: optional
 
   epic-4: backlog

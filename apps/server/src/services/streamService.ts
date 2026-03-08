@@ -44,6 +44,10 @@ export class StreamService {
     return { state: 'unreachable', adminToggle: 'live' };
   }
 
+  isPiReachable(): boolean {
+    return this.piReachable;
+  }
+
   async setAdminToggle(toggle: 'live' | 'offline'): Promise<void> {
     this.adminToggle = toggle;
     await prisma.streamConfig.upsert({
@@ -157,11 +161,42 @@ export class StreamService {
     }
   }
 
+  private async reapplyCameraSettings(): Promise<void> {
+    try {
+      const rows = await prisma.cameraSettings.findMany();
+      if (rows.length === 0) return;
+      const body: Record<string, unknown> = {};
+      for (const row of rows) {
+        body[row.key] = JSON.parse(row.value);
+      }
+      const res = await fetch(
+        `http://${env.FRP_HOST}:${env.FRP_API_PORT}/v3/config/paths/patch/cam`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        }
+      );
+      if (!res.ok) {
+        logger.warn({ status: res.status }, 'stream: failed to re-apply camera settings on reconnect');
+      } else {
+        logger.info({ count: rows.length }, 'stream: re-applied camera settings on Pi reconnect');
+      }
+    } catch (err) {
+      logger.error({ err }, 'stream: error re-applying camera settings on Pi reconnect');
+    }
+  }
+
   private updateReachable(reachable: boolean): void {
     if (reachable !== this.piReachable) {
       this.piReachable = reachable;
       logger.info({ piReachable: reachable }, 'stream: Pi reachability changed');
       this.broadcastState();
+      if (reachable) {
+        this.reapplyCameraSettings().catch((err) => {
+          logger.error({ err }, 'stream: reapplyCameraSettings rejected unexpectedly');
+        });
+      }
     }
   }
 }

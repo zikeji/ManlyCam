@@ -90,3 +90,11 @@ model StreamConfig {
 
   @@map("stream_config")
 }
+
+model CameraSettings {
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz @map("updated_at")
+
+  @@map("camera_settings")
+}
