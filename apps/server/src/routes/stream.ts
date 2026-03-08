@@ -124,7 +124,12 @@ streamRouter.patch(
   requireAuth,
   requireRole([Role.Admin]),
   async (c) => {
-    const body = await c.req.json<Record<string, unknown>>();
+    let body: Record<string, unknown>;
+    try {
+      body = await c.req.json<Record<string, unknown>>();
+    } catch (_err) {
+      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
+    }
     const allowlist = new Set(CAMERA_CONTROLS_ALLOWLIST);
 
     for (const key of Object.keys(body)) {

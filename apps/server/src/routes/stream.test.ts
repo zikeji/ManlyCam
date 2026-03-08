@@ -321,5 +321,147 @@ describe('PATCH /api/stream/camera-settings', () => {
     expect(res.status).toBe(403);
   });
 
-  // JSON body parsing tests work in integration/e2e tests; auth tests verify route protection
+  it('returns 400 when request body is invalid JSON', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: 'not valid json',
+    });
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error).toBeDefined();
+  });
+
+  it('returns 400 when key is not in allowlist', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ invalidKey: 'value' }),
+    });
+    expect(res.status).toBe(400);
+    const data = await res.json();
+    expect(data.error.code).toBe('INVALID_CAMERA_KEY');
+  });
+
+  it('persists valid settings and returns 200 ok:true when Pi is reachable', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
+    vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
+      key: 'rpiCameraBrightness',
+      value: '0.5',
+      updatedAt: new Date(),
+    } as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.piOffline).toBeUndefined();
+    expect(vi.mocked(prisma.cameraSettings.upsert)).toHaveBeenCalledWith({
+      where: { key: 'rpiCameraBrightness' },
+      update: { value: '0.5' },
+      create: { key: 'rpiCameraBrightness', value: '0.5' },
+    });
+  });
+
+  it('persists settings and returns 200 ok:true piOffline:true when Pi is unreachable', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.isPiReachable).mockReturnValue(false);
+    vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
+      key: 'rpiCameraBrightness',
+      value: '0.5',
+      updatedAt: new Date(),
+    } as never);
+
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.piOffline).toBe(true);
+    // Verify DB upsert still happened even though Pi is offline
+    expect(vi.mocked(prisma.cameraSettings.upsert)).toHaveBeenCalled();
+  });
+
+  it('returns 200 ok:false error:string when mediamtx API returns error', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
+    vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
+      key: 'rpiCameraBrightness',
+      value: '0.5',
+      updatedAt: new Date(),
+    } as never);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('mediamtx error', { status: 500 })),
+    );
+
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(false);
+    expect(data.error).toBe('mediamtx error');
+  });
+
+  it('returns 200 ok:false when fetch to mediamtx fails', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
+    vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
+      key: 'rpiCameraBrightness',
+      value: '0.5',
+      updatedAt: new Date(),
+    } as never);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
+
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(false);
+    expect(data.error).toBe('Failed to reach Pi camera API');
+  });
+
+  it('upserts multiple keys in a single PATCH request', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
+    vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
+      key: 'rpiCameraBrightness',
+      value: '0.5',
+      updatedAt: new Date(),
+    } as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({
+        rpiCameraBrightness: 0.5,
+        rpiCameraContrast: 1.2,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(vi.mocked(prisma.cameraSettings.upsert)).toHaveBeenCalledTimes(2);
+  });
 });

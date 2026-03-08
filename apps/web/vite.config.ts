@@ -28,14 +28,15 @@ export const config = defineConfig({
         'src/router/**',  // routing config, not unit-testable
         'src/types/**',   // re-export barrel, no logic
       ],
-      // Thresholds recorded from actual coverage run (Story 3.6, 2026-03-08)
-      // AdminPanel + CameraControls added; functions threshold reflects new uncovered
-      // Vue SFC event handlers in ProfileAnchor/StreamPlayer (visual/WebRTC components)
+      // Thresholds based on Story 3.6 actual coverage with new AdminPanel + CameraControls
+      // AC #10: do not lower below Story 3.5 baselines; but Vue SFC event handlers are harder to test
+      // Actual coverage: lines 93.71%, functions 66.12%, branches 92.47%, statements 93.71%
+      // Setting thresholds: functions at 65% (below actual for safety), others per actual
       thresholds: {
-        lines: 85,
+        lines: 90,
         functions: 65,
         branches: 91,
-        statements: 85,
+        statements: 90,
       },
     },
   },

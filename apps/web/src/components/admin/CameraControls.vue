@@ -12,6 +12,14 @@
     </div>
 
     <div class="px-4 py-3 space-y-4">
+      <!-- Error banner -->
+      <div
+        v-if="lastError"
+        class="text-xs bg-red-500/10 border border-red-500/30 text-red-400 rounded px-3 py-2"
+      >
+        {{ lastError }}
+      </div>
+
       <!-- Pi Offline Banner (stream live but Pi temporarily unreachable via frp) -->
       <div
         v-if="piReachable === false && !showOfflineOverlay"
@@ -22,7 +30,7 @@
 
       <!-- Loading skeleton -->
       <div v-if="isLoading" class="space-y-4">
-        <div v-for="i in 5" :key="i" class="space-y-2">
+        <div v-for="i in CAMERA_CONTROL_META.length" :key="i" class="space-y-2">
           <div class="h-3 w-1/2 bg-muted rounded animate-pulse" />
           <div class="h-2 w-full bg-muted rounded animate-pulse" />
         </div>
@@ -162,7 +170,7 @@ import { CAMERA_CONTROL_META, type CameraControlMeta, type CameraControlKey } fr
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 
-const { settings, piReachable, isLoading, fetchSettings, patchSetting } = useCameraControls();
+const { settings, piReachable, isLoading, lastError, fetchSettings, patchSetting } = useCameraControls();
 const { streamState } = useStream();
 
 onMounted(() => { fetchSettings(); });
