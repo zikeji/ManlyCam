@@ -1,6 +1,6 @@
 # Story 3.4: WebSocket Hub and Real-Time State Broadcasting
 
-Status: review
+Status: done
 
 ## Story
 
