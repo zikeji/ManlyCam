@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { env } from '../env.js';
 import { logger } from '../lib/logger.js';
+import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
 import type { StreamState } from '@manlycam/types';
 
@@ -43,12 +44,24 @@ export class StreamService {
     return { state: 'unreachable', adminToggle: 'live' };
   }
 
-  setAdminToggle(toggle: 'live' | 'offline'): void {
+  async setAdminToggle(toggle: 'live' | 'offline'): Promise<void> {
     this.adminToggle = toggle;
+    await prisma.streamConfig.upsert({
+      where: { id: 'cfg' },
+      update: { adminToggle: toggle },
+      create: { id: 'cfg', adminToggle: toggle },
+    });
     this.broadcastState();
   }
 
-  start(): void {
+  async start(): Promise<void> {
+    const config = await prisma.streamConfig.upsert({
+      where: { id: 'cfg' },
+      update: {},
+      create: { id: 'cfg', adminToggle: 'live' },
+    });
+    this.adminToggle = config.adminToggle as 'live' | 'offline';
+
     this.supervisorLoop().catch((err) => {
       logger.error({ err }, 'mediamtx supervisor loop exited unexpectedly');
     });

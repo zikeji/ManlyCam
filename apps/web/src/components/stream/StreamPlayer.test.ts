@@ -13,6 +13,14 @@ vi.mock('@/composables/useWhep', () => ({
   }),
 }));
 
+vi.mock('@/composables/useAuth', () => ({
+  useAuth: () => ({
+    user: { value: null },
+    logout: vi.fn(),
+    fetchCurrentUser: vi.fn(),
+  }),
+}));
+
 describe('StreamPlayer', () => {
   beforeEach(() => {
     import.meta.env.VITE_PET_NAME = 'Buddy';

@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
 import { env } from '../env.js';
 import { requireAuth } from '../middleware/requireAuth.js';
+import { requireRole } from '../middleware/requireRole.js';
 import { streamService } from '../services/streamService.js';
 import type { AppEnv } from '../lib/types.js';
+import { Role } from '@manlycam/types';
 
 export const streamRouter = new Hono<AppEnv>();
 
@@ -86,4 +88,14 @@ streamRouter.on(['PATCH', 'DELETE'], '/api/stream/whep/:session', requireAuth, a
     [...res.headers.entries()].filter(([k]) => !HOP_BY_HOP.has(k.toLowerCase())),
   );
   return new Response(null, { status: res.status, headers: forwardedHeaders });
+});
+
+streamRouter.post('/api/stream/stop', requireAuth, requireRole([Role.Admin]), async (c) => {
+  await streamService.setAdminToggle('offline');
+  return c.json({ ok: true });
+});
+
+streamRouter.post('/api/stream/start', requireAuth, requireRole([Role.Admin]), async (c) => {
+  await streamService.setAdminToggle('live');
+  return c.json({ ok: true });
 });

@@ -10,7 +10,9 @@ const port = parseInt(env.PORT, 10);
 
 const server = serve({ fetch: app.fetch, port }, (info) => {
   logger.info(`Server running on http://localhost:${info.port}`);
-  streamService.start();
+  streamService.start().catch((err) => {
+    logger.error({ err }, 'streamService.start() failed');
+  });
 });
 
 injectWebSocket(server);

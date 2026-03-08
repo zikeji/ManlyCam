@@ -20,6 +20,13 @@ vi.mock('../env.js', () => ({
     MTX_API_PORT: '9997',
   },
 }));
+vi.mock('../db/client.js', () => ({
+  prisma: {
+    streamConfig: {
+      upsert: vi.fn().mockResolvedValue({ id: 'cfg', adminToggle: 'live' }),
+    },
+  },
+}));
 
 import { spawn } from 'node:child_process';
 import { wsHub } from './wsHub.js';
@@ -70,8 +77,8 @@ describe('StreamService state machine', () => {
     expect(service.getState()).toEqual({ state: 'unreachable', adminToggle: 'live' });
   });
 
-  it('setAdminToggle offline → explicit-offline', () => {
-    service.setAdminToggle('offline');
+  it('setAdminToggle offline → explicit-offline', async () => {
+    await service.setAdminToggle('offline');
     expect(service.getState()).toEqual({ state: 'explicit-offline' });
     expect(vi.mocked(wsHub.broadcast)).toHaveBeenCalledWith({
       type: 'stream:state',
@@ -79,9 +86,9 @@ describe('StreamService state machine', () => {
     });
   });
 
-  it('setAdminToggle live while piReachable=false → unreachable', () => {
-    service.setAdminToggle('offline');
-    service.setAdminToggle('live');
+  it('setAdminToggle live while piReachable=false → unreachable', async () => {
+    await service.setAdminToggle('offline');
+    await service.setAdminToggle('live');
     expect(service.getState()).toEqual({ state: 'unreachable', adminToggle: 'live' });
   });
 
@@ -132,8 +139,8 @@ describe('StreamService state machine', () => {
     vi.unstubAllGlobals();
   });
 
-  it('stop() kills the mediamtx process', () => {
-    service.start();
+  it('stop() kills the mediamtx process', async () => {
+    await service.start();
     service.stop();
     expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
   });

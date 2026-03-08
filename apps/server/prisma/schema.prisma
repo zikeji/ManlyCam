@@ -82,3 +82,11 @@ model AuditLog {
   @@index([actorId])
   @@map("audit_log")
 }
+
+model StreamConfig {
+  id          String   @id
+  adminToggle String   @default("live") @map("admin_toggle") // 'live' | 'offline'
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz @map("updated_at")
+
+  @@map("stream_config")
+}

@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue';
 import type { ClientStreamState } from '@/composables/useStream';
+import { useAuth } from '@/composables/useAuth';
 import { useWhep } from '@/composables/useWhep';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 import StateOverlay from './StateOverlay.vue';
+import ProfileAnchor from './ProfileAnchor.vue';
 
 const props = defineProps<{
   streamState: ClientStreamState;
@@ -12,12 +14,14 @@ const props = defineProps<{
 const petName = import.meta.env.VITE_PET_NAME as string;
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isHovered = ref(false);
+const profilePopoverOpen = ref(false);
+const { user } = useAuth();
 const { startWhep, stopWhep } = useWhep();
 
 // Overlay is always visible for non-live states (user needs status feedback).
-// For live, it fades in only on hover.
+// For live, it fades in only on hover or when popover is open.
 const overlayVisible = (state: ClientStreamState, hovered: boolean) =>
-  state !== 'live' || hovered;
+  state !== 'live' || hovered || profilePopoverOpen.value;
 
 watch(
   () => props.streamState,
@@ -91,6 +95,15 @@ onUnmounted(() => {
       :class="overlayVisible(streamState, isHovered) ? 'opacity-100' : 'opacity-0'"
     >
       <StreamStatusBadge :state="streamState" />
+    </div>
+
+    <!-- Profile anchor: bottom-left, hover-gated (same behavior as top overlay) -->
+    <div
+      v-if="user"
+      class="absolute inset-x-0 bottom-0 flex items-end p-3 transition-opacity duration-150"
+      :class="overlayVisible(streamState, isHovered) ? 'opacity-100' : 'opacity-0'"
+    >
+      <ProfileAnchor v-model:popover-open="profilePopoverOpen" />
     </div>
   </div>
 </template>

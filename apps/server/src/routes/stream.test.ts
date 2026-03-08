@@ -49,6 +49,8 @@ const mockUser = {
   lastSeenAt: null,
 };
 
+const mockAdmin = { ...mockUser, role: 'Admin' };
+
 const authHeaders = { headers: { cookie: 'session_id=valid-session' } };
 
 describe('GET /api/stream/state', () => {
@@ -169,5 +171,69 @@ describe('DELETE /api/stream/whep/:session', () => {
       method: 'DELETE',
     });
     expect(res.status).toBe(200);
+  });
+});
+
+describe('POST /api/stream/stop', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream/stop', { method: 'POST' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for non-Admin role', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/stop', {
+      ...authHeaders,
+      method: 'POST',
+    });
+    expect(res.status).toBe(403);
+    expect(vi.mocked(streamService.setAdminToggle)).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 and calls setAdminToggle("offline") for Admin', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.setAdminToggle).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/stream/stop', {
+      ...authHeaders,
+      method: 'POST',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(vi.mocked(streamService.setAdminToggle)).toHaveBeenCalledWith('offline');
+  });
+});
+
+describe('POST /api/stream/start', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream/start', { method: 'POST' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for non-Admin role', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/start', {
+      ...authHeaders,
+      method: 'POST',
+    });
+    expect(res.status).toBe(403);
+    expect(vi.mocked(streamService.setAdminToggle)).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 and calls setAdminToggle("live") for Admin', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.setAdminToggle).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/stream/start', {
+      ...authHeaders,
+      method: 'POST',
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(vi.mocked(streamService.setAdminToggle)).toHaveBeenCalledWith('live');
   });
 });

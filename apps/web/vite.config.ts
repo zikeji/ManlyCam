@@ -22,13 +22,13 @@ export const config = defineConfig({
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**/*.ts', 'src/**/*.vue'],
       exclude: ['src/**/*.test.ts', 'src/main.ts'],
-      // Thresholds recorded from actual coverage run (Story 3.4, 2026-03-08)
-      // useWebSocket.ts added; lines/statements improve with composable coverage
+      // Thresholds recorded from actual coverage run (Story 3.5, 2026-03-08)
+      // ProfileAnchor.vue added (visual component, functions tested via composables)
       thresholds: {
-        lines: 69,
-        functions: 86,
-        branches: 92,
-        statements: 69,
+        lines: 85,
+        functions: 79,
+        branches: 91,
+        statements: 85,
       },
     },
   },
