@@ -5,6 +5,7 @@ import { useStream } from '@/composables/useStream';
 import { Role } from '@manlycam/types';
 import StreamPlayer from '@/components/stream/StreamPlayer.vue';
 import AdminPanel from '@/components/admin/AdminPanel.vue';
+import ChatPanel from '@/components/chat/ChatPanel.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 const { user } = useAuth();
@@ -53,7 +54,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-screen w-full overflow-hidden bg-[hsl(var(--background))]">
+  <div class="flex flex-col lg:flex-row h-screen w-full overflow-hidden bg-[hsl(var(--background))]">
     <!-- Left sidebar: admin only, desktop (≥ lg). Transition slides it in/out, pushing the stream. -->
     <Transition name="sidebar-left">
       <aside
@@ -65,8 +66,8 @@ onMounted(() => {
       </aside>
     </Transition>
 
-    <!-- Stream column: fills remaining space -->
-    <main class="flex-1 min-w-0 flex items-center justify-center bg-black">
+    <!-- Stream column: aspect-video on mobile, flex-1 on desktop -->
+    <main class="lg:flex-1 min-w-0 flex items-center justify-center bg-black">
       <StreamPlayer
         :streamState="streamState"
         :isAdmin="isAdmin"
@@ -77,13 +78,12 @@ onMounted(() => {
       />
     </main>
 
-    <!-- Right sidebar: placeholder for Story 4.x chat panel -->
-    <aside
-      data-sidebar-right
-      class="w-[320px] shrink-0 hidden lg:flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))]"
-    >
-      <!-- Story 4.x: ChatPanel here -->
-    </aside>
+    <!-- Chat: full-width below stream on mobile, right sidebar on desktop -->
+    <ChatPanel
+      data-chat-panel
+      class="flex-1 lg:flex-none lg:w-[320px] flex flex-col bg-[hsl(var(--sidebar))] lg:border-l border-[hsl(var(--border))]"
+      @open-camera-controls="handleOpenCameraControls"
+    />
 
     <!-- Mobile: Sheet drawer for admin controls (< lg only) -->
     <Sheet v-if="isAdmin" v-model:open="mobileSheetOpen">

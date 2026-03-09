@@ -29,6 +29,23 @@ vi.mock('@/composables/useStream', () => ({
   }),
 }));
 
+vi.mock('@/composables/useChat', () => ({
+  useChat: () => ({
+    messages: ref([]),
+    sendChatMessage: vi.fn(),
+    handleChatMessage: vi.fn(),
+  }),
+}));
+
+vi.mock('@/composables/useAdminStream', () => ({
+  useAdminStream: () => ({
+    startStream: vi.fn(),
+    stopStream: vi.fn(),
+    isLoading: ref(false),
+    error: ref(null),
+  }),
+}));
+
 // Stub StreamPlayer to avoid WebRTC complexity in layout tests
 vi.mock('@/components/stream/StreamPlayer.vue', () => ({
   default: {
@@ -36,6 +53,15 @@ vi.mock('@/components/stream/StreamPlayer.vue', () => ({
     props: ['streamState'],
     emits: ['openCameraControls'],
     template: '<button data-stream-player @click="$emit(\'openCameraControls\')" />',
+  },
+}));
+
+// Stub ChatPanel to avoid chat composable complexity in layout tests
+vi.mock('@/components/chat/ChatPanel.vue', () => ({
+  default: {
+    name: 'ChatPanel',
+    emits: ['openCameraControls'],
+    template: '<div data-chat-panel />',
   },
 }));
 
@@ -80,10 +106,17 @@ describe('WatchView', () => {
     expect(wrapper.find('[data-sidebar-left]').exists()).toBe(false);
   });
 
-  it('right sidebar placeholder exists', async () => {
+  it('renders ChatPanel (replaces right sidebar placeholder)', async () => {
     const wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
     await flushPromises();
-    expect(wrapper.find('[data-sidebar-right]').exists()).toBe(true);
+    expect(wrapper.find('[data-chat-panel]').exists()).toBe(true);
+  });
+
+  it('outer container has flex flex-col lg:flex-row classes', async () => {
+    const wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+    await flushPromises();
+    const outer = wrapper.find('div.flex.flex-col');
+    expect(outer.exists()).toBe(true);
   });
 
   it('left sidebar is hidden when user is null', async () => {

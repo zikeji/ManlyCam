@@ -70,8 +70,8 @@ development_status:
   3-6-admin-camera-controls-sidebar: done
   epic-3-retrospective: done  # Completed 2026-03-08
 
-  epic-4: backlog
-  4-1-chat-panel-message-sending-and-real-time-delivery: backlog
+  epic-4: in-progress
+  4-1-chat-panel-message-sending-and-real-time-delivery: review
   4-2-chat-history-on-load-and-infinite-scroll: backlog
   4-3-message-grouping-avatars-and-usertag-display: backlog
   4-4-unread-badge-sidebar-collapse-expand-and-state-persistence: backlog

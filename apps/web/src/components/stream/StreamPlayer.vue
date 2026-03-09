@@ -125,9 +125,9 @@ onUnmounted(() => {
       </Button>
     </div>
 
-    <!-- Profile anchor: bottom-left, hover-gated (same behavior as top overlay) -->
+    <!-- Profile anchor: bottom-left, hover-gated, desktop only (mobile: moved to ChatPanel input bar) -->
     <div
-      v-if="user"
+      v-if="user && isDesktop"
       class="absolute inset-x-0 bottom-0 flex items-end p-3 transition-opacity duration-150"
       :class="overlayVisible(streamState, isHovered) ? 'opacity-100' : 'opacity-0'"
     >
