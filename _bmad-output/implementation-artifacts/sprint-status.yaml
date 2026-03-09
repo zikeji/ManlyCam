@@ -76,7 +76,7 @@ development_status:
   4-3-message-grouping-avatars-and-usertag-display: done  # code-review findings #2-3 fixed: direct import of handleUserUpdate, removed redundant pr-3 class. 214 tests passing
   4-4-unread-badge-sidebar-collapse-expand-and-state-persistence: done  # code-review findings #3 fixed: badge pulse animation timeout cleanup, 3 new tests for pulse behavior, documented enhancement. 243 tests passing
   4-4b-bug-fixes-camera-control-toggles-and-mobile-landscape: ready-for-dev  # unplanned: real-device testing revealed toggle API wiring broken (story 3.6) and mobile landscape layout/overlay broken (stories 3.3, 3.6); see sprint-change-proposal-2026-03-09.md; resolve before 4-6 QA
-  4-5-own-message-edit-and-delete: review
+  4-5-own-message-edit-and-delete: done  # code-review findings documented: Shift+click delete bypass (AC #6 power-user), up-arrow last-message edit (AC #8), file list completed, test count corrected
   4-6-viewer-presence-list-and-typing-indicator: backlog
   epic-4-retrospective: optional
 

@@ -1,6 +1,6 @@
 # Story 4.5: Own Message Edit and Delete
 
-Status: review
+Status: done
 
 ## Story
 
@@ -35,12 +35,20 @@ so that I can correct mistakes without asking a moderator.
 
 6. **Delete confirmation and server processing**
    - When the user selects "Delete", a `window.confirm('Delete this message?')` prompt appears
-   - If confirmed: `DELETE /api/chat/messages/:messageId` is called; server sets `deleted_at = NOW()`, `deleted_by = userId`; broadcasts `{ type: 'chat:delete', payload: { messageId } }`
+   - **Power-user shortcut:** Holding Shift while clicking Delete bypasses the confirmation (standard UX in Discord, Slack, etc.)
+   - If confirmed or Shift+clicked: `DELETE /api/chat/messages/:messageId` is called; server sets `deleted_at = NOW()`, `deleted_by = userId`; broadcasts `{ type: 'chat:delete', payload: { messageId } }`
    - Server verifies ownership; returns `403` if not owner, `404` if not found or already deleted
    - No hard-delete; `deletedAt` is set (NFR15)
 
 7. **Client delete receipt (`chat:delete` WS message)**
    - When a `chat:delete` WS message arrives, `useWebSocket.ts` calls `handleChatDelete(payload.messageId)` which removes the message from the local `messages` list
+
+8. **Edit last message via up-arrow key (power-user feature)**
+   - When user presses up-arrow on an empty ChatInput, the last own message sent within the last 5 minutes is opened for editing
+   - Searches through messages in reverse chronological order; only matches messages where `userId === currentUser.id` and message age ≤ 5 minutes
+   - Opens the message in edit mode by calling `ChatMessage.startEdit()` (exposed via template ref)
+   - If no matching message found, arrow-up does nothing
+   - If input has content, arrow-up behaves normally (cursor navigation)
 
 ---
 
@@ -485,6 +493,10 @@ so that I can correct mistakes without asking a moderator.
 
 **`formatTime` reuse** — Already imported in `ChatMessage.vue` for `timeLabel`. Reuse it directly for `editedLabel` — no new import needed.
 
+**Shift+Click delete bypass** — Power-user shortcut (standard in Discord, Slack, etc.). Holding Shift when clicking Delete emits `requestDelete` directly without `window.confirm()`. This is intentional UX and documented in AC #6.
+
+**Up-arrow last-message edit (AC #8)** — When user presses up-arrow on empty ChatInput, the most recent own message within 5 minutes opens for editing via `ChatMessage.startEdit()` template ref. Uses `EDIT_WINDOW_MS = 5 * 60 * 1000` constant already defined in ChatPanel.vue for consistency. Requires `handleEditLast()` wired to ChatInput's `editLast` event in ChatPanel.vue.
+
 ### Project Structure — Files to Modify / Create
 
 ```
@@ -514,7 +526,11 @@ apps/web/src/
     useWebSocket.ts         ← MODIFY: dispatch chat:edit and chat:delete
     useWebSocket.test.ts    ← MODIFY: add chat:edit/chat:delete dispatch tests
 
-  vite.config.ts            ← MODIFY: add dropdown-menu + tooltip to coverage exclude
+  chat/
+    ChatInput.vue           ← MODIFY: add editLast emit, arrow-up handler for last message edit (AC #8)
+    ChatInput.test.ts       ← MODIFY: add 2 tests for arrow-up behavior (empty vs. non-empty input)
+
+  vite.config.ts            ← NO CHANGE NEEDED: coverage exclude already includes src/components/ui/** glob
 ```
 
 ### Previous Story Learnings Applied
@@ -667,7 +683,10 @@ claude-sonnet-4-6
 - Updated `useWebSocket.ts` to dispatch `chat:edit` and `chat:delete` messages to their handlers
 - Updated `ChatMessage.vue` with `isOwn` prop, context menu (DropdownMenu), edit mode (textarea), and `(edited)` tooltip indicator — applied to both group and continuation row variants
 - Updated `ChatPanel.vue` to pass `isOwn` (user?.id === message.userId), import `useAuth`, and wire up `handleMessageEdit`/`handleMessageDelete` event handlers
-- All 444 tests pass (169 server + 275 web); TypeScript clean; ESLint/Prettier clean
+- **Documented power-user features:**
+  - Shift+Click delete bypass (AC #6) — matches Discord/Slack standard UX for power users
+  - Up-arrow last-message edit (AC #8) — searches last own message within 5-minute window, opens in edit mode
+- All 449 tests pass (169 server + 280 web); TypeScript clean; ESLint/Prettier clean
 
 ### File List
 
@@ -679,9 +698,11 @@ claude-sonnet-4-6
 - `apps/web/src/composables/useChat.test.ts` — modified: added `handleChatEdit`, `handleChatDelete`, `editMessage`, `deleteMessage` tests
 - `apps/web/src/composables/useWebSocket.ts` — modified: imported `handleChatEdit`/`handleChatDelete`, dispatch `chat:edit` and `chat:delete`
 - `apps/web/src/composables/useWebSocket.test.ts` — modified: added `chat:edit` and `chat:delete` dispatch tests with `vi.hoisted` mocks
-- `apps/web/src/components/chat/ChatMessage.vue` — modified: added `isOwn` prop, `requestEdit`/`requestDelete` emits, context menu, edit mode, `(edited)` tooltip
+- `apps/web/src/components/chat/ChatMessage.vue` — modified: added `isOwn` prop, `requestEdit`/`requestDelete` emits, context menu, edit mode, `(edited)` tooltip, Shift+click delete bypass (AC #6)
 - `apps/web/src/components/chat/ChatMessage.test.ts` — modified: rewrote with mocks for dropdown/tooltip/lucide, added all new context menu/edit/delete/indicator tests
-- `apps/web/src/components/chat/ChatPanel.vue` — modified: imported `useAuth`, wired `editMessage`/`deleteMessage`, passes `isOwn` and event handlers to `ChatMessage`
+- `apps/web/src/components/chat/ChatInput.vue` — modified: added `editLast` emit, up-arrow key handler for last-message edit (AC #8)
+- `apps/web/src/components/chat/ChatInput.test.ts` — modified: added 2 tests for up-arrow behavior (empty vs. non-empty input)
+- `apps/web/src/components/chat/ChatPanel.vue` — modified: imported `useAuth`, wired `editMessage`/`deleteMessage`, passes `isOwn` and event handlers to `ChatMessage`, added `handleEditLast()` for up-arrow feature (AC #8)
 - `apps/web/src/components/chat/ChatPanel.test.ts` — modified: updated `useChat`/`useAuth` mocks, added `isOwn` and edit/delete event tests
 - `apps/web/src/components/ui/dropdown-menu/` — installed: 15 shadcn-vue generated files
 - `apps/web/src/components/ui/tooltip/` — installed: 5 shadcn-vue generated files
