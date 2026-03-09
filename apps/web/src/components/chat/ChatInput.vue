@@ -3,7 +3,7 @@ import { ref, computed } from 'vue';
 import { Button } from '@/components/ui/button';
 import { SendHorizontal } from 'lucide-vue-next';
 
-const emit = defineEmits<{ send: [content: string] }>();
+const emit = defineEmits<{ send: [content: string]; editLast: [] }>();
 
 const content = ref('');
 
@@ -15,6 +15,10 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     send();
+  }
+  if (e.key === 'ArrowUp' && content.value === '') {
+    e.preventDefault();
+    emit('editLast');
   }
 }
 

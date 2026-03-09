@@ -45,11 +45,16 @@ vi.mock('@/composables/useStream', () => ({
 }));
 
 // --- useChat mock ---
+const mockHandleChatEdit = vi.hoisted(() => vi.fn());
+const mockHandleChatDelete = vi.hoisted(() => vi.fn());
+
 vi.mock('@/composables/useChat', () => ({
   useChat: () => ({
     handleChatMessage: vi.fn(),
   }),
   handleUserUpdate: vi.fn(),
+  handleChatEdit: mockHandleChatEdit,
+  handleChatDelete: mockHandleChatDelete,
 }));
 
 // Import AFTER mocks (important for module reset isolation)
@@ -159,6 +164,34 @@ describe('useWebSocket', () => {
         }),
       );
       expect(vi.mocked(useChatModule.handleUserUpdate)).toHaveBeenCalledWith(profile);
+    });
+
+    it('dispatches chat:edit payload to handleChatEdit()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = {
+        messageId: 'msg-001',
+        content: 'Edited',
+        editHistory: [{ content: 'Original', editedAt: '2026-03-08T10:00:00.000Z' }],
+        updatedAt: '2026-03-08T11:00:00.000Z',
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'chat:edit', payload }),
+        }),
+      );
+      expect(mockHandleChatEdit).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches chat:delete payload.messageId to handleChatDelete()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'chat:delete', payload: { messageId: 'msg-001' } }),
+        }),
+      );
+      expect(mockHandleChatDelete).toHaveBeenCalledWith('msg-001');
     });
   });
 

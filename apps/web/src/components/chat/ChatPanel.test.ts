@@ -10,6 +10,8 @@ const mockIsLoadingHistory = ref(false);
 const mockSendChatMessage = vi.fn();
 const mockInitHistory = vi.fn();
 const mockLoadMoreHistory = vi.fn();
+const mockEditMessage = vi.fn();
+const mockDeleteMessage = vi.fn();
 
 vi.mock('@/composables/useChat', () => ({
   useChat: () => ({
@@ -20,14 +22,16 @@ vi.mock('@/composables/useChat', () => ({
     loadMoreHistory: mockLoadMoreHistory,
     hasMore: mockHasMore,
     isLoadingHistory: mockIsLoadingHistory,
+    editMessage: mockEditMessage,
+    deleteMessage: mockDeleteMessage,
   }),
 }));
 
 vi.mock('@/composables/useAuth', () => ({
-  useAuth: () => ({
-    user: ref({ displayName: 'Test User', avatarUrl: null, role: 'ViewerCompany' }),
+  useAuth: vi.fn(() => ({
+    user: ref({ id: 'user-001', displayName: 'Test User', avatarUrl: null, role: 'ViewerCompany' }),
     logout: vi.fn(),
-  }),
+  })),
 }));
 
 vi.mock('@/composables/useStream', () => ({
@@ -83,6 +87,8 @@ describe('ChatPanel.vue', () => {
     mockIsLoadingHistory.value = false;
     mockInitHistory.mockResolvedValue(undefined);
     mockLoadMoreHistory.mockResolvedValue(undefined);
+    mockEditMessage.mockResolvedValue(undefined);
+    mockDeleteMessage.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -342,6 +348,85 @@ describe('ChatPanel.vue', () => {
 
       // Both messages are group headers (day boundary resets group)
       expect(countGroupHeaderListitems(wrapper!)).toBe(2);
+    });
+  });
+
+  describe('isOwn prop passing and edit/delete event handling', () => {
+    const ownMessage: ChatMessage = {
+      ...mockMessage,
+      id: 'msg-001',
+      userId: 'user-001', // matches mocked user.id
+    };
+    const otherMessage: ChatMessage = {
+      ...mockMessage,
+      id: 'msg-002',
+      userId: 'user-999', // does NOT match mocked user.id
+    };
+
+    function mountWithStub() {
+      return mount(ChatPanel, {
+        global: {
+          stubs: {
+            ChatMessage: {
+              name: 'ChatMessage',
+              props: ['message', 'isContinuation', 'isOwn'],
+              emits: ['requestEdit', 'requestDelete'],
+              template: `
+                <div
+                  :data-msg-id="message.id"
+                  :data-is-own="String(isOwn)"
+                  @click.own="$emit('requestEdit', message.id, 'edited')"
+                >
+                  <button class="trigger-edit" @click="$emit('requestEdit', message.id, 'edited')">edit</button>
+                  <button class="trigger-delete" @click="$emit('requestDelete', message.id)">delete</button>
+                </div>
+              `,
+            },
+          },
+        },
+      });
+    }
+
+    it('passes isOwn=true when user.id matches message.userId', async () => {
+      mockMessages.value = [ownMessage];
+      wrapper = mountWithStub();
+      await flushPromises();
+
+      const msgEl = wrapper.find('[data-msg-id="msg-001"]');
+      expect(msgEl.attributes('data-is-own')).toBe('true');
+    });
+
+    it('passes isOwn=false when user.id does not match message.userId', async () => {
+      mockMessages.value = [otherMessage];
+      wrapper = mountWithStub();
+      await flushPromises();
+
+      const msgEl = wrapper.find('[data-msg-id="msg-002"]');
+      expect(msgEl.attributes('data-is-own')).toBe('false');
+    });
+
+    it('requestEdit event from ChatMessage triggers editMessage with correct args', async () => {
+      mockMessages.value = [ownMessage];
+      mockEditMessage.mockResolvedValue(undefined);
+      wrapper = mountWithStub();
+      await flushPromises();
+
+      await wrapper.find('.trigger-edit').trigger('click');
+      await flushPromises();
+
+      expect(mockEditMessage).toHaveBeenCalledWith('msg-001', 'edited');
+    });
+
+    it('requestDelete event from ChatMessage triggers deleteMessage with correct messageId', async () => {
+      mockMessages.value = [ownMessage];
+      mockDeleteMessage.mockResolvedValue(undefined);
+      wrapper = mountWithStub();
+      await flushPromises();
+
+      await wrapper.find('.trigger-delete').trigger('click');
+      await flushPromises();
+
+      expect(mockDeleteMessage).toHaveBeenCalledWith('msg-001');
     });
   });
 });

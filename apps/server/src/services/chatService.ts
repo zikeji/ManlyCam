@@ -1,8 +1,11 @@
 import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
-import type { ChatMessage, UserTag, WsMessage } from '@manlycam/types';
+import { AppError } from '../lib/errors.js';
+import type { ChatMessage, ChatEdit, UserTag, WsMessage } from '@manlycam/types';
 import type { User } from '@prisma/client';
+
+type EditHistoryEntry = { content: string; editedAt: string };
 
 function computeUserTag(user: User): UserTag | null {
   if (user.userTagText) {
@@ -33,8 +36,8 @@ function toApiChatMessage(row: MessageRow): ChatMessage {
     displayName: row.user.displayName,
     avatarUrl: row.user.avatarUrl,
     content: row.content,
-    editHistory: null,
-    updatedAt: null,
+    editHistory: (row.editHistory as { content: string; editedAt: string }[] | null) ?? null,
+    updatedAt: row.updatedAt?.toISOString() ?? null,
     deletedAt: null,
     deletedBy: null,
     createdAt: row.createdAt.toISOString(),
@@ -85,4 +88,54 @@ export async function getHistory(params: {
     .reverse();
 
   return { messages, hasMore };
+}
+
+export async function editMessage(params: {
+  messageId: string;
+  userId: string;
+  content: string;
+}): Promise<ChatEdit> {
+  const { messageId, userId, content } = params;
+
+  const existing = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!existing) throw new AppError('Message not found', 'NOT_FOUND', 404);
+  if (existing.userId !== userId) throw new AppError('Forbidden', 'FORBIDDEN', 403);
+  if (existing.deletedAt) throw new AppError('Message not found', 'NOT_FOUND', 404);
+
+  const prev = (existing.editHistory as EditHistoryEntry[] | null) ?? [];
+  const entry: EditHistoryEntry = { content: existing.content, editedAt: new Date().toISOString() };
+  const newHistory = [...prev, entry];
+  const now = new Date();
+
+  await prisma.message.update({
+    where: { id: messageId },
+    data: { content, editHistory: newHistory, updatedAt: now },
+  });
+
+  const chatEdit: ChatEdit = {
+    messageId,
+    content,
+    editHistory: newHistory,
+    updatedAt: now.toISOString(),
+  };
+
+  wsHub.broadcast({ type: 'chat:edit', payload: chatEdit });
+
+  return chatEdit;
+}
+
+export async function deleteMessage(params: { messageId: string; userId: string }): Promise<void> {
+  const { messageId, userId } = params;
+
+  const existing = await prisma.message.findUnique({ where: { id: messageId } });
+  if (!existing) throw new AppError('Message not found', 'NOT_FOUND', 404);
+  if (existing.userId !== userId) throw new AppError('Forbidden', 'FORBIDDEN', 403);
+  if (existing.deletedAt) throw new AppError('Message not found', 'NOT_FOUND', 404);
+
+  await prisma.message.update({
+    where: { id: messageId },
+    data: { deletedAt: new Date(), deletedBy: userId },
+  });
+
+  wsHub.broadcast({ type: 'chat:delete', payload: { messageId } });
 }

@@ -5,6 +5,8 @@ vi.mock('../db/client.js', () => ({
     message: {
       create: vi.fn(),
       findMany: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
   },
 }));
@@ -17,7 +19,7 @@ vi.mock('./wsHub.js', () => ({
 
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
-import { createMessage, getHistory } from './chatService.js';
+import { createMessage, getHistory, editMessage, deleteMessage } from './chatService.js';
 
 const mockUser = {
   id: 'user-001',
@@ -240,6 +242,200 @@ describe('chatService.getHistory', () => {
       deletedBy: null,
       createdAt: '2026-03-08T10:00:00.000Z',
       userTag: null,
+    });
+  });
+});
+
+describe('chatService.toApiChatMessage (via getHistory)', () => {
+  it('returns non-null editHistory when row has editHistory JSONB', async () => {
+    const history = [{ content: 'original', editedAt: '2026-03-08T10:00:00.000Z' }];
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { ...mockMessageRow, editHistory: history },
+    ] as never);
+
+    const result = await getHistory({});
+    expect(result.messages[0].editHistory).toEqual(history);
+  });
+
+  it('returns non-null updatedAt when row has updatedAt', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { ...mockMessageRow, updatedAt: new Date('2026-03-08T11:00:00.000Z') },
+    ] as never);
+
+    const result = await getHistory({});
+    expect(result.messages[0].updatedAt).toBe('2026-03-08T11:00:00.000Z');
+  });
+});
+
+describe('chatService.editMessage', () => {
+  const baseRow = {
+    id: 'msg-001',
+    userId: 'user-001',
+    content: 'Original content',
+    editHistory: null,
+    updatedAt: null,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: new Date('2026-03-08T10:00:00.000Z'),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.message.update).mockResolvedValue({} as never);
+  });
+
+  it('throws 404 when message not found', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(null);
+
+    await expect(
+      editMessage({ messageId: 'msg-001', userId: 'user-001', content: 'New content' }),
+    ).rejects.toMatchObject({ statusCode: 404, code: 'NOT_FOUND' });
+  });
+
+  it('throws 403 when userId does not match message.userId', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+
+    await expect(
+      editMessage({ messageId: 'msg-001', userId: 'user-999', content: 'New content' }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+  });
+
+  it('throws 404 when message is already deleted', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({
+      ...baseRow,
+      deletedAt: new Date(),
+    } as never);
+
+    await expect(
+      editMessage({ messageId: 'msg-001', userId: 'user-001', content: 'New content' }),
+    ).rejects.toMatchObject({ statusCode: 404, code: 'NOT_FOUND' });
+  });
+
+  it('updates content and builds editHistory from null array', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+
+    await editMessage({ messageId: 'msg-001', userId: 'user-001', content: 'New content' });
+
+    expect(prisma.message.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: 'New content',
+          editHistory: [{ content: 'Original content', editedAt: expect.any(String) }],
+        }),
+      }),
+    );
+  });
+
+  it('appends to existing editHistory array', async () => {
+    const existingHistory = [{ content: 'First', editedAt: '2026-03-08T09:00:00.000Z' }];
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({
+      ...baseRow,
+      editHistory: existingHistory,
+    } as never);
+
+    await editMessage({ messageId: 'msg-001', userId: 'user-001', content: 'Third content' });
+
+    const updateCall = vi.mocked(prisma.message.update).mock.calls[0][0];
+    const history = (updateCall as unknown as { data: { editHistory: { content: string }[] } }).data
+      .editHistory;
+    expect(history).toHaveLength(2);
+    expect(history[0].content).toBe('First');
+    expect(history[1].content).toBe('Original content');
+  });
+
+  it('broadcasts chat:edit WS event with correct ChatEdit payload', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+
+    const result = await editMessage({
+      messageId: 'msg-001',
+      userId: 'user-001',
+      content: 'Edited',
+    });
+
+    expect(wsHub.broadcast).toHaveBeenCalledWith({ type: 'chat:edit', payload: result });
+  });
+
+  it('returns correct ChatEdit shape', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+
+    const result = await editMessage({
+      messageId: 'msg-001',
+      userId: 'user-001',
+      content: 'Edited',
+    });
+
+    expect(result).toMatchObject({
+      messageId: 'msg-001',
+      content: 'Edited',
+      editHistory: expect.any(Array),
+      updatedAt: expect.any(String),
+    });
+  });
+});
+
+describe('chatService.deleteMessage', () => {
+  const baseRow = {
+    id: 'msg-001',
+    userId: 'user-001',
+    content: 'Hello',
+    editHistory: null,
+    updatedAt: null,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: new Date('2026-03-08T10:00:00.000Z'),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.message.update).mockResolvedValue({} as never);
+  });
+
+  it('throws 404 when message not found', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(null);
+
+    await expect(deleteMessage({ messageId: 'msg-001', userId: 'user-001' })).rejects.toMatchObject(
+      { statusCode: 404, code: 'NOT_FOUND' },
+    );
+  });
+
+  it('throws 403 when userId does not match', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+
+    await expect(deleteMessage({ messageId: 'msg-001', userId: 'user-999' })).rejects.toMatchObject(
+      { statusCode: 403, code: 'FORBIDDEN' },
+    );
+  });
+
+  it('throws 404 when message is already deleted', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({
+      ...baseRow,
+      deletedAt: new Date(),
+    } as never);
+
+    await expect(deleteMessage({ messageId: 'msg-001', userId: 'user-001' })).rejects.toMatchObject(
+      { statusCode: 404, code: 'NOT_FOUND' },
+    );
+  });
+
+  it('updates deletedAt and deletedBy on message row', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001' });
+
+    expect(prisma.message.update).toHaveBeenCalledWith({
+      where: { id: 'msg-001' },
+      data: { deletedAt: expect.any(Date), deletedBy: 'user-001' },
+    });
+  });
+
+  it('broadcasts chat:delete WS event with messageId', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001' });
+
+    expect(wsHub.broadcast).toHaveBeenCalledWith({
+      type: 'chat:delete',
+      payload: { messageId: 'msg-001' },
     });
   });
 });

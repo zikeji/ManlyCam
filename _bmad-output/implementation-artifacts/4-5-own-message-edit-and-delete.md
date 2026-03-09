@@ -1,6 +1,6 @@
 # Story 4.5: Own Message Edit and Delete
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -48,24 +48,24 @@ so that I can correct mistakes without asking a moderator.
 
 ### Prerequisites — Install shadcn-vue components
 
-- [ ] Task 0a — Install `dropdown-menu` from `apps/web/` (AC: #1)
-  - [ ] Run: `pnpm dlx shadcn-vue@latest add dropdown-menu`
-  - [ ] Verify `apps/web/src/components/ui/dropdown-menu/` exists with `index.ts`
-  - [ ] Add `src/components/ui/dropdown-menu/**` to `coverage.exclude` in `apps/web/vite.config.ts` (same pattern as other shadcn components)
+- [x] Task 0a — Install `dropdown-menu` from `apps/web/` (AC: #1)
+  - [x] Run: `pnpm dlx shadcn-vue@latest add dropdown-menu`
+  - [x] Verify `apps/web/src/components/ui/dropdown-menu/` exists with `index.ts`
+  - [x] Add `src/components/ui/dropdown-menu/**` to `coverage.exclude` in `apps/web/vite.config.ts` (same pattern as other shadcn components)
 
-- [ ] Task 0b — Install `tooltip` from `apps/web/` (AC: #5)
-  - [ ] Run: `pnpm dlx shadcn-vue@latest add tooltip`
-  - [ ] Verify `apps/web/src/components/ui/tooltip/` exists with `index.ts`
-  - [ ] Add `src/components/ui/tooltip/**` to `coverage.exclude` in `apps/web/vite.config.ts`
+- [x] Task 0b — Install `tooltip` from `apps/web/` (AC: #5)
+  - [x] Run: `pnpm dlx shadcn-vue@latest add tooltip`
+  - [x] Verify `apps/web/src/components/ui/tooltip/` exists with `index.ts`
+  - [x] Add `src/components/ui/tooltip/**` to `coverage.exclude` in `apps/web/vite.config.ts`
 
 ### Server — `chatService.ts`
 
-- [ ] Task 1 — Fix `toApiChatMessage` to map `editHistory` and `updatedAt` (AC: #3)
+- [x] Task 1 — Fix `toApiChatMessage` to map `editHistory` and `updatedAt` (AC: #3)
   - [ ] Change `editHistory: null` → `(row.editHistory as { content: string; editedAt: string }[] | null) ?? null`
   - [ ] Change `updatedAt: null` → `row.updatedAt?.toISOString() ?? null`
   - [ ] Leave `deletedAt: null` and `deletedBy: null` unchanged — `getHistory` always filters `deletedAt: null` so these are always null in practice
 
-- [ ] Task 2 — Add `editMessage` service function (AC: #3)
+- [x] Task 2 — Add `editMessage` service function (AC: #3)
   - [ ] Import `AppError` from `'../lib/errors.js'` (already used in route layer, add to service)
   - [ ] `editMessage({ messageId, userId, content })`:
     1. `findUnique({ where: { id: messageId }, include: { user: true } })`
@@ -79,7 +79,7 @@ so that I can correct mistakes without asking a moderator.
   - [ ] Use `type EditHistoryEntry = { content: string; editedAt: string }` as a local type alias
   - [ ] `ChatEdit` is already defined in `@manlycam/types`; import it
 
-- [ ] Task 3 — Add `deleteMessage` service function (AC: #6)
+- [x] Task 3 — Add `deleteMessage` service function (AC: #6)
   - [ ] `deleteMessage({ messageId, userId })`:
     1. `findUnique({ where: { id: messageId } })`
     2. If `!existing` → throw `new AppError('Message not found', 'NOT_FOUND', 404)`
@@ -91,7 +91,7 @@ so that I can correct mistakes without asking a moderator.
 
 ### Server — `chat.ts`
 
-- [ ] Task 4 — Add `PATCH /api/chat/messages/:messageId` endpoint (AC: #3)
+- [x] Task 4 — Add `PATCH /api/chat/messages/:messageId` endpoint (AC: #3)
   - [ ] Import `editMessage` from `'../services/chatService.js'`
   - [ ] Add route after existing endpoints:
     ```typescript
@@ -111,7 +111,7 @@ so that I can correct mistakes without asking a moderator.
     });
     ```
 
-- [ ] Task 5 — Add `DELETE /api/chat/messages/:messageId` endpoint (AC: #6)
+- [x] Task 5 — Add `DELETE /api/chat/messages/:messageId` endpoint (AC: #6)
   - [ ] Import `deleteMessage` from `'../services/chatService.js'`
   - [ ] Add route:
     ```typescript
@@ -126,7 +126,7 @@ so that I can correct mistakes without asking a moderator.
 
 ### Client — `useChat.ts`
 
-- [ ] Task 6 — Add `handleChatEdit` and `handleChatDelete` module-level exports (AC: #4, #7)
+- [x] Task 6 — Add `handleChatEdit` and `handleChatDelete` module-level exports (AC: #4, #7)
   - [ ] Import `ChatEdit` from `'@manlycam/types'` (already imports `ChatMessage` and `UserProfile`)
   - [ ] Add after `handleUserUpdate`:
     ```typescript
@@ -144,7 +144,7 @@ so that I can correct mistakes without asking a moderator.
     ```
   - [ ] These are module-level (NOT inside factory) — same pattern as `handleUserUpdate`, `unreadCount`, `resetUnread`, `incrementUnread`
 
-- [ ] Task 7 — Add `editMessage` and `deleteMessage` to `useChat` factory (AC: #3, #6)
+- [x] Task 7 — Add `editMessage` and `deleteMessage` to `useChat` factory (AC: #3, #6)
   - [ ] Add inside the factory function:
     ```typescript
     const editMessage = async (messageId: string, content: string): Promise<void> => {
@@ -165,7 +165,7 @@ so that I can correct mistakes without asking a moderator.
 
 ### Client — `useWebSocket.ts`
 
-- [ ] Task 8 — Dispatch `chat:edit` and `chat:delete` WS messages (AC: #4, #7)
+- [x] Task 8 — Dispatch `chat:edit` and `chat:delete` WS messages (AC: #4, #7)
   - [ ] Import `handleChatEdit, handleChatDelete` from `'./useChat'` (alongside existing `handleUserUpdate`)
   - [ ] In `handleMessage`, add after `chat:message` handler:
     ```typescript
@@ -179,7 +179,7 @@ so that I can correct mistakes without asking a moderator.
 
 ### Client — `ChatMessage.vue`
 
-- [ ] Task 9 — Update `ChatMessage.vue` with context menu, edit mode, and edited indicator (AC: #1, #2, #4, #5)
+- [x] Task 9 — Update `ChatMessage.vue` with context menu, edit mode, and edited indicator (AC: #1, #2, #4, #5)
 
   **New props:**
   - [ ] Add `isOwn?: boolean` prop
@@ -324,7 +324,7 @@ so that I can correct mistakes without asking a moderator.
 
 ### Client — `ChatPanel.vue`
 
-- [ ] Task 10 — Update `ChatPanel.vue` to pass `isOwn` and handle edit/delete events (AC: #1, #3, #6)
+- [x] Task 10 — Update `ChatPanel.vue` to pass `isOwn` and handle edit/delete events (AC: #1, #3, #6)
   - [ ] Import `useAuth` from `'@/composables/useAuth'`
   - [ ] Import `handleChatEdit, handleChatDelete` is NOT needed here — those are WS-driven (server broadcasts). ChatPanel only calls the REST API actions.
   - [ ] Import `editMessage, deleteMessage` from `useChat()` destructuring
@@ -357,7 +357,7 @@ so that I can correct mistakes without asking a moderator.
 
 ### Tests
 
-- [ ] Task 11 — Update `chatService.test.ts` — add editMessage and deleteMessage tests (AC: #3, #6)
+- [x] Task 11 — Update `chatService.test.ts` — add editMessage and deleteMessage tests (AC: #3, #6)
   - [ ] Add `message.findUnique: vi.fn()` and `message.update: vi.fn()` to prisma mock
   - [ ] `editMessage` tests:
     - Throws 404 when message not found
@@ -378,7 +378,7 @@ so that I can correct mistakes without asking a moderator.
     - Returns non-null `editHistory` when row has edit_history JSONB
     - Returns non-null `updatedAt` when row has `updated_at`
 
-- [ ] Task 12 — Update `chat.test.ts` — add PATCH and DELETE endpoint tests (AC: #3, #6)
+- [x] Task 12 — Update `chat.test.ts` — add PATCH and DELETE endpoint tests (AC: #3, #6)
   - [ ] Add `editMessage: vi.fn()` and `deleteMessage: vi.fn()` to `chatService.js` mock
   - [ ] Import `editMessage` and `deleteMessage` from `'../services/chatService.js'`
   - [ ] `PATCH /api/chat/messages/:messageId` tests:
@@ -398,7 +398,7 @@ so that I can correct mistakes without asking a moderator.
     - Returns `403` when `deleteMessage` throws `AppError('FORBIDDEN')`
     - Calls `deleteMessage` with `{ messageId, userId }`
 
-- [ ] Task 13 — Update `useChat.test.ts` — add handleChatEdit, handleChatDelete, editMessage, deleteMessage tests (AC: #4, #7)
+- [x] Task 13 — Update `useChat.test.ts` — add handleChatEdit, handleChatDelete, editMessage, deleteMessage tests (AC: #4, #7)
   - [ ] Import `handleChatEdit, handleChatDelete` from `'./useChat'`
   - [ ] Add to `beforeEach` reset:
     - Reset `messages.value = []` (already present)
@@ -417,13 +417,13 @@ so that I can correct mistakes without asking a moderator.
   - [ ] `deleteMessage` tests:
     - Calls `apiFetch` with `DELETE /api/chat/messages/msg-001`
 
-- [ ] Task 14 — Update `useWebSocket.test.ts` — add chat:edit and chat:delete dispatch tests (AC: #4, #7)
+- [x] Task 14 — Update `useWebSocket.test.ts` — add chat:edit and chat:delete dispatch tests (AC: #4, #7)
   - [ ] Mock `handleChatEdit` and `handleChatDelete` in `vi.mock('./useChat', ...)` factory
   - [ ] Import mocked functions for assertion
   - [ ] `chat:edit` message → `handleChatEdit` called with payload
   - [ ] `chat:delete` message → `handleChatDelete` called with `payload.messageId`
 
-- [ ] Task 15 — Create `ChatMessage.test.ts` or update if it exists — context menu, edit mode, edited indicator tests (AC: #1, #2, #4, #5)
+- [x] Task 15 — Create `ChatMessage.test.ts` or update if it exists — context menu, edit mode, edited indicator tests (AC: #1, #2, #4, #5)
   - [ ] Check if file exists first — if not, create `apps/web/src/components/chat/ChatMessage.test.ts`
   - [ ] Mock lucide-vue-next icons with `data-icon` attribute SVG stubs
   - [ ] Mock `@/components/ui/dropdown-menu` with simple stubs
@@ -449,7 +449,7 @@ so that I can correct mistakes without asking a moderator.
   - [ ] Continuation row — same context menu tests as group row
   - [ ] `afterEach(() => { wrapper?.unmount(); wrapper = null; })` — test isolation
 
-- [ ] Task 16 — Update `ChatPanel.test.ts` — add isOwn prop passing and event handling (AC: #1, #3, #6)
+- [x] Task 16 — Update `ChatPanel.test.ts` — add isOwn prop passing and event handling (AC: #1, #3, #6)
   - [ ] Update `ChatMessage` stub to accept `isOwn` prop and emit `requestEdit`/`requestDelete`
   - [ ] Update `useChat` mock to include `editMessage: vi.fn()` and `deleteMessage: vi.fn()`
   - [ ] Add `useAuth` mock: `vi.mock('@/composables/useAuth', () => ({ useAuth: vi.fn(() => ({ user: ref({ id: 'user-001' }) })) }))`
@@ -651,6 +651,37 @@ claude-sonnet-4-6
 
 ### Debug Log References
 
+- **ChatMessage.test.ts selector issue**: Initial `div[class]` selector for dropdown items failed because mocked `DropdownMenuItem` renders as classless `<div>`. Fixed to `findAll('div').find(el => el.element.textContent?.trim() === 'Edit')`.
+- **Cancel button selector collision**: `button.hover\\:bg-accent` matched both the "Message actions" trigger button AND the Cancel button (both use `hover:bg-accent` class). Fixed to `findAll('button').find(b => b.text().trim() === 'Cancel')`.
+- **TypeScript cast**: `vi.mocked(prisma.message.update).mock.calls[0][0]` required `as unknown as {...}` double-cast to extract `editHistory` without TypeScript errors.
+- **Coverage**: `src/components/ui/**` glob already covers dropdown-menu and tooltip; individual entries would be redundant.
+
 ### Completion Notes List
 
+- Installed `dropdown-menu` and `tooltip` shadcn-vue components; both already covered by `src/components/ui/**` coverage exclusion glob
+- Fixed `toApiChatMessage` to correctly map `editHistory` and `updatedAt` from Prisma rows (were hardcoded null)
+- Added `editMessage` and `deleteMessage` to `chatService.ts` with full ownership verification, soft-delete handling, edit history append, and WS broadcast
+- Added `PATCH /api/chat/messages/:messageId` and `DELETE /api/chat/messages/:messageId` routes with validation and auth
+- Added `handleChatEdit` and `handleChatDelete` as module-level exports in `useChat.ts` (WS-driven state updates)
+- Added `editMessage` and `deleteMessage` factory methods to `useChat` (REST-only, WS handles local state)
+- Updated `useWebSocket.ts` to dispatch `chat:edit` and `chat:delete` messages to their handlers
+- Updated `ChatMessage.vue` with `isOwn` prop, context menu (DropdownMenu), edit mode (textarea), and `(edited)` tooltip indicator — applied to both group and continuation row variants
+- Updated `ChatPanel.vue` to pass `isOwn` (user?.id === message.userId), import `useAuth`, and wire up `handleMessageEdit`/`handleMessageDelete` event handlers
+- All 444 tests pass (169 server + 275 web); TypeScript clean; ESLint/Prettier clean
+
 ### File List
+
+- `apps/server/src/services/chatService.ts` — modified: fixed `toApiChatMessage`, added `editMessage`, `deleteMessage`, imported `AppError` and `ChatEdit`
+- `apps/server/src/services/chatService.test.ts` — modified: added `findUnique`/`update` mocks, `toApiChatMessage` fix tests, `editMessage` tests, `deleteMessage` tests
+- `apps/server/src/routes/chat.ts` — modified: added `PATCH` and `DELETE` endpoints, imported `editMessage`/`deleteMessage`
+- `apps/server/src/routes/chat.test.ts` — modified: added `PATCH` and `DELETE` test suites (14 new tests)
+- `apps/web/src/composables/useChat.ts` — modified: added `handleChatEdit`, `handleChatDelete` module-level exports, `editMessage`/`deleteMessage` factory methods
+- `apps/web/src/composables/useChat.test.ts` — modified: added `handleChatEdit`, `handleChatDelete`, `editMessage`, `deleteMessage` tests
+- `apps/web/src/composables/useWebSocket.ts` — modified: imported `handleChatEdit`/`handleChatDelete`, dispatch `chat:edit` and `chat:delete`
+- `apps/web/src/composables/useWebSocket.test.ts` — modified: added `chat:edit` and `chat:delete` dispatch tests with `vi.hoisted` mocks
+- `apps/web/src/components/chat/ChatMessage.vue` — modified: added `isOwn` prop, `requestEdit`/`requestDelete` emits, context menu, edit mode, `(edited)` tooltip
+- `apps/web/src/components/chat/ChatMessage.test.ts` — modified: rewrote with mocks for dropdown/tooltip/lucide, added all new context menu/edit/delete/indicator tests
+- `apps/web/src/components/chat/ChatPanel.vue` — modified: imported `useAuth`, wired `editMessage`/`deleteMessage`, passes `isOwn` and event handlers to `ChatMessage`
+- `apps/web/src/components/chat/ChatPanel.test.ts` — modified: updated `useChat`/`useAuth` mocks, added `isOwn` and edit/delete event tests
+- `apps/web/src/components/ui/dropdown-menu/` — installed: 15 shadcn-vue generated files
+- `apps/web/src/components/ui/tooltip/` — installed: 5 shadcn-vue generated files

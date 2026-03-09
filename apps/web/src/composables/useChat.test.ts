@@ -5,8 +5,16 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import { apiFetch } from '@/lib/api';
-import { useChat, handleUserUpdate, unreadCount, resetUnread, incrementUnread } from './useChat';
-import type { ChatMessage, UserProfile } from '@manlycam/types';
+import {
+  useChat,
+  handleUserUpdate,
+  handleChatEdit,
+  handleChatDelete,
+  unreadCount,
+  resetUnread,
+  incrementUnread,
+} from './useChat';
+import type { ChatMessage, ChatEdit, UserProfile } from '@manlycam/types';
 
 const mockUserProfile: UserProfile = {
   id: 'user-001',
@@ -276,6 +284,112 @@ describe('useChat', () => {
       incrementUnread();
       resetUnread();
       expect(unreadCount.value).toBe(0);
+    });
+  });
+
+  describe('handleChatEdit', () => {
+    const edit: ChatEdit = {
+      messageId: 'msg-001',
+      content: 'Edited content',
+      editHistory: [{ content: 'Hello', editedAt: '2026-03-08T10:00:00.000Z' }],
+      updatedAt: '2026-03-08T11:00:00.000Z',
+    };
+
+    it('updates matching message content, editHistory, and updatedAt in-place', () => {
+      const { messages } = useChat();
+      messages.value = [{ ...mockMessage }];
+
+      handleChatEdit(edit);
+
+      expect(messages.value[0].content).toBe('Edited content');
+      expect(messages.value[0].editHistory).toEqual(edit.editHistory);
+      expect(messages.value[0].updatedAt).toBe('2026-03-08T11:00:00.000Z');
+    });
+
+    it('leaves non-matching messages unchanged', () => {
+      const { messages } = useChat();
+      const otherMsg = { ...mockMessage, id: 'msg-002', content: 'Other' };
+      messages.value = [{ ...mockMessage }, otherMsg];
+
+      handleChatEdit(edit);
+
+      expect(messages.value[1].content).toBe('Other');
+      expect(messages.value[1].id).toBe('msg-002');
+    });
+
+    it('works when editHistory was null before', () => {
+      const { messages } = useChat();
+      messages.value = [{ ...mockMessage, editHistory: null }];
+
+      handleChatEdit({
+        ...edit,
+        editHistory: [{ content: 'Hello', editedAt: '2026-03-08T10:00:00.000Z' }],
+      });
+
+      expect(messages.value[0].editHistory).toHaveLength(1);
+    });
+  });
+
+  describe('handleChatDelete', () => {
+    it('removes message with matching ID from the list', () => {
+      const { messages } = useChat();
+      messages.value = [{ ...mockMessage }];
+
+      handleChatDelete('msg-001');
+
+      expect(messages.value).toHaveLength(0);
+    });
+
+    it('leaves messages with non-matching IDs in the list', () => {
+      const { messages } = useChat();
+      const otherMsg = { ...mockMessage, id: 'msg-002' };
+      messages.value = [{ ...mockMessage }, otherMsg];
+
+      handleChatDelete('msg-001');
+
+      expect(messages.value).toHaveLength(1);
+      expect(messages.value[0].id).toBe('msg-002');
+    });
+
+    it('works when messages list is empty (no-op)', () => {
+      const { messages } = useChat();
+      messages.value = [];
+
+      expect(() => handleChatDelete('msg-001')).not.toThrow();
+      expect(messages.value).toHaveLength(0);
+    });
+  });
+
+  describe('editMessage', () => {
+    it('calls apiFetch with PATCH and correct JSON body', async () => {
+      vi.mocked(apiFetch).mockResolvedValue({ edit: {} });
+
+      const { editMessage } = useChat();
+      await editMessage('msg-001', 'New content');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/chat/messages/msg-001', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: 'New content' }),
+      });
+    });
+
+    it('resolves without error on success', async () => {
+      vi.mocked(apiFetch).mockResolvedValue({ edit: {} });
+
+      const { editMessage } = useChat();
+      await expect(editMessage('msg-001', 'New content')).resolves.toBeUndefined();
+    });
+  });
+
+  describe('deleteMessage', () => {
+    it('calls apiFetch with DELETE method', async () => {
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { deleteMessage } = useChat();
+      await deleteMessage('msg-001');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/chat/messages/msg-001', { method: 'DELETE' });
     });
   });
 });

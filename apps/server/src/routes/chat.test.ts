@@ -32,10 +32,13 @@ vi.mock('../services/wsHub.js', () => ({
 vi.mock('../services/chatService.js', () => ({
   createMessage: vi.fn(),
   getHistory: vi.fn(),
+  editMessage: vi.fn(),
+  deleteMessage: vi.fn(),
 }));
 
 import { getSessionUser } from '../services/authService.js';
-import { createMessage, getHistory } from '../services/chatService.js';
+import { createMessage, getHistory, editMessage, deleteMessage } from '../services/chatService.js';
+import { AppError } from '../lib/errors.js';
 import { createApp } from '../app.js';
 
 const mockUser = {
@@ -260,5 +263,200 @@ describe('GET /api/chat/history', () => {
 
     const body = (await res.json()) as { hasMore: boolean };
     expect(body.hasMore).toBe(true);
+  });
+});
+
+const mockChatEdit = {
+  messageId: 'msg-001',
+  content: 'Updated content',
+  editHistory: [{ content: 'Hello world', editedAt: '2026-03-08T10:00:00.000Z' }],
+  updatedAt: '2026-03-08T11:00:00.000Z',
+};
+
+describe('PATCH /api/chat/messages/:messageId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when not authenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'Updated' }),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 200 with edit on success', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(editMessage).mockResolvedValue(mockChatEdit);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: 'Updated content' }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { edit: typeof mockChatEdit };
+    expect(body.edit).toEqual(mockChatEdit);
+  });
+
+  it('returns 422 on empty content', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: '' }),
+    });
+
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 on whitespace-only content', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: '   ' }),
+    });
+
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 on content exceeding 1000 chars', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: 'a'.repeat(1001) }),
+    });
+
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when content is missing', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 404 when editMessage throws NOT_FOUND', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(editMessage).mockRejectedValue(new AppError('Message not found', 'NOT_FOUND', 404));
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: 'Updated' }),
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 when editMessage throws FORBIDDEN', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(editMessage).mockRejectedValue(new AppError('Forbidden', 'FORBIDDEN', 403));
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: 'Updated' }),
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('calls editMessage with messageId, userId, and content', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(editMessage).mockResolvedValue(mockChatEdit);
+
+    await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: 'Updated content' }),
+    });
+
+    expect(editMessage).toHaveBeenCalledWith({
+      messageId: 'msg-001',
+      userId: 'user-001',
+      content: 'Updated content',
+    });
+  });
+});
+
+describe('DELETE /api/chat/messages/:messageId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when not authenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'DELETE',
+    });
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 204 on success', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteMessage).mockResolvedValue(undefined);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(res.status).toBe(204);
+  });
+
+  it('returns 404 when deleteMessage throws NOT_FOUND', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteMessage).mockRejectedValue(new AppError('Message not found', 'NOT_FOUND', 404));
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 403 when deleteMessage throws FORBIDDEN', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteMessage).mockRejectedValue(new AppError('Forbidden', 'FORBIDDEN', 403));
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(res.status).toBe(403);
+  });
+
+  it('calls deleteMessage with messageId and userId', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteMessage).mockResolvedValue(undefined);
+
+    await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(deleteMessage).toHaveBeenCalledWith({ messageId: 'msg-001', userId: 'user-001' });
   });
 });

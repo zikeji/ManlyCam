@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
 import { useChat } from '@/composables/useChat';
+import { useAuth } from '@/composables/useAuth';
 import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TabsIndicator } from 'reka-ui';
@@ -11,8 +12,9 @@ import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 const emit = defineEmits<{ openCameraControls: [] }>();
 
-const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory } =
+const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory, editMessage, deleteMessage } =
   useChat();
+const { user } = useAuth();
 
 const scrollRef = ref<HTMLElement | null>(null);
 const sentinelRef = ref<HTMLElement | null>(null);
@@ -40,6 +42,18 @@ function isNearBottom(): boolean {
 }
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
+const EDIT_WINDOW_MS = 5 * 60 * 1000;
+
+// Map from message ID → ChatMessage component instance (for programmatic startEdit)
+const msgRefs: Record<string, { startEdit: () => void }> = {};
+
+function setMsgRef(id: string, el: unknown) {
+  if (el) {
+    msgRefs[id] = el as { startEdit: () => void };
+  } else {
+    delete msgRefs[id];
+  }
+}
 
 type ListItem =
   | { type: 'message'; data: ChatMessageType; isContinuation: boolean }
@@ -142,6 +156,26 @@ watch(
   { deep: true },
 );
 
+async function handleMessageEdit(messageId: string, newContent: string) {
+  await editMessage(messageId, newContent);
+}
+
+async function handleMessageDelete(messageId: string) {
+  await deleteMessage(messageId);
+}
+
+function handleEditLast() {
+  if (!user.value) return;
+  const now = Date.now();
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    const msg = messages.value[i];
+    if (msg.userId === user.value.id && now - new Date(msg.createdAt).getTime() <= EDIT_WINDOW_MS) {
+      msgRefs[msg.id]?.startEdit();
+      return;
+    }
+  }
+}
+
 async function handleSend(content: string) {
   forceNextScroll.value = true;
   await sendChatMessage(content);
@@ -224,7 +258,15 @@ async function handleSend(content: string) {
                     }}</span>
                     <div class="flex-1 h-px bg-[hsl(var(--border))]" />
                   </div>
-                  <ChatMessage v-else :message="item.data" :is-continuation="item.isContinuation" />
+                  <ChatMessage
+                    v-else
+                    :ref="(el) => setMsgRef(item.data.id, el)"
+                    :message="item.data"
+                    :is-continuation="item.isContinuation"
+                    :is-own="user?.id === item.data.userId"
+                    @request-edit="handleMessageEdit"
+                    @request-delete="handleMessageDelete"
+                  />
                 </template>
               </div>
             </div>
@@ -236,12 +278,12 @@ async function handleSend(content: string) {
                 v-model:popover-open="profilePopoverOpen"
                 @open-camera-controls="emit('openCameraControls')"
               />
-              <ChatInput class="flex-1" @send="handleSend" />
+              <ChatInput class="flex-1" @send="handleSend" @edit-last="handleEditLast" />
             </div>
 
             <!-- Desktop input: standalone -->
             <div class="p-2 border-t border-[hsl(var(--border))] hidden lg:block">
-              <ChatInput @send="handleSend" />
+              <ChatInput @send="handleSend" @edit-last="handleEditLast" />
             </div>
           </div>
 

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { AppError } from '../lib/errors.js';
-import { createMessage, getHistory } from '../services/chatService.js';
+import { createMessage, getHistory, editMessage, deleteMessage } from '../services/chatService.js';
 import type { AppEnv } from '../lib/types.js';
 
 export function createChatRouter() {
@@ -39,6 +39,31 @@ export function createChatRouter() {
 
     const result = await getHistory({ limit: clampedLimit, before });
     return c.json(result, 200);
+  });
+
+  chatRouter.patch('/api/chat/messages/:messageId', requireAuth, async (c) => {
+    const messageId = c.req.param('messageId');
+    let body: { content?: unknown };
+    try {
+      body = await c.req.json<{ content?: unknown }>();
+    } catch {
+      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
+    }
+    const { content } = body;
+    if (typeof content !== 'string' || content.trim().length === 0)
+      throw new AppError('Content must be a non-empty string', 'VALIDATION_ERROR', 422);
+    if (content.length > 1000)
+      throw new AppError('Content must not exceed 1000 characters', 'CONTENT_TOO_LONG', 422);
+    const user = c.get('user')!;
+    const edit = await editMessage({ messageId, userId: user.id, content });
+    return c.json({ edit }, 200);
+  });
+
+  chatRouter.delete('/api/chat/messages/:messageId', requireAuth, async (c) => {
+    const messageId = c.req.param('messageId');
+    const user = c.get('user')!;
+    await deleteMessage({ messageId, userId: user.id });
+    return c.body(null, 204);
   });
 
   return chatRouter;

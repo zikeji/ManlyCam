@@ -79,6 +79,19 @@ describe('ChatInput.vue', () => {
     expect(wrapper.text()).toContain('950/1000');
   });
 
+  it('ArrowUp on empty input emits editLast', async () => {
+    const wrapper = mount(ChatInput);
+    await wrapper.find('textarea').trigger('keydown', { key: 'ArrowUp' });
+    expect(wrapper.emitted('editLast')).toBeTruthy();
+  });
+
+  it('ArrowUp on non-empty input does not emit editLast', async () => {
+    const wrapper = mount(ChatInput);
+    await wrapper.find('textarea').setValue('some text');
+    await wrapper.find('textarea').trigger('keydown', { key: 'ArrowUp' });
+    expect(wrapper.emitted('editLast')).toBeFalsy();
+  });
+
   it('clicking send button emits send and clears input', async () => {
     const wrapper = mount(ChatInput);
     await wrapper.find('textarea').setValue('Test message');
