@@ -80,6 +80,7 @@ describe('useCameraControls', () => {
     expect(settings.value.rpiCameraBrightness).toBe(0.7);
     expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/api/stream/camera-settings', {
       method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rpiCameraBrightness: 0.7 }),
     });
   });

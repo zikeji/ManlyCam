@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import StreamPlayer from './StreamPlayer.vue';
@@ -32,6 +32,8 @@ vi.mock('./SidebarCollapseButton.vue', () => ({
 }));
 
 describe('StreamPlayer', () => {
+  let wrapper: any;
+
   beforeEach(() => {
     import.meta.env.VITE_PET_NAME = 'Buddy';
   });
@@ -39,20 +41,24 @@ describe('StreamPlayer', () => {
   afterEach(() => {
     mockStartWhep.mockClear();
     mockStopWhep.mockClear();
+    if (wrapper) {
+      wrapper.unmount();
+      wrapper = null;
+    }
   });
 
   it('renders Skeleton when state is connecting', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     expect(wrapper.find('[data-skeleton]').exists()).toBe(true);
   });
 
   it('does NOT render Skeleton when state is live', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     expect(wrapper.find('[data-skeleton]').exists()).toBe(false);
   });
 
   it('renders video element with role="img" and aria-label', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     const video = wrapper.find('video');
     expect(video.exists()).toBe(true);
     expect(video.attributes('role')).toBe('img');
@@ -60,47 +66,47 @@ describe('StreamPlayer', () => {
   });
 
   it('renders StateOverlay with variant="unreachable" when unreachable', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'unreachable' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'unreachable' } });
     const overlay = wrapper.findComponent({ name: 'StateOverlay' });
     expect(overlay.exists()).toBe(true);
     expect(overlay.props('variant')).toBe('unreachable');
   });
 
   it('renders StateOverlay with variant="explicit-offline" when explicit-offline', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'explicit-offline' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'explicit-offline' } });
     const overlay = wrapper.findComponent({ name: 'StateOverlay' });
     expect(overlay.exists()).toBe(true);
     expect(overlay.props('variant')).toBe('explicit-offline');
   });
 
   it('does NOT render StateOverlay when connecting', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     const overlay = wrapper.findComponent({ name: 'StateOverlay' });
     expect(overlay.exists()).toBe(false);
   });
 
   it('does NOT render StateOverlay when live', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     const overlay = wrapper.findComponent({ name: 'StateOverlay' });
     expect(overlay.exists()).toBe(false);
   });
 
   it('renders StreamStatusBadge', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     const badge = wrapper.findComponent({ name: 'StreamStatusBadge' });
     expect(badge.exists()).toBe(true);
     expect(badge.props('state')).toBe('connecting');
   });
 
   it('calls startWhep when streamState transitions to live', async () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     await wrapper.setProps({ streamState: 'live' });
     await flushPromises();
     expect(mockStartWhep).toHaveBeenCalled();
   });
 
   it('calls stopWhep when streamState leaves live', async () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     await flushPromises();
     mockStopWhep.mockClear(); // clear the call from immediate watch
     await wrapper.setProps({ streamState: 'unreachable' });
@@ -109,7 +115,7 @@ describe('StreamPlayer', () => {
   });
 
   it('container uses 16:9 aspect ratio', () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     const container = wrapper.find('[data-stream-container]');
     expect(container.exists()).toBe(true);
     expect(container.classes().join(' ')).toMatch(/aspect-video/);
@@ -117,14 +123,14 @@ describe('StreamPlayer', () => {
 
   it('badge container is NOT rendered for explicit-offline or unreachable (StateOverlay owns status UI)', () => {
     for (const state of ['explicit-offline', 'unreachable'] as const) {
-      const wrapper = mount(StreamPlayer, { props: { streamState: state } });
+      wrapper = mount(StreamPlayer, { props: { streamState: state } });
       expect(wrapper.find('[data-badge-container]').exists()).toBe(false);
     }
   });
 
   it('badge container is rendered at top-4 for live and connecting', () => {
     for (const state of ['live', 'connecting'] as const) {
-      const wrapper = mount(StreamPlayer, { props: { streamState: state } });
+      wrapper = mount(StreamPlayer, { props: { streamState: state } });
       const badgeContainer = wrapper.find('[data-badge-container]');
       expect(badgeContainer.exists()).toBe(true);
       expect(badgeContainer.classes()).toContain('top-4');
@@ -133,7 +139,7 @@ describe('StreamPlayer', () => {
 
   it('handles startWhep error gracefully without crashing', async () => {
     mockStartWhep.mockRejectedValueOnce(new Error('WHEP POST failed: 500'));
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     // Transition to live — startWhep will reject
     await wrapper.setProps({ streamState: 'live' });
     await flushPromises();
@@ -142,14 +148,14 @@ describe('StreamPlayer', () => {
   });
 
   it('top gradient and badge container are hidden when live and not hovering', async () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     const badgeContainer = wrapper.find('[data-badge-container]');
     // Initially not hovered, so overlay should be hidden
     expect(badgeContainer.classes()).toContain('opacity-0');
   });
 
   it('top gradient and badge container are visible when live and hovering', async () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     const container = wrapper.find('[data-stream-container]');
     // Simulate hover
     await container.trigger('mouseenter');
@@ -159,16 +165,91 @@ describe('StreamPlayer', () => {
   });
 
   it('calls stopWhep on unmount', async () => {
-    const wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     await flushPromises();
     wrapper.unmount();
     // stopWhep should be called on unmount
     expect(mockStopWhep).toHaveBeenCalled();
   });
 
+  describe('tap overlay (mobile touch)', () => {
+    it('tap on stream container (pointerType=touch) shows overlay', async () => {
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      const container = wrapper.find('[data-stream-container]');
+      // Before tap: overlay hidden
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-0');
+      // Tap with touch pointer
+      await container.trigger('click', { pointerType: 'touch' });
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-100');
+    });
+
+    it('tap on stream container (pointerType=mouse) does NOT activate tap overlay', async () => {
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      const container = wrapper.find('[data-stream-container]');
+      await container.trigger('click', { pointerType: 'mouse' });
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-0');
+    });
+
+    it('tap-triggered overlay auto-hides after 3 seconds', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      const container = wrapper.find('[data-stream-container]');
+      await container.trigger('click', { pointerType: 'touch' });
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-100');
+      vi.advanceTimersByTime(3000);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-0');
+      vi.useRealTimers();
+    });
+
+    it('tapping again while visible resets timer and keeps overlay visible (AC #7)', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      const container = wrapper.find('[data-stream-container]');
+      // First tap: show overlay, 3s timer starts
+      await container.trigger('click', { pointerType: 'touch' });
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-100');
+      // Advance 2.5 seconds (overlay still visible)
+      vi.advanceTimersByTime(2500);
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-100');
+      // Second tap: resets timer, overlay should REMAIN visible
+      await container.trigger('click', { pointerType: 'touch' });
+      await wrapper.vm.$nextTick();
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-100');
+      // Advance another 2.5 seconds (total 5s from first tap, but only 2.5s since second tap)
+      vi.advanceTimersByTime(2500);
+      await wrapper.vm.$nextTick();
+      // Overlay should still be visible (timer was reset)
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-100');
+      // Advance another 0.6 seconds to exceed the reset timer
+      vi.advanceTimersByTime(600);
+      await wrapper.vm.$nextTick();
+      // Now it should hide (3s from second tap has elapsed)
+      expect(wrapper.find('[data-badge-container]').classes()).toContain('opacity-0');
+      vi.useRealTimers();
+    });
+
+    it('auto-hide timer clears on unmount (no error)', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      const container = wrapper.find('[data-stream-container]');
+      await container.trigger('click', { pointerType: 'touch' });
+      await wrapper.vm.$nextTick();
+      // Unmount before 3 seconds — should not throw
+      expect(() => wrapper.unmount()).not.toThrow();
+      wrapper = null;
+      vi.useRealTimers();
+    });
+  });
+
   describe('chat sidebar toggle button', () => {
     it('SidebarCollapseButton rendered when showChatSidebarToggle=true', () => {
-      const wrapper = mount(StreamPlayer, {
+      wrapper = mount(StreamPlayer, {
         props: {
           streamState: 'live',
           showChatSidebarToggle: true,
@@ -180,7 +261,7 @@ describe('StreamPlayer', () => {
     });
 
     it('SidebarCollapseButton NOT rendered when showChatSidebarToggle=false', () => {
-      const wrapper = mount(StreamPlayer, {
+      wrapper = mount(StreamPlayer, {
         props: {
           streamState: 'live',
           showChatSidebarToggle: false,
@@ -192,7 +273,7 @@ describe('StreamPlayer', () => {
     });
 
     it('collapse button container has opacity-100 when unreadCount > 0 (badge-persist, no hover needed)', async () => {
-      const wrapper = mount(StreamPlayer, {
+      wrapper = mount(StreamPlayer, {
         props: {
           streamState: 'live',
           showChatSidebarToggle: true,
@@ -207,7 +288,7 @@ describe('StreamPlayer', () => {
     });
 
     it('emits toggleChatSidebar when SidebarCollapseButton emits toggle', async () => {
-      const wrapper = mount(StreamPlayer, {
+      wrapper = mount(StreamPlayer, {
         props: {
           streamState: 'live',
           showChatSidebarToggle: true,

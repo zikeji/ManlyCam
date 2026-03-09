@@ -29,14 +29,29 @@ const emit = defineEmits<{
 const petName = import.meta.env.VITE_PET_NAME as string;
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isHovered = ref(false);
+const tapOverlayVisible = ref(false);
+let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const profilePopoverOpen = ref(false);
 const { user } = useAuth();
 const { startWhep, stopWhep } = useWhep();
 
 // Overlay is always visible for non-live states (user needs status feedback).
-// For live, it fades in only on hover or when popover is open.
+// For live, it fades in only on hover, tap (mobile), or when popover is open.
 const overlayVisible = (state: ClientStreamState, hovered: boolean) =>
-  state !== 'live' || hovered || profilePopoverOpen.value;
+  state !== 'live' || hovered || profilePopoverOpen.value || tapOverlayVisible.value;
+
+function handleTap(event: MouseEvent): void {
+  // Only activate tap overlay for touch-originated events; mouse hover handles desktop
+  if ((event as PointerEvent).pointerType === 'touch') {
+    // If overlay is hidden, show it; if visible, keep it visible and reset the timer
+    if (!tapOverlayVisible.value) {
+      tapOverlayVisible.value = true;
+    }
+    // Always reset the 3-second timer (whether we just showed or were already visible)
+    if (tapTimer) clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => { tapOverlayVisible.value = false; }, 3000);
+  }
+}
 
 watch(
   () => props.streamState,
@@ -59,15 +74,17 @@ watch(
 
 onUnmounted(() => {
   stopWhep();
+  if (tapTimer) clearTimeout(tapTimer);
 });
 </script>
 
 <template>
   <div
     data-stream-container
-    class="relative w-full aspect-video bg-black overflow-hidden"
+    class="relative w-full landscape:max-h-full aspect-video bg-black overflow-hidden"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false"
+    @click="handleTap"
   >
     <!-- Connecting: Skeleton -->
     <div

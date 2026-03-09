@@ -53,8 +53,8 @@
                 </label>
                 <Switch
                   :id="ctrl.key"
-                  :checked="!!getValue(ctrl.key, ctrl.defaultValue)"
-                  @update:checked="(v: boolean) => patchSetting(ctrl.key, v)"
+                  :modelValue="!!getValue(ctrl.key, ctrl.defaultValue)"
+                  @update:modelValue="handleSwitchChange(ctrl.key, $event)"
                 />
               </div>
 
@@ -174,6 +174,13 @@ const { settings, piReachable, isLoading, lastError, fetchSettings, patchSetting
 const { streamState } = useStream();
 
 onMounted(() => { fetchSettings(); });
+
+function handleSwitchChange(key: string, value: boolean): void {
+  // Update settings immediately for UI reactivity
+  settings.value = { ...settings.value, [key]: value };
+  // Send PATCH request
+  patchSetting(key, value);
+}
 
 // Keep piReachable in sync with real-time stream state from WebSocket
 watch(streamState, (state) => {

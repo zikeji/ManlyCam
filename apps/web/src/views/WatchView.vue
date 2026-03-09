@@ -98,7 +98,7 @@ onMounted(() => {
     </Transition>
 
     <!-- Stream column: aspect-video on mobile, flex-1 on desktop -->
-    <main class="lg:flex-1 min-w-0 flex items-center justify-center bg-black">
+    <main class="lg:flex-1 landscape:flex-1 min-w-0 flex items-center justify-center bg-black overflow-hidden">
       <StreamPlayer
         :streamState="streamState"
         :isAdmin="isAdmin"
@@ -126,7 +126,7 @@ onMounted(() => {
       <ChatPanel
         v-if="chatSidebarOpen"
         data-chat-panel
-        class="lg:flex-none lg:w-[320px] flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))]"
+        class="lg:flex-none lg:w-[320px] landscape:w-[280px] landscape:shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))]"
         @open-camera-controls="handleOpenCameraControls"
       />
     </Transition>

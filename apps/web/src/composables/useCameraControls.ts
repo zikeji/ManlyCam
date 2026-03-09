@@ -34,7 +34,11 @@ export function useCameraControls() {
     try {
       const result = await apiFetch<{ ok: boolean; piOffline?: boolean; error?: string }>(
         '/api/stream/camera-settings',
-        { method: 'PATCH', body: JSON.stringify({ [key]: value }) },
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [key]: value }),
+        },
       );
       if (!result.ok) {
         console.error('[CameraControls] PATCH failed:', result.error);
