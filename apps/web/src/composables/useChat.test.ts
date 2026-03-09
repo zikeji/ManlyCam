@@ -5,7 +5,7 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import { apiFetch } from '@/lib/api';
-import { useChat, handleUserUpdate } from './useChat';
+import { useChat, handleUserUpdate, unreadCount, resetUnread, incrementUnread } from './useChat';
 import type { ChatMessage, UserProfile } from '@manlycam/types';
 
 const mockUserProfile: UserProfile = {
@@ -38,6 +38,7 @@ describe('useChat', () => {
     messages.value = [];
     hasMore.value = true;
     isLoadingHistory.value = false;
+    unreadCount.value = 0;
   });
 
   describe('sendChatMessage', () => {
@@ -251,6 +252,30 @@ describe('useChat', () => {
       handleUserUpdate({ ...mockUserProfile, userTag: null });
 
       expect(messages.value[0].userTag).toBeNull();
+    });
+  });
+
+  describe('unreadCount', () => {
+    it('unreadCount starts at 0', () => {
+      expect(unreadCount.value).toBe(0);
+    });
+
+    it('incrementUnread increments by 1', () => {
+      incrementUnread();
+      expect(unreadCount.value).toBe(1);
+    });
+
+    it('incrementUnread called twice results in unreadCount === 2', () => {
+      incrementUnread();
+      incrementUnread();
+      expect(unreadCount.value).toBe(2);
+    });
+
+    it('resetUnread sets to 0 after incrementing', () => {
+      incrementUnread();
+      incrementUnread();
+      resetUnread();
+      expect(unreadCount.value).toBe(0);
     });
   });
 });

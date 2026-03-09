@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
+import { defineComponent } from 'vue';
 import StreamPlayer from './StreamPlayer.vue';
 
 // Module-level mock instances so the component and test share the same references
@@ -18,6 +19,15 @@ vi.mock('@/composables/useAuth', () => ({
     user: { value: null },
     logout: vi.fn(),
     fetchCurrentUser: vi.fn(),
+  }),
+}));
+
+vi.mock('./SidebarCollapseButton.vue', () => ({
+  default: defineComponent({
+    name: 'SidebarCollapseButton',
+    props: ['isOpen', 'unreadCount'],
+    emits: ['toggle'],
+    template: '<button data-sidebar-collapse-button @click="$emit(\'toggle\')" />',
   }),
 }));
 
@@ -154,5 +164,59 @@ describe('StreamPlayer', () => {
     wrapper.unmount();
     // stopWhep should be called on unmount
     expect(mockStopWhep).toHaveBeenCalled();
+  });
+
+  describe('chat sidebar toggle button', () => {
+    it('SidebarCollapseButton rendered when showChatSidebarToggle=true', () => {
+      const wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          showChatSidebarToggle: true,
+          chatSidebarOpen: true,
+          unreadCount: 0,
+        },
+      });
+      expect(wrapper.find('[data-sidebar-collapse-button]').exists()).toBe(true);
+    });
+
+    it('SidebarCollapseButton NOT rendered when showChatSidebarToggle=false', () => {
+      const wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          showChatSidebarToggle: false,
+          chatSidebarOpen: true,
+          unreadCount: 0,
+        },
+      });
+      expect(wrapper.find('[data-sidebar-collapse-button]').exists()).toBe(false);
+    });
+
+    it('collapse button container has opacity-100 when unreadCount > 0 (badge-persist, no hover needed)', async () => {
+      const wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          showChatSidebarToggle: true,
+          chatSidebarOpen: false,
+          unreadCount: 3,
+        },
+      });
+      // Find the div wrapping SidebarCollapseButton (has transition-opacity class)
+      const toggleDiv = wrapper.find('.absolute.top-4.right-4');
+      expect(toggleDiv.exists()).toBe(true);
+      expect(toggleDiv.classes()).toContain('opacity-100');
+    });
+
+    it('emits toggleChatSidebar when SidebarCollapseButton emits toggle', async () => {
+      const wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          showChatSidebarToggle: true,
+          chatSidebarOpen: true,
+          unreadCount: 0,
+        },
+      });
+      await wrapper.find('[data-sidebar-collapse-button]').trigger('click');
+      expect(wrapper.emitted('toggleChatSidebar')).toBeTruthy();
+    });
   });
 });

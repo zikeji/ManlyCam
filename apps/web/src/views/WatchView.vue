@@ -7,12 +7,15 @@ import StreamPlayer from '@/components/stream/StreamPlayer.vue';
 import AdminPanel from '@/components/admin/AdminPanel.vue';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { messages, unreadCount, resetUnread, incrementUnread, isLoadingHistory } from '@/composables/useChat';
 
 const { user } = useAuth();
 const { streamState, initStream } = useStream();
 
 // Whether we're on a desktop breakpoint (≥ 1024px)
 const isDesktop = ref(false);
+const isMobilePortrait = ref(false);
+const chatSidebarOpen = ref(true);
 
 const adminPanelOpen = ref(false);
 
@@ -30,10 +33,26 @@ watch(adminPanelOpen, (newValue) => {
   } catch { /* not available in test env */ }
 });
 
+watch(chatSidebarOpen, (open) => {
+  if (open) resetUnread();
+  try {
+    if (typeof localStorage !== 'undefined' && localStorage) {
+      localStorage.setItem('manlycam:chat-sidebar-open', open ? 'true' : 'false');
+    }
+  } catch { /* not available in test env */ }
+});
+
+watch(() => messages.value.length, (newLen, oldLen) => {
+  if (!chatSidebarOpen.value && !isLoadingHistory.value && newLen > (oldLen ?? 0)) {
+    incrementUnread();
+  }
+}, { flush: 'sync' });
+
 const isAdmin = computed(() => user.value?.role === Role.Admin);
 
 const handleOpenCameraControls = () => { adminPanelOpen.value = !adminPanelOpen.value; };
 const handleToggleAdminPanel = () => { adminPanelOpen.value = !adminPanelOpen.value; };
+const handleToggleChatSidebar = () => { chatSidebarOpen.value = !chatSidebarOpen.value; };
 
 onMounted(() => {
   initStream();
@@ -43,18 +62,30 @@ onMounted(() => {
     const mq = window.matchMedia('(min-width: 1024px)');
     isDesktop.value = mq.matches;
     mq.addEventListener('change', (e) => { isDesktop.value = e.matches; });
+
+    const mqPortrait = window.matchMedia('(max-width: 767px) and (orientation: portrait)');
+    isMobilePortrait.value = mqPortrait.matches;
+    mqPortrait.addEventListener('change', (e) => { isMobilePortrait.value = e.matches; });
   }
 
   try {
     if (typeof localStorage !== 'undefined' && localStorage) {
       adminPanelOpen.value = localStorage.getItem('manlycam:admin-panel-open') === 'true';
+
+      const stored = localStorage.getItem('manlycam:chat-sidebar-open');
+      if (stored !== null) {
+        chatSidebarOpen.value = stored === 'true';
+      } else {
+        // Default: expanded on desktop only; collapsed on tablet/landscape/portrait
+        chatSidebarOpen.value = isDesktop.value;
+      }
     }
   } catch { /* not available in test env */ }
 });
 </script>
 
 <template>
-  <div class="flex flex-col lg:flex-row h-screen w-full overflow-hidden bg-[hsl(var(--background))]">
+  <div class="flex flex-col landscape:flex-row lg:flex-row h-screen w-full overflow-hidden bg-[hsl(var(--background))]">
     <!-- Left sidebar: admin only, desktop (≥ lg). Transition slides it in/out, pushing the stream. -->
     <Transition name="sidebar-left">
       <aside
@@ -73,17 +104,32 @@ onMounted(() => {
         :isAdmin="isAdmin"
         :adminPanelOpen="adminPanelOpen"
         :isDesktop="isDesktop"
+        :chatSidebarOpen="chatSidebarOpen"
+        :unreadCount="unreadCount"
+        :showChatSidebarToggle="!isMobilePortrait"
         @open-camera-controls="handleOpenCameraControls"
         @toggle-admin-panel="handleToggleAdminPanel"
+        @toggle-chat-sidebar="handleToggleChatSidebar"
       />
     </main>
 
-    <!-- Chat: full-width below stream on mobile, right sidebar on desktop -->
+    <!-- Mobile portrait: persistent bottom chat (no collapse, no transition) -->
     <ChatPanel
+      v-if="isMobilePortrait"
       data-chat-panel
-      class="flex-1 lg:flex-none lg:w-[320px] flex flex-col bg-[hsl(var(--sidebar))] lg:border-l border-[hsl(var(--border))]"
+      class="flex-1 flex flex-col bg-[hsl(var(--sidebar))]"
       @open-camera-controls="handleOpenCameraControls"
     />
+
+    <!-- Desktop + tablet + mobile landscape: collapsible right sidebar -->
+    <Transition v-else name="sidebar-right">
+      <ChatPanel
+        v-if="chatSidebarOpen"
+        data-chat-panel
+        class="lg:flex-none lg:w-[320px] flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))]"
+        @open-camera-controls="handleOpenCameraControls"
+      />
+    </Transition>
 
     <!-- Mobile: Sheet drawer for admin controls (< lg only) -->
     <Sheet v-if="isAdmin" v-model:open="mobileSheetOpen">
@@ -111,5 +157,14 @@ onMounted(() => {
 .sidebar-left-enter-from,
 .sidebar-left-leave-to {
   margin-left: -280px;
+}
+
+.sidebar-right-enter-active,
+.sidebar-right-leave-active {
+  transition: margin-right 150ms ease-in-out;
+}
+.sidebar-right-enter-from,
+.sidebar-right-leave-to {
+  margin-right: -320px;
 }
 </style>

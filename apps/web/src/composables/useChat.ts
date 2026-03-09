@@ -8,6 +8,14 @@ export const messages = ref<ChatMessage[]>([]);
 export const hasMore = ref(true);
 export const isLoadingHistory = ref(false);
 
+export const unreadCount = ref(0);
+export const resetUnread = (): void => {
+  unreadCount.value = 0;
+};
+export const incrementUnread = (): void => {
+  unreadCount.value++;
+};
+
 export const oldestMessageId = computed(() => messages.value[0]?.id);
 
 export const handleUserUpdate = (profile: UserProfile): void => {

@@ -8,17 +8,22 @@ import { Button } from '@/components/ui/button';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 import StateOverlay from './StateOverlay.vue';
 import ProfileAnchor from './ProfileAnchor.vue';
+import SidebarCollapseButton from './SidebarCollapseButton.vue';
 
 const props = defineProps<{
   streamState: ClientStreamState;
   isAdmin?: boolean;
   adminPanelOpen?: boolean;
   isDesktop?: boolean;
+  chatSidebarOpen?: boolean;
+  unreadCount?: number;
+  showChatSidebarToggle?: boolean;
 }>();
 
 const emit = defineEmits<{
   openCameraControls: []
   toggleAdminPanel: []
+  toggleChatSidebar: []
 }>();
 
 const petName = import.meta.env.VITE_PET_NAME as string;
@@ -123,6 +128,19 @@ onUnmounted(() => {
         <ChevronRight v-if="!adminPanelOpen" class="w-4 h-4" />
         <ChevronLeft v-else class="w-4 h-4" />
       </Button>
+    </div>
+
+    <!-- Chat sidebar toggle: top-right, visible on all but mobile portrait, hover-gated with badge exception -->
+    <div
+      v-if="showChatSidebarToggle"
+      class="absolute top-4 right-4 transition-opacity duration-150 pointer-events-auto"
+      :class="(overlayVisible(streamState, isHovered) || (unreadCount ?? 0) > 0) ? 'opacity-100' : 'opacity-0'"
+    >
+      <SidebarCollapseButton
+        :is-open="chatSidebarOpen ?? true"
+        :unread-count="unreadCount ?? 0"
+        @toggle="emit('toggleChatSidebar')"
+      />
     </div>
 
     <!-- Profile anchor: bottom-left, hover-gated, desktop only (mobile: moved to ChatPanel input bar) -->

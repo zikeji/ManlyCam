@@ -27,11 +27,11 @@ export const config = defineConfig({
         'src/main.ts',
         'src/router/**',  // routing config, not unit-testable
         'src/types/**',   // re-export barrel, no logic
+        'src/components/ui/**',  // shadcn-vue generated components, not unit-testable
       ],
-      // Thresholds based on Story 3.6 actual coverage with AdminPanel + CameraControls + sidebar toggle
-      // AC #10: do not lower below Story 3.5 baselines; but Vue overlay components hard to unit test
-      // Actual coverage after toggle button: lines 93.87%, functions 64.06%, branches 91.97%, statements 93.87%
-      // Setting thresholds: functions at 64% (accounts for hover-gated UI components), others per actual
+      // Thresholds based on Story 4.4 actual coverage (chat sidebar + unread badge)
+      // Actual coverage: lines ~93%, functions 68%, branches ~91%, statements ~93%
+      // Setting thresholds: functions at 64% (hover-gated UI components), others per actual
       thresholds: {
         lines: 90,
         functions: 64,
