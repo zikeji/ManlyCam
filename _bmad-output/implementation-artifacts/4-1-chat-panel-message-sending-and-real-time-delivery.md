@@ -1,6 +1,6 @@
 # Story 4.1: Chat Panel, Message Sending, and Real-Time Delivery
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -573,6 +573,29 @@ None — implementation completed without blockers.
 - `apps/web/src/lib/dateFormat.ts` created with `formatTime()` (Intl.DateTimeFormat) and `initials()` — shared utility for Story 4-2
 - All tests pass: server 125 tests, web 163 tests; coverage above all thresholds; TypeScript clean; linting clean
 
+### Post-Implementation Enhancements (Commit e836311)
+
+**Scroll State Preservation Across Tab Switches** (AC #3 enhancement)
+- Initial AC #3 specified: "auto-scrolls to the bottom when a new message is appended"
+- Post-implementation: Added sophisticated scroll behavior:
+  - `savedScrollTop` and `savedWasNearBottom` refs preserve scroll position when switching away from Chat tab
+  - `forceNextScroll` ref ensures own sent messages always scroll to bottom (optimistic feel)
+  - `isNearBottom()` function tracks if user is scrolled within 80px of bottom — if so, new messages auto-scroll; if scrolled up, position is preserved
+  - `handleTabChange()` restores scroll state: if user was near bottom before, snap to new bottom; if scrolled up, restore exact position
+  - This prevents jarring scroll jumps when switching between Chat and Viewers tabs
+- Rationale: AC #8 specifies Viewers tab is visible/functional; without scroll preservation, switching away and back would lose the user's scroll position
+
+**Test Isolation Fix** (AC #9 robustness)
+- Initial commit lacked `afterEach` unmount in ChatPanel.test.ts
+- Fix: Added `afterEach(() => { wrapper?.unmount(); wrapper = null; })` to prevent module-level mockMessages ref from triggering watchers on components from prior tests
+- Also refactored wrapper from local `const` to `let wrapper: VueWrapper | null = null` managed at suite level for proper lifecycle
+- Prevents ReferenceError and cross-test watcher contamination
+
+**ScrollArea Component Replacement** (architectural decision)
+- Initial commit: Imported and used ShadCN-Vue `<ScrollArea>` component
+- Post-implementation: Replaced with manual `<div class="overflow-y-auto" ref="scrollRef">`
+- Rationale: Manual div provides direct ref access for `scrollRef.scrollTop = scrollRef.scrollHeight` auto-scroll logic; ScrollArea component's nested viewport structure adds indirection that complicates ref targeting and scroll calculations
+
 ### File List
 
 **New files:**
@@ -611,4 +634,6 @@ None — implementation completed without blockers.
 
 ## Change Log
 
+- 2026-03-09: Code review audit completed; scroll behavior and test isolation enhancements documented (claude-haiku-4-5)
+- 2026-03-09: Fix commit e836311 — declare missing refs, add scroll state preservation across tabs, fix test isolation (claude-sonnet-4-6)
 - 2026-03-08: Story 4-1 implemented — chat panel, message sending, real-time delivery (claude-sonnet-4-6)
