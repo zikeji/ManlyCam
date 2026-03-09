@@ -1,6 +1,6 @@
 # Story 4.2: Chat History on Load and Infinite Scroll
 
-Status: review
+Status: done
 
 ## Story
 
@@ -406,3 +406,20 @@ claude-sonnet-4-6
 ### Change Log
 
 - 2026-03-09: Implemented story 4-2 — chat history on load and infinite scroll. Added server `getHistory()` + `GET /api/chat/history` endpoint; client `initHistory`/`loadMoreHistory` in useChat; `formatDayLabel`/`isSameDay` in dateFormat; ChatPanel updated with IntersectionObserver-based infinite scroll, day delineators, and loading indicator. 337 tests passing (141 server, 196 web). TypeScript and lint clean.
+- 2026-03-09 (Code Review): Fixed 2 medium-severity issues: (1) exported module-level refs directly from useChat.ts for test resilience per story notes; (2) added edge case test for loadMoreHistory when messages array is empty; (3) fixed timezone-sensitive isSameDay tests to use explicit UTC ISO strings. 338 tests passing (141 server, 197 web +1). Story marked done.
+
+### Post-Implementation Notes
+
+**Code Review Findings & Fixes (2026-03-09):**
+- **Module singleton exports:** Per story notes on test resilience, exported `messages`, `hasMore`, `isLoadingHistory`, and `oldestMessageId` directly from useChat.ts so tests can reset them directly without calling useChat() factory. This decouples test setup from the composable's interface.
+- **Edge case test added:** Added explicit test for `loadMoreHistory()` when messages.value is empty, verifying it correctly uses the no-cursor URL (`/api/chat/history?limit=50`) to fetch latest messages.
+- **Timezone test fixes:** Replaced locale-dependent `new Date(...).toISOString()` calls in dateFormat.test.ts with explicit UTC ISO strings (`'2026-03-08T10:00:00.000Z'`), eliminating DST-related test brittleness in CI environments.
+- **Test coverage:** 338 tests passing across both server and web (up from 337); no test failures; TypeScript and lint clean.
+
+**Story Completion Checklist:**
+- ✅ All 7 Acceptance Criteria implemented and validated
+- ✅ All code review findings addressed
+- ✅ Test count: 338 (141 server + 197 web)
+- ✅ ESLint: Clean
+- ✅ TypeScript: Clean
+- ✅ Committed with story context
