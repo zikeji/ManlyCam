@@ -45,23 +45,20 @@ vi.mock('@/composables/useStream', () => ({
 }));
 
 // --- useChat mock ---
-const mockHandleUserUpdate = vi.fn();
-const mockHandleChatMessage = vi.fn();
 vi.mock('@/composables/useChat', () => ({
   useChat: () => ({
-    handleChatMessage: mockHandleChatMessage,
-    handleUserUpdate: mockHandleUserUpdate,
+    handleChatMessage: vi.fn(),
   }),
+  handleUserUpdate: vi.fn(),
 }));
 
 // Import AFTER mocks (important for module reset isolation)
 import { useWebSocket } from './useWebSocket';
+import * as useChatModule from './useChat';
 
 describe('useWebSocket', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockHandleUserUpdate.mockReset();
-    mockHandleChatMessage.mockReset();
     vi.useFakeTimers();
     mockWsInstance.readyState = 1;
   });
@@ -146,7 +143,7 @@ describe('useWebSocket', () => {
       }).not.toThrow();
     });
 
-    it('dispatches user:update payload to useChat().handleUserUpdate()', () => {
+    it('dispatches user:update payload to handleUserUpdate()', () => {
       const { connect } = useWebSocket();
       connect();
       const profile = {
@@ -161,7 +158,7 @@ describe('useWebSocket', () => {
           data: JSON.stringify({ type: 'user:update', payload: profile }),
         }),
       );
-      expect(mockHandleUserUpdate).toHaveBeenCalledWith(profile);
+      expect(vi.mocked(useChatModule.handleUserUpdate)).toHaveBeenCalledWith(profile);
     });
   });
 

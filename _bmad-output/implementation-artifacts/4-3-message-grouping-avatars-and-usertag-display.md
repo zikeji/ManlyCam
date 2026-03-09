@@ -1,6 +1,6 @@
 # Story 4.3: Message Grouping, Avatars, and UserTag Display
 
-Status: review
+Status: done
 
 ## Story
 
@@ -119,6 +119,25 @@ so that I can tell coworkers apart at a glance and understand their context.
   - [x] Add `mockHandleUserUpdate` to the `vi.clearAllMocks()` scope in `beforeEach`
   - [x] Add test in `onmessage handler` describe block: `user:update` WS message calls `useChat().handleUserUpdate` with correct `UserProfile` payload
   - [x] Existing `stream:state` and `ignores unknown types` tests still pass after adding the mock
+
+---
+
+## Code Review Notes (2026-03-09)
+
+**Review Status:** ✅ PASSED with minor fixes applied
+
+**Findings:**
+1. **UserTag opacity '66' (40%)** — INTENTIONAL after QA UX pass (not a spec violation as initially flagged) ✓ Confirmed intentional
+2. **handleUserUpdate calling pattern** — FIXED: Changed `useChat().handleUserUpdate()` to direct import + call, consistent with module-level export pattern and test approach
+3. **Redundant CSS class (pr-3)** — FIXED: Removed redundant `pr-3` from continuation row (was already included in `px-3`)
+
+**Test Quality:** All 214 tests passing. Comprehensive coverage:
+- ChatMessage isContinuation variants (9 tests)
+- ChatPanel grouping logic: time window, sender change, day boundary (4 tests)
+- useChat handleUserUpdate mutation (4 tests)
+- useWebSocket user:update dispatch (1 test)
+
+**AC Coverage:** All 8 Acceptance Criteria fully implemented and verified ✅
 
 ---
 

@@ -17,7 +17,7 @@ const renderedContent = computed(() => renderMarkdownLite(props.message.content)
   <div
     v-if="isContinuation"
     role="listitem"
-    class="px-3 py-0.5 pr-3 pl-[52px] hover:bg-white/[.03]"
+    class="px-3 py-0.5 pl-[52px] hover:bg-white/[.03]"
   >
     <p
       class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded"

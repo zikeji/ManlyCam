@@ -1,6 +1,6 @@
 import { ref, inject, type InjectionKey, type Ref } from 'vue';
 import { useStream } from './useStream';
-import { useChat } from './useChat';
+import { useChat, handleUserUpdate } from './useChat';
 import type { WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
@@ -33,7 +33,7 @@ export function useWebSocket(): WsInterface {
         useChat().handleChatMessage(msg.payload);
       }
       if (msg.type === 'user:update') {
-        useChat().handleUserUpdate(msg.payload);
+        handleUserUpdate(msg.payload);
       }
     } catch {
       // Ignore malformed messages
