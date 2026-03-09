@@ -129,6 +129,17 @@ describe('useChat', () => {
   });
 
   describe('loadMoreHistory', () => {
+    it('fetches latest messages without cursor when messages array is empty', async () => {
+      const { messages, loadMoreHistory } = useChat();
+      messages.value = []; // Empty state
+
+      vi.mocked(apiFetch).mockResolvedValue({ messages: [mockMessage], hasMore: false });
+
+      await loadMoreHistory();
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/chat/history?limit=50');
+    });
+
     it('prepends older messages before existing messages', async () => {
       const newerMsg = { ...mockMessage, id: 'MSG002', createdAt: '2026-03-08T11:00:00.000Z' };
       const olderMsg = { ...mockMessage, id: 'MSG001', createdAt: '2026-03-08T10:00:00.000Z' };

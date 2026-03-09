@@ -52,27 +52,27 @@ describe('formatDayLabel', () => {
 
 describe('isSameDay', () => {
   it('returns true for two ISO strings on the same local day', () => {
-    // Use explicit local-midnight ISO strings to avoid timezone ambiguity
-    const a = new Date(2026, 2, 8, 10, 0, 0).toISOString();
-    const b = new Date(2026, 2, 8, 22, 0, 0).toISOString();
+    // Use explicit UTC timestamps to avoid timezone-dependent test failures
+    const a = '2026-03-08T10:00:00.000Z';
+    const b = '2026-03-08T22:00:00.000Z';
     expect(isSameDay(a, b)).toBe(true);
   });
 
   it('returns false for two ISO strings on different local days', () => {
-    const a = new Date(2026, 2, 8, 10, 0, 0).toISOString();
-    const b = new Date(2026, 2, 9, 10, 0, 0).toISOString();
+    const a = '2026-03-08T10:00:00.000Z';
+    const b = '2026-03-09T10:00:00.000Z';
     expect(isSameDay(a, b)).toBe(false);
   });
 
   it('returns false for same time different months', () => {
-    const a = new Date(2026, 2, 8, 10, 0, 0).toISOString();
-    const b = new Date(2026, 3, 8, 10, 0, 0).toISOString();
+    const a = '2026-03-08T10:00:00.000Z';
+    const b = '2026-04-08T10:00:00.000Z';
     expect(isSameDay(a, b)).toBe(false);
   });
 
   it('returns false for same day different years', () => {
-    const a = new Date(2025, 2, 8, 10, 0, 0).toISOString();
-    const b = new Date(2026, 2, 8, 10, 0, 0).toISOString();
+    const a = '2025-03-08T10:00:00.000Z';
+    const b = '2026-03-08T10:00:00.000Z';
     expect(isSameDay(a, b)).toBe(false);
   });
 });

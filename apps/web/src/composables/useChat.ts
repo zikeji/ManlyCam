@@ -3,11 +3,12 @@ import { apiFetch } from '@/lib/api';
 import type { ChatMessage } from '@manlycam/types';
 
 // Module-level singletons — all callers share the same refs (same pattern as useStream)
-const messages = ref<ChatMessage[]>([]);
-const hasMore = ref(true);
-const isLoadingHistory = ref(false);
+// Exported directly for test reset (do not access via useChat factory in tests)
+export const messages = ref<ChatMessage[]>([]);
+export const hasMore = ref(true);
+export const isLoadingHistory = ref(false);
 
-const oldestMessageId = computed(() => messages.value[0]?.id);
+export const oldestMessageId = computed(() => messages.value[0]?.id);
 
 export const useChat = () => {
   const sendChatMessage = async (content: string): Promise<void> => {
