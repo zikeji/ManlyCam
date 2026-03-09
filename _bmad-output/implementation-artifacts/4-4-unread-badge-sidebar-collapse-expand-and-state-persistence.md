@@ -1,6 +1,6 @@
 # Story 4.4: Unread Badge, Sidebar Collapse/Expand, and State Persistence
 
-Status: review
+Status: done
 
 ## Story
 
