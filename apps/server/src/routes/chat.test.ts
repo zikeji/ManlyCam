@@ -31,10 +31,11 @@ vi.mock('../services/wsHub.js', () => ({
 
 vi.mock('../services/chatService.js', () => ({
   createMessage: vi.fn(),
+  getHistory: vi.fn(),
 }));
 
 import { getSessionUser } from '../services/authService.js';
-import { createMessage } from '../services/chatService.js';
+import { createMessage, getHistory } from '../services/chatService.js';
 import { createApp } from '../app.js';
 
 const mockUser = {
@@ -170,5 +171,94 @@ describe('POST /api/chat/messages', () => {
     });
 
     expect(createMessage).toHaveBeenCalledWith({ userId: 'user-001', content: 'Hello world' });
+  });
+});
+
+describe('GET /api/chat/history', () => {
+  const mockHistoryResult = {
+    messages: [mockChatMessage],
+    hasMore: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when not authenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+
+    const res = await createApp().app.request('/api/chat/history');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 200 with messages and hasMore when authenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getHistory).mockResolvedValue(mockHistoryResult);
+
+    const res = await createApp().app.request('/api/chat/history', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as typeof mockHistoryResult;
+    expect(body.messages).toEqual([mockChatMessage]);
+    expect(body.hasMore).toBe(false);
+  });
+
+  it('calls getHistory with default limit of 50 when no query params', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getHistory).mockResolvedValue({ messages: [], hasMore: false });
+
+    await createApp().app.request('/api/chat/history', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(getHistory).toHaveBeenCalledWith({ limit: 50, before: undefined });
+  });
+
+  it('passes before cursor to getHistory when provided', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getHistory).mockResolvedValue({ messages: [], hasMore: false });
+
+    await createApp().app.request('/api/chat/history?before=CURSOR001', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(getHistory).toHaveBeenCalledWith({ limit: 50, before: 'CURSOR001' });
+  });
+
+  it('passes custom limit to getHistory', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getHistory).mockResolvedValue({ messages: [], hasMore: false });
+
+    await createApp().app.request('/api/chat/history?limit=20', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(getHistory).toHaveBeenCalledWith({ limit: 20, before: undefined });
+  });
+
+  it('clamps limit to max 100', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getHistory).mockResolvedValue({ messages: [], hasMore: false });
+
+    await createApp().app.request('/api/chat/history?limit=999', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(getHistory).toHaveBeenCalledWith({ limit: 100, before: undefined });
+  });
+
+  it('returns hasMore true in response when service returns true', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getHistory).mockResolvedValue({ messages: [mockChatMessage], hasMore: true });
+
+    const res = await createApp().app.request('/api/chat/history', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    const body = (await res.json()) as { hasMore: boolean };
+    expect(body.hasMore).toBe(true);
   });
 });

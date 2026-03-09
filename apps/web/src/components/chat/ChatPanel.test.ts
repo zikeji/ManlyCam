@@ -5,13 +5,21 @@ import ChatPanel from './ChatPanel.vue';
 import type { ChatMessage } from '@manlycam/types';
 
 const mockMessages = ref<ChatMessage[]>([]);
+const mockHasMore = ref(true);
+const mockIsLoadingHistory = ref(false);
 const mockSendChatMessage = vi.fn();
+const mockInitHistory = vi.fn();
+const mockLoadMoreHistory = vi.fn();
 
 vi.mock('@/composables/useChat', () => ({
   useChat: () => ({
     messages: mockMessages,
     sendChatMessage: mockSendChatMessage,
     handleChatMessage: vi.fn(),
+    initHistory: mockInitHistory,
+    loadMoreHistory: mockLoadMoreHistory,
+    hasMore: mockHasMore,
+    isLoadingHistory: mockIsLoadingHistory,
   }),
 }));
 
@@ -39,6 +47,18 @@ vi.mock('@/composables/useAdminStream', () => ({
   }),
 }));
 
+// Mock IntersectionObserver (not available in jsdom)
+const mockObserve = vi.fn();
+const mockDisconnect = vi.fn();
+vi.stubGlobal(
+  'IntersectionObserver',
+  vi.fn(() => ({
+    observe: mockObserve,
+    disconnect: mockDisconnect,
+    unobserve: vi.fn(),
+  })),
+);
+
 const mockMessage: ChatMessage = {
   id: 'msg-001',
   userId: 'user-001',
@@ -59,6 +79,10 @@ describe('ChatPanel.vue', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockMessages.value = [];
+    mockHasMore.value = true;
+    mockIsLoadingHistory.value = false;
+    mockInitHistory.mockResolvedValue(undefined);
+    mockLoadMoreHistory.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -72,7 +96,8 @@ describe('ChatPanel.vue', () => {
     expect(wrapper.text()).toContain('Viewers');
   });
 
-  it('shows empty state when no messages', async () => {
+  it('shows empty state when no messages and not loading', async () => {
+    mockIsLoadingHistory.value = false;
     wrapper = mount(ChatPanel);
     await flushPromises();
     expect(wrapper.text()).toContain('Be the first to say something');
@@ -96,14 +121,12 @@ describe('ChatPanel.vue', () => {
 
   it('renders ChatInput in desktop slot', () => {
     wrapper = mount(ChatPanel);
-    // Desktop input (hidden on mobile) exists in DOM
     expect(wrapper.find('textarea').exists()).toBe(true);
   });
 
   it('calls sendChatMessage when ChatInput emits send', async () => {
     mockSendChatMessage.mockResolvedValue(undefined);
     wrapper = mount(ChatPanel);
-    // Trigger send via the textarea + Enter
     const textarea = wrapper.find('textarea');
     await textarea.setValue('Test message');
     await textarea.trigger('keydown', { key: 'Enter', shiftKey: false });
@@ -127,9 +150,95 @@ describe('ChatPanel.vue', () => {
 
   it('renders avatar slot for mobile input bar (ProfileAnchor present)', () => {
     wrapper = mount(ChatPanel);
-    // lg:hidden div containing ProfileAnchor — it's in DOM but hidden via CSS on desktop
-    // We check the element exists
     const mobileBar = wrapper.find('.lg\\:hidden');
     expect(mobileBar.exists()).toBe(true);
+  });
+
+  it('calls initHistory on mount', async () => {
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    expect(mockInitHistory).toHaveBeenCalledOnce();
+  });
+
+  it('shows loading indicator when isLoadingHistory is true', async () => {
+    mockIsLoadingHistory.value = true;
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    expect(wrapper.text()).toContain('Loading…');
+  });
+
+  it('hides loading indicator when isLoadingHistory is false', async () => {
+    mockIsLoadingHistory.value = false;
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Loading…');
+  });
+
+  it('renders sentinel div when hasMore is true', async () => {
+    mockHasMore.value = true;
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    const sentinel = wrapper.find('[data-testid="scroll-sentinel"]');
+    expect(sentinel.exists()).toBe(true);
+  });
+
+  it('does not render sentinel when hasMore is false', async () => {
+    mockHasMore.value = false;
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    const sentinel = wrapper.find('[data-testid="scroll-sentinel"]');
+    expect(sentinel.exists()).toBe(false);
+  });
+
+  it('sets up IntersectionObserver on mount', async () => {
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    expect(IntersectionObserver).toHaveBeenCalled();
+  });
+
+  it('disconnects IntersectionObserver on unmount', async () => {
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    wrapper.unmount();
+    wrapper = null;
+    expect(mockDisconnect).toHaveBeenCalled();
+  });
+
+  it('renders day delineator between messages on different days', async () => {
+    mockMessages.value = [
+      { ...mockMessage, id: 'msg-001', createdAt: '2026-03-08T10:00:00.000Z' },
+      { ...mockMessage, id: 'msg-002', createdAt: '2026-03-09T10:00:00.000Z' },
+    ];
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+
+    // Day separators have role="separator"
+    const separators = wrapper.findAll('[role="separator"]');
+    expect(separators.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('renders single day delineator for messages on the same day', async () => {
+    mockMessages.value = [
+      { ...mockMessage, id: 'msg-001', createdAt: new Date(2026, 2, 8, 10, 0).toISOString() },
+      {
+        ...mockMessage,
+        id: 'msg-002',
+        content: 'Later',
+        createdAt: new Date(2026, 2, 8, 15, 0).toISOString(),
+      },
+    ];
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+
+    const separators = wrapper.findAll('[role="separator"]');
+    expect(separators).toHaveLength(1);
+  });
+
+  it('does not show empty state while loading', async () => {
+    mockIsLoadingHistory.value = true;
+    mockMessages.value = [];
+    wrapper = mount(ChatPanel);
+    await flushPromises();
+    expect(wrapper.text()).not.toContain('Be the first to say something');
   });
 });

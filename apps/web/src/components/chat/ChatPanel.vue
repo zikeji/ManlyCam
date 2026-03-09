@@ -1,17 +1,21 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue';
+import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
 import { useChat } from '@/composables/useChat';
+import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TabsIndicator } from 'reka-ui';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import ProfileAnchor from '@/components/stream/ProfileAnchor.vue';
+import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 const emit = defineEmits<{ openCameraControls: [] }>();
 
-const { messages, sendChatMessage } = useChat();
+const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory } =
+  useChat();
 
 const scrollRef = ref<HTMLElement | null>(null);
+const sentinelRef = ref<HTMLElement | null>(null);
 const profilePopoverOpen = ref(false);
 
 const TAB_ORDER = ['chat', 'viewers'] as const;
@@ -34,6 +38,56 @@ function isNearBottom(): boolean {
   const { scrollTop, scrollHeight, clientHeight } = scrollRef.value;
   return scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
 }
+
+type ListItem =
+  | { type: 'message'; data: ChatMessageType }
+  | { type: 'day'; label: string };
+
+const listItems = computed<ListItem[]>(() => {
+  const items: ListItem[] = [];
+  for (let i = 0; i < messages.value.length; i++) {
+    const msg = messages.value[i];
+    const prev = messages.value[i - 1];
+    if (!prev || !isSameDay(prev.createdAt, msg.createdAt)) {
+      items.push({ type: 'day', label: formatDayLabel(msg.createdAt) });
+    }
+    items.push({ type: 'message', data: msg });
+  }
+  return items;
+});
+
+async function loadOlderMessages() {
+  if (!scrollRef.value) return;
+  const prevScrollHeight = scrollRef.value.scrollHeight;
+  await loadMoreHistory();
+  await nextTick();
+  if (scrollRef.value) {
+    scrollRef.value.scrollTop += scrollRef.value.scrollHeight - prevScrollHeight;
+  }
+}
+
+let observer: IntersectionObserver | null = null;
+
+onMounted(async () => {
+  await initHistory();
+  await nextTick();
+  if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+
+  observer = new IntersectionObserver(
+    ([entry]) => {
+      if (entry.isIntersecting && hasMore.value && !isLoadingHistory.value) {
+        loadOlderMessages();
+      }
+    },
+    { threshold: 0.1 },
+  );
+
+  if (sentinelRef.value) observer.observe(sentinelRef.value);
+});
+
+onUnmounted(() => {
+  observer?.disconnect();
+});
 
 function handleTabChange(tab: string | number) {
   const newTab = String(tab) as Tab;
@@ -122,18 +176,45 @@ async function handleSend(content: string) {
                 aria-label="Chat messages"
                 class="flex flex-col justify-end min-h-full py-2"
               >
+                <!-- Sentinel for infinite scroll (top of list) -->
                 <div
-                  v-if="messages.length === 0"
+                  ref="sentinelRef"
+                  v-if="hasMore"
+                  class="h-1"
+                  aria-hidden="true"
+                  data-testid="scroll-sentinel"
+                />
+
+                <!-- Loading indicator -->
+                <div v-if="isLoadingHistory" class="flex justify-center py-2">
+                  <span class="text-xs text-muted-foreground">Loading…</span>
+                </div>
+
+                <div
+                  v-if="messages.length === 0 && !isLoadingHistory"
                   class="flex items-center justify-center h-32 text-sm text-muted-foreground text-center px-4"
                 >
                   Be the first to say something 👋
                 </div>
 
-                <ChatMessage
-                  v-for="message in messages"
-                  :key="message.id"
-                  :message="message"
-                />
+                <template
+                  v-for="(item, i) in listItems"
+                  :key="item.type === 'day' ? `day-${i}` : item.data.id"
+                >
+                  <div
+                    v-if="item.type === 'day'"
+                    class="flex items-center gap-2 px-3 py-2"
+                    role="separator"
+                    :aria-label="item.label"
+                  >
+                    <div class="flex-1 h-px bg-[hsl(var(--border))]" />
+                    <span class="text-xs text-muted-foreground whitespace-nowrap">{{
+                      item.label
+                    }}</span>
+                    <div class="flex-1 h-px bg-[hsl(var(--border))]" />
+                  </div>
+                  <ChatMessage v-else :message="item.data" />
+                </template>
               </div>
             </div>
 

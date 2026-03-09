@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { AppError } from '../lib/errors.js';
-import { createMessage } from '../services/chatService.js';
+import { createMessage, getHistory } from '../services/chatService.js';
 import type { AppEnv } from '../lib/types.js';
 
 export function createChatRouter() {
@@ -28,6 +28,17 @@ export function createChatRouter() {
     const user = c.get('user')!;
     const message = await createMessage({ userId: user.id, content });
     return c.json({ message }, 201);
+  });
+
+  chatRouter.get('/api/chat/history', requireAuth, async (c) => {
+    const limitParam = c.req.query('limit');
+    const before = c.req.query('before');
+
+    const limit = limitParam !== undefined ? parseInt(limitParam, 10) : 50;
+    const clampedLimit = Math.min(Math.max(isNaN(limit) ? 50 : limit, 1), 100);
+
+    const result = await getHistory({ limit: clampedLimit, before });
+    return c.json(result, 200);
   });
 
   return chatRouter;

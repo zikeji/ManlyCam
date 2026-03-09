@@ -14,6 +14,34 @@ function computeUserTag(user: User): UserTag | null {
   return null;
 }
 
+type MessageRow = {
+  id: string;
+  userId: string;
+  content: string;
+  editHistory: unknown;
+  updatedAt: Date | null;
+  deletedAt: Date | null;
+  deletedBy: string | null;
+  createdAt: Date;
+  user: User;
+};
+
+function toApiChatMessage(row: MessageRow): ChatMessage {
+  return {
+    id: row.id,
+    userId: row.userId,
+    displayName: row.user.displayName,
+    avatarUrl: row.user.avatarUrl,
+    content: row.content,
+    editHistory: null,
+    updatedAt: null,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: row.createdAt.toISOString(),
+    userTag: computeUserTag(row.user),
+  };
+}
+
 export async function createMessage(params: {
   userId: string;
   content: string;
@@ -26,24 +54,35 @@ export async function createMessage(params: {
     include: { user: true },
   });
 
-  const userTag = computeUserTag(message.user);
-
-  const chatMessage: ChatMessage = {
-    id: message.id,
-    userId: message.userId,
-    displayName: message.user.displayName,
-    avatarUrl: message.user.avatarUrl,
-    content: message.content,
-    editHistory: null,
-    updatedAt: null,
-    deletedAt: null,
-    deletedBy: null,
-    createdAt: message.createdAt.toISOString(),
-    userTag,
-  };
+  const chatMessage = toApiChatMessage(message as MessageRow);
 
   const wsMessage: WsMessage = { type: 'chat:message', payload: chatMessage };
   wsHub.broadcast(wsMessage);
 
   return chatMessage;
+}
+
+export async function getHistory(params: {
+  limit?: number;
+  before?: string;
+}): Promise<{ messages: ChatMessage[]; hasMore: boolean }> {
+  const fetchLimit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+
+  const rows = await prisma.message.findMany({
+    where: {
+      deletedAt: null,
+      ...(params.before ? { id: { lt: params.before } } : {}),
+    },
+    orderBy: { id: 'desc' },
+    take: fetchLimit + 1,
+    include: { user: true },
+  });
+
+  const hasMore = rows.length > fetchLimit;
+  const messages = rows
+    .slice(0, fetchLimit)
+    .map((row) => toApiChatMessage(row as MessageRow))
+    .reverse();
+
+  return { messages, hasMore };
 }

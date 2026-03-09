@@ -4,6 +4,7 @@ vi.mock('../db/client.js', () => ({
   prisma: {
     message: {
       create: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
@@ -16,7 +17,7 @@ vi.mock('./wsHub.js', () => ({
 
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
-import { createMessage } from './chatService.js';
+import { createMessage, getHistory } from './chatService.js';
 
 const mockUser = {
   id: 'user-001',
@@ -124,5 +125,121 @@ describe('chatService.createMessage', () => {
 
     const result = await createMessage({ userId: 'user-001', content: 'Hi' });
     expect(result.userTag).toEqual({ text: 'Pro', color: '#6B7280' });
+  });
+});
+
+describe('chatService.getHistory', () => {
+  function makeRow(id: string, createdAt: Date) {
+    return { ...mockMessageRow, id, createdAt };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('queries with deletedAt null and orderBy id desc without cursor', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([]);
+
+    await getHistory({});
+
+    expect(prisma.message.findMany).toHaveBeenCalledWith({
+      where: { deletedAt: null },
+      orderBy: { id: 'desc' },
+      take: 51,
+      include: { user: true },
+    });
+  });
+
+  it('queries with id lt cursor when before is provided', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([]);
+
+    await getHistory({ before: 'CURSOR001' });
+
+    expect(prisma.message.findMany).toHaveBeenCalledWith({
+      where: { deletedAt: null, id: { lt: 'CURSOR001' } },
+      orderBy: { id: 'desc' },
+      take: 51,
+      include: { user: true },
+    });
+  });
+
+  it('returns messages in ascending order (oldest first)', async () => {
+    const rows = [
+      makeRow('MSG003', new Date('2026-03-08T12:00:00.000Z')),
+      makeRow('MSG002', new Date('2026-03-08T11:00:00.000Z')),
+      makeRow('MSG001', new Date('2026-03-08T10:00:00.000Z')),
+    ];
+    vi.mocked(prisma.message.findMany).mockResolvedValue(rows as never);
+
+    const result = await getHistory({});
+
+    expect(result.messages[0].id).toBe('MSG001');
+    expect(result.messages[1].id).toBe('MSG002');
+    expect(result.messages[2].id).toBe('MSG003');
+  });
+
+  it('returns hasMore false when rows <= limit', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([mockMessageRow] as never);
+
+    const result = await getHistory({ limit: 50 });
+
+    expect(result.hasMore).toBe(false);
+  });
+
+  it('returns hasMore true when rows > limit and slices to limit', async () => {
+    const base = new Date('2026-03-08T10:00:00.000Z').getTime();
+    const rows = Array.from({ length: 51 }, (_, i) =>
+      makeRow(`MSG${String(i).padStart(3, '0')}`, new Date(base + i * 60000)),
+    );
+    vi.mocked(prisma.message.findMany).mockResolvedValue(rows as never);
+
+    const result = await getHistory({ limit: 50 });
+
+    expect(result.hasMore).toBe(true);
+    expect(result.messages).toHaveLength(50);
+  });
+
+  it('clamps limit to max 100', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([]);
+
+    await getHistory({ limit: 9999 });
+
+    expect(prisma.message.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 101 }));
+  });
+
+  it('clamps limit to min 1', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([]);
+
+    await getHistory({ limit: 0 });
+
+    expect(prisma.message.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 2 }));
+  });
+
+  it('defaults limit to 50 when not provided', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([]);
+
+    await getHistory({});
+
+    expect(prisma.message.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 51 }));
+  });
+
+  it('maps rows to ChatMessage shape', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([mockMessageRow] as never);
+
+    const result = await getHistory({});
+
+    expect(result.messages[0]).toEqual({
+      id: '01HZTEST00000000000000001',
+      userId: 'user-001',
+      displayName: 'Test User',
+      avatarUrl: null,
+      content: 'Hello world',
+      editHistory: null,
+      updatedAt: null,
+      deletedAt: null,
+      deletedBy: null,
+      createdAt: '2026-03-08T10:00:00.000Z',
+      userTag: null,
+    });
   });
 });
