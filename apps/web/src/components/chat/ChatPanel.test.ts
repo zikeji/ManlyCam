@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { ref } from 'vue';
 import ChatPanel from './ChatPanel.vue';
 import type { ChatMessage } from '@manlycam/types';
@@ -54,33 +54,40 @@ const mockMessage: ChatMessage = {
 };
 
 describe('ChatPanel.vue', () => {
+  let wrapper: VueWrapper | null = null;
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockMessages.value = [];
   });
 
+  afterEach(() => {
+    wrapper?.unmount();
+    wrapper = null;
+  });
+
   it('renders Chat and Viewers tabs', () => {
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     expect(wrapper.text()).toContain('Chat');
     expect(wrapper.text()).toContain('Viewers');
   });
 
   it('shows empty state when no messages', async () => {
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     await flushPromises();
     expect(wrapper.text()).toContain('Be the first to say something');
   });
 
   it('renders message list when messages exist', async () => {
     mockMessages.value = [mockMessage];
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     await flushPromises();
     expect(wrapper.text()).toContain('Hello!');
     expect(wrapper.text()).toContain('Alice');
   });
 
   it('renders log region with correct aria attributes', () => {
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     const log = wrapper.find('[role="log"]');
     expect(log.exists()).toBe(true);
     expect(log.attributes('aria-live')).toBe('polite');
@@ -88,14 +95,14 @@ describe('ChatPanel.vue', () => {
   });
 
   it('renders ChatInput in desktop slot', () => {
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     // Desktop input (hidden on mobile) exists in DOM
     expect(wrapper.find('textarea').exists()).toBe(true);
   });
 
   it('calls sendChatMessage when ChatInput emits send', async () => {
     mockSendChatMessage.mockResolvedValue(undefined);
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     // Trigger send via the textarea + Enter
     const textarea = wrapper.find('textarea');
     await textarea.setValue('Test message');
@@ -110,7 +117,7 @@ describe('ChatPanel.vue', () => {
       mockMessage,
       { ...mockMessage, id: 'msg-002', displayName: 'Bob', content: 'World!' },
     ];
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     await flushPromises();
 
     const text = wrapper.text();
@@ -119,7 +126,7 @@ describe('ChatPanel.vue', () => {
   });
 
   it('renders avatar slot for mobile input bar (ProfileAnchor present)', () => {
-    const wrapper = mount(ChatPanel);
+    wrapper = mount(ChatPanel);
     // lg:hidden div containing ProfileAnchor — it's in DOM but hidden via CSS on desktop
     // We check the element exists
     const mobileBar = wrapper.find('.lg\\:hidden');

@@ -3,7 +3,6 @@ import { ref, watch, nextTick } from 'vue';
 import { useChat } from '@/composables/useChat';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TabsIndicator } from 'reka-ui';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import ProfileAnchor from '@/components/stream/ProfileAnchor.vue';
@@ -21,19 +20,57 @@ type Tab = (typeof TAB_ORDER)[number];
 const activeTab = ref<Tab>('chat');
 const slideDirection = ref<'left' | 'right'>('left');
 
-function handleTabChange(tab: string) {
-  const newTab = tab as Tab;
+// Scroll state preserved across tab switches
+const savedScrollTop = ref(0);
+const savedWasNearBottom = ref(true);
+
+// When set, the next message appended scrolls to bottom unconditionally (own send)
+const forceNextScroll = ref(false);
+
+const SCROLL_THRESHOLD = 80; // px from bottom — within this range auto-scroll follows
+
+function isNearBottom(): boolean {
+  if (!scrollRef.value) return false;
+  const { scrollTop, scrollHeight, clientHeight } = scrollRef.value;
+  return scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
+}
+
+function handleTabChange(tab: string | number) {
+  const newTab = String(tab) as Tab;
   const oldIndex = TAB_ORDER.indexOf(activeTab.value);
   const newIndex = TAB_ORDER.indexOf(newTab);
   slideDirection.value = newIndex > oldIndex ? 'left' : 'right';
+
+  // Snapshot scroll state before the chat tab is destroyed
+  if (activeTab.value === 'chat' && scrollRef.value) {
+    savedScrollTop.value = scrollRef.value.scrollTop;
+    savedWasNearBottom.value = isNearBottom();
+  }
+
   activeTab.value = newTab;
+
+  // Restore scroll state once the chat tab remounts
+  if (newTab === 'chat') {
+    nextTick(() => {
+      if (!scrollRef.value) return;
+      if (savedWasNearBottom.value) {
+        // Was at bottom before — scroll to current bottom to pick up new messages
+        scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+      } else {
+        // Was scrolled up — restore exact position
+        scrollRef.value.scrollTop = savedScrollTop.value;
+      }
+    });
+  }
 }
 
 watch(
   messages,
   async () => {
+    const shouldFollow = forceNextScroll.value || isNearBottom();
+    forceNextScroll.value = false;
     await nextTick();
-    if (scrollRef.value) {
+    if (shouldFollow && scrollRef.value) {
       scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
     }
   },
@@ -41,6 +78,7 @@ watch(
 );
 
 async function handleSend(content: string) {
+  forceNextScroll.value = true;
   await sendChatMessage(content);
 }
 </script>
@@ -77,12 +115,12 @@ async function handleSend(content: string) {
         <Transition :name="slideDirection === 'left' ? 'slide-left' : 'slide-right'">
           <!-- Chat tab -->
           <div v-if="activeTab === 'chat'" key="chat" class="absolute inset-0 flex flex-col">
-            <ScrollArea class="flex-1 min-h-0" ref="scrollRef">
+            <div class="flex-1 min-h-0 overflow-y-auto" ref="scrollRef">
               <div
                 role="log"
                 aria-live="polite"
                 aria-label="Chat messages"
-                class="flex flex-col py-2"
+                class="flex flex-col justify-end min-h-full py-2"
               >
                 <div
                   v-if="messages.length === 0"
@@ -97,7 +135,7 @@ async function handleSend(content: string) {
                   :message="message"
                 />
               </div>
-            </ScrollArea>
+            </div>
 
             <!-- Mobile input bar: avatar + input -->
             <div class="flex items-center gap-2 p-2 border-t border-[hsl(var(--border))] lg:hidden">
