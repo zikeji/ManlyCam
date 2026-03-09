@@ -260,6 +260,28 @@ so that I never miss a message even when the sidebar is out of view.
 
 ## Dev Notes
 
+### Post-Implementation Enhancement — Badge Pulse Animation
+
+**Added 2026-03-09 during code review:**
+
+The `SidebarCollapseButton.vue` component includes a subtle pulse animation on the unread badge when `unreadCount` increments. This was not explicitly in the story AC but improves UX by giving visual feedback when new unread messages arrive while sidebar is collapsed.
+
+**Implementation:**
+- Watcher on `unreadCount` detects increases (newVal > oldVal)
+- Sets `isPulsing.value = true`, applies CSS class `badge-pulse`
+- 400ms CSS animation scales badge from 1.0 → 1.25 → 1.0
+- Clears timeout on component unmount to prevent memory leaks
+
+**Testing:**
+- 3 new tests added to `SidebarCollapseButton.test.ts`:
+  1. `applies badge-pulse class when unreadCount increases`
+  2. `removes badge-pulse class after 400ms timeout`
+  3. `clears timeout on unmount to prevent memory leaks`
+
+**Rationale:** Unread count is the primary indicator a user might miss messages. The pulse draws attention during critical moments (new message arrives, sidebar is collapsed). Subtle, non-disruptive, enhances accessibility by pairing visual and semantic cues.
+
+---
+
 ### UX Spec Gaps — Requires Attention
 
 > **⚠️ The following are gaps or ambiguities in the UX specification that emerged during story analysis. They are flagged for awareness — implementation decisions are provided as reasonable defaults.**
@@ -492,6 +514,7 @@ Object.defineProperty(window, 'matchMedia', {
 
 ### Story 4-1 Lesson Applied
 - `<Transition>` wraps the element — do not move layout classes to the `<Transition>` element itself
+- Post-implementation enhancements should be formally documented (like scroll preservation in 4-1) with rationale and testing
 
 ---
 
@@ -517,16 +540,37 @@ Object.defineProperty(window, 'matchMedia', {
 
 claude-sonnet-4-6
 
+### Code Review Fixes Applied (2026-03-09)
+
+**Issue 1: Badge Pulse Animation Memory Leak**
+- **Problem:** setTimeout in watcher had no cleanup; if component unmounted during animation, timeout would fire after unmount and update refs
+- **Fix:** Added `onBeforeUnmount` hook with `clearTimeout(pulseTimer)` to properly clean up pending timeouts
+- **File:** `SidebarCollapseButton.vue` lines 14–30
+
+**Issue 2: Pulse Animation Test Coverage**
+- **Problem:** ~15 lines of animation logic (watch + CSS) had zero test coverage
+- **Fix:** Added 3 new tests in `SidebarCollapseButton.test.ts` lines 93–131:
+  1. `applies badge-pulse class when unreadCount increases`
+  2. `removes badge-pulse class after 400ms timeout`
+  3. `clears timeout on unmount to prevent memory leaks`
+- **Tests use vi.useFakeTimers() for deterministic timing**
+
+**Issue 3: Undocumented Enhancement Documentation**
+- **Problem:** Pulse animation was not in story spec; no formal documentation
+- **Fix:** Added "Post-Implementation Enhancement" section documenting rationale, implementation, and testing
+- **File:** Story file Dev Notes section
+
 ### Debug Log References
 
 - Task 5 icons test: `findComponent({ name: 'ChevronRight' })` doesn't work with lucide-vue-next icons in JSDOM. Fix: mock `lucide-vue-next` with `data-icon` attributes on SVG elements.
 - Task 7 mock hoisting: Module-level exports in `vi.mock` factory triggered "Cannot access before initialization" for refs even with `mock` prefix. Root cause: module-level imports (WatchView.vue `import { messages }`) evaluate the factory at load time, not call time. Fix: `vi.hoisted(() => { require('vue').ref(...) })` with `eslint-disable-next-line @typescript-eslint/no-require-imports`.
 - Coverage drop: `apps/web/src/components/ui/badge/` files (generated shadcn components) at 0% coverage pulled global lines below 90% threshold. Fix: added `src/components/ui/**` to coverage `exclude` list (same pattern as other untested shadcn components like ScrollArea, Textarea).
+- Code review fixes: Badge pulse animation timeout cleanup + 3 new tests added to prevent memory leaks and ensure animation behavior is tested.
 
 ### Completion Notes List
 
-- All 8 tasks implemented with 240 tests passing (up from 214 in Story 4-3)
-- `SidebarCollapseButton.vue`: new component with ChevronRight/Left icons, Badge overlay, aria-label computed — 100% line coverage, 10 tests
+- All 8 tasks implemented with **243 tests passing** (up from 214 in Story 4-3; +3 pulse animation tests from code review)
+- `SidebarCollapseButton.vue`: new component with ChevronRight/Left icons, Badge overlay, aria-label computed, **pulse animation with timeout cleanup** — 100% line coverage, **13 tests (10 original + 3 pulse animation)**
 - `useChat.ts`: added `unreadCount`, `resetUnread`, `incrementUnread` module-level exports — 4 new tests
 - `StreamPlayer.vue`: added `chatSidebarOpen`, `unreadCount`, `showChatSidebarToggle` props + `toggleChatSidebar` emit + collapse button block — 4 new tests
 - `WatchView.vue`: full chat sidebar state management — `isMobilePortrait` detection, `chatSidebarOpen` with localStorage persistence, `watch(messages, ...)` for unread increment, two-branch ChatPanel rendering, `landscape:flex-row` layout, `sidebar-right` CSS transition — 8 new tests
@@ -535,6 +579,7 @@ claude-sonnet-4-6
 - AC #3 (mobile landscape/tablet collapsible) implemented via `landscape:flex-row` + `showChatSidebarToggle = !isMobilePortrait`
 - AC #4 (state persistence) implemented with `manlycam:chat-sidebar-open` localStorage key
 - AC #7 (150ms animation) implemented via `sidebar-right` CSS transition on `margin-right`
+- **Post-implementation enhancement:** Badge pulse animation on unread increment (documented with rationale, fully tested, memory-leak-free)
 
 ### File List
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, ref } from 'vue';
+import { computed, watch, ref, onBeforeUnmount } from 'vue';
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,11 +12,22 @@ const props = defineProps<{
 const emit = defineEmits<{ toggle: [] }>();
 
 const isPulsing = ref(false);
+let pulseTimer: number | null = null;
+
+onBeforeUnmount(() => {
+  if (pulseTimer !== null) {
+    clearTimeout(pulseTimer);
+    pulseTimer = null;
+  }
+});
 
 watch(() => props.unreadCount, (newVal, oldVal) => {
   if (newVal > (oldVal ?? 0)) {
     isPulsing.value = true;
-    setTimeout(() => { isPulsing.value = false; }, 400);
+    pulseTimer = window.setTimeout(() => {
+      isPulsing.value = false;
+      pulseTimer = null;
+    }, 400);
   }
 });
 

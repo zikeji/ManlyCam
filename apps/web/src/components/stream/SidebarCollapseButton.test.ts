@@ -89,4 +89,55 @@ describe('SidebarCollapseButton', () => {
     expect(wrapper.emitted('toggle')).toBeTruthy();
     expect(wrapper.emitted('toggle')).toHaveLength(1);
   });
+
+  describe('badge pulse animation', () => {
+    it('applies badge-pulse class when unreadCount increases', async () => {
+      vi.useFakeTimers();
+      // Start with unreadCount=1 so badge exists
+      wrapper = mount(SidebarCollapseButton, { props: { isOpen: false, unreadCount: 1 } });
+      // Initially no pulse
+      expect(wrapper.find('span').classes()).not.toContain('badge-pulse');
+
+      // Increment unreadCount to trigger pulse
+      await wrapper.setProps({ unreadCount: 2 });
+      expect(wrapper.find('span').classes()).toContain('badge-pulse');
+
+      vi.useRealTimers();
+    });
+
+    it('removes badge-pulse class after 400ms timeout', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(SidebarCollapseButton, { props: { isOpen: false, unreadCount: 0 } });
+
+      // Increment unreadCount to trigger pulse
+      await wrapper.setProps({ unreadCount: 1 });
+      expect(wrapper.find('span').classes()).toContain('badge-pulse');
+
+      // Fast-forward 400ms
+      vi.advanceTimersByTime(400);
+      await wrapper.vm.$nextTick();
+
+      // Pulse class should be removed
+      expect(wrapper.find('span').classes()).not.toContain('badge-pulse');
+
+      vi.useRealTimers();
+    });
+
+    it('clears timeout on unmount to prevent memory leaks', async () => {
+      vi.useFakeTimers();
+      const clearTimeoutSpy = vi.spyOn(global, 'clearTimeout');
+
+      wrapper = mount(SidebarCollapseButton, { props: { isOpen: false, unreadCount: 0 } });
+      await wrapper.setProps({ unreadCount: 1 });
+
+      // Unmount before timeout completes
+      wrapper.unmount();
+
+      // clearTimeout should have been called
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+      clearTimeoutSpy.mockRestore();
+
+      vi.useRealTimers();
+    });
+  });
 });
