@@ -101,4 +101,73 @@ describe('ChatMessage.vue', () => {
     expect(wrapper.text()).not.toContain('Guest');
     expect(wrapper.text()).not.toContain('VIP');
   });
+
+  describe('isContinuation=true (continuation row)', () => {
+    it('does not render Avatar when isContinuation is true', () => {
+      const wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isContinuation: true },
+      });
+      // Avatar component wraps an element; if continuation, no avatar wrapper present
+      const avatarEl = wrapper.find('.h-8.w-8');
+      expect(avatarEl.exists()).toBe(false);
+    });
+
+    it('does not render display name when isContinuation is true', () => {
+      const wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, displayName: 'UniqueNameXYZ' }, isContinuation: true },
+      });
+      expect(wrapper.text()).not.toContain('UniqueNameXYZ');
+    });
+
+    it('does not render userTag pill when isContinuation is true', () => {
+      const wrapper = mount(ChatMessage, {
+        props: {
+          message: { ...baseMessage, userTag: { text: 'VIP', color: '#FF0000' } },
+          isContinuation: true,
+        },
+      });
+      expect(wrapper.text()).not.toContain('VIP');
+    });
+
+    it('renders message body when isContinuation is true', () => {
+      const wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: 'Continuation text' }, isContinuation: true },
+      });
+      expect(wrapper.text()).toContain('Continuation text');
+    });
+
+    it('root element has pl-[52px] class when isContinuation is true', () => {
+      const wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isContinuation: true },
+      });
+      const root = wrapper.find('[role="listitem"]');
+      expect(root.classes().join(' ')).toContain('pl-[52px]');
+    });
+  });
+
+  describe('isContinuation=false (explicit group header)', () => {
+    it('renders Avatar when isContinuation is false', () => {
+      const wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isContinuation: false },
+      });
+      const avatarEl = wrapper.find('.h-8.w-8');
+      expect(avatarEl.exists()).toBe(true);
+    });
+
+    it('renders display name when isContinuation is false', () => {
+      const wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isContinuation: false },
+      });
+      expect(wrapper.text()).toContain('Test User');
+    });
+
+    it('renders timestamp when isContinuation is false', () => {
+      const wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isContinuation: false },
+      });
+      // timeLabel is a formatted time string — just verify some text present in muted span
+      const timeSpan = wrapper.find('.text-muted-foreground.shrink-0');
+      expect(timeSpan.exists()).toBe(true);
+    });
+  });
 });

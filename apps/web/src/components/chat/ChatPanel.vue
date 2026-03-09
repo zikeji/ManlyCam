@@ -39,8 +39,10 @@ function isNearBottom(): boolean {
   return scrollHeight - scrollTop - clientHeight <= SCROLL_THRESHOLD;
 }
 
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
+
 type ListItem =
-  | { type: 'message'; data: ChatMessageType }
+  | { type: 'message'; data: ChatMessageType; isContinuation: boolean }
   | { type: 'day'; label: string };
 
 const listItems = computed<ListItem[]>(() => {
@@ -48,10 +50,19 @@ const listItems = computed<ListItem[]>(() => {
   for (let i = 0; i < messages.value.length; i++) {
     const msg = messages.value[i];
     const prev = messages.value[i - 1];
-    if (!prev || !isSameDay(prev.createdAt, msg.createdAt)) {
+
+    const sameDay = !!(prev && isSameDay(prev.createdAt, msg.createdAt));
+    if (!sameDay) {
       items.push({ type: 'day', label: formatDayLabel(msg.createdAt) });
     }
-    items.push({ type: 'message', data: msg });
+
+    const timeDelta = prev
+      ? new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime()
+      : Infinity;
+    const isContinuation =
+      sameDay && !!prev && prev.userId === msg.userId && timeDelta <= GROUP_WINDOW_MS;
+
+    items.push({ type: 'message', data: msg, isContinuation });
   }
   return items;
 });
@@ -213,7 +224,7 @@ async function handleSend(content: string) {
                     }}</span>
                     <div class="flex-1 h-px bg-[hsl(var(--border))]" />
                   </div>
-                  <ChatMessage v-else :message="item.data" />
+                  <ChatMessage v-else :message="item.data" :is-continuation="item.isContinuation" />
                 </template>
               </div>
             </div>

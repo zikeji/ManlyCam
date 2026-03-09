@@ -32,6 +32,9 @@ export function useWebSocket(): WsInterface {
       if (msg.type === 'chat:message') {
         useChat().handleChatMessage(msg.payload);
       }
+      if (msg.type === 'user:update') {
+        useChat().handleUserUpdate(msg.payload);
+      }
     } catch {
       // Ignore malformed messages
     }

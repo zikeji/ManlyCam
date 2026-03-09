@@ -241,4 +241,107 @@ describe('ChatPanel.vue', () => {
     await flushPromises();
     expect(wrapper.text()).not.toContain('Be the first to say something');
   });
+
+  describe('message grouping (isContinuation)', () => {
+    // Helper: count group-header listitems (those without pl-[52px] = group headers with Avatar)
+    // Continuation rows have pl-[52px] in their class; group headers have flex items-start
+    function countGroupHeaderListitems(w: VueWrapper): number {
+      return w
+        .findAll('[role="listitem"]')
+        .filter((li) => !li.element.className.includes('pl-[52px]')).length;
+    }
+
+    it('second message from same sender within 5 min is a continuation (no Avatar)', async () => {
+      mockMessages.value = [
+        {
+          ...mockMessage,
+          id: 'msg-001',
+          userId: 'user-001',
+          createdAt: '2026-03-09T14:00:00.000Z',
+        },
+        {
+          ...mockMessage,
+          id: 'msg-002',
+          userId: 'user-001',
+          createdAt: '2026-03-09T14:04:00.000Z', // 4 min later — within 5 min window
+        },
+      ];
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+
+      // Only first message is a group header; second is a continuation row
+      expect(countGroupHeaderListitems(wrapper!)).toBe(1);
+    });
+
+    it('second message from same sender more than 5 min later is a new group (Avatar rendered)', async () => {
+      mockMessages.value = [
+        {
+          ...mockMessage,
+          id: 'msg-001',
+          userId: 'user-001',
+          createdAt: '2026-03-09T14:00:00.000Z',
+        },
+        {
+          ...mockMessage,
+          id: 'msg-002',
+          userId: 'user-001',
+          createdAt: '2026-03-09T14:06:00.000Z', // 6 min later — exceeds 5 min window
+        },
+      ];
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+
+      // Both messages are group headers
+      expect(countGroupHeaderListitems(wrapper!)).toBe(2);
+    });
+
+    it('message from different sender is always a new group (Avatar rendered)', async () => {
+      mockMessages.value = [
+        {
+          ...mockMessage,
+          id: 'msg-001',
+          userId: 'user-001',
+          createdAt: '2026-03-09T14:00:00.000Z',
+        },
+        {
+          ...mockMessage,
+          id: 'msg-002',
+          userId: 'user-002', // different sender
+          createdAt: '2026-03-09T14:01:00.000Z', // 1 min later — within window but different user
+        },
+      ];
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+
+      // Different sender always starts a new group
+      expect(countGroupHeaderListitems(wrapper!)).toBe(2);
+    });
+
+    it('day boundary between same-sender messages forces new group (separator + Avatar)', async () => {
+      // Use midday UTC times to avoid timezone-edge issues (same pattern as existing passing test)
+      mockMessages.value = [
+        {
+          ...mockMessage,
+          id: 'msg-001',
+          userId: 'user-001',
+          createdAt: '2026-03-08T12:00:00.000Z',
+        },
+        {
+          ...mockMessage,
+          id: 'msg-002',
+          userId: 'user-001',
+          createdAt: '2026-03-09T12:00:00.000Z', // next day — same sender, but day boundary
+        },
+      ];
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+
+      // Day separator should exist between the two messages (one per day)
+      const separators = wrapper!.findAll('[role="separator"]');
+      expect(separators.length).toBeGreaterThanOrEqual(2);
+
+      // Both messages are group headers (day boundary resets group)
+      expect(countGroupHeaderListitems(wrapper!)).toBe(2);
+    });
+  });
 });

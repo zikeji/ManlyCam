@@ -44,12 +44,24 @@ vi.mock('@/composables/useStream', () => ({
   }),
 }));
 
+// --- useChat mock ---
+const mockHandleUserUpdate = vi.fn();
+const mockHandleChatMessage = vi.fn();
+vi.mock('@/composables/useChat', () => ({
+  useChat: () => ({
+    handleChatMessage: mockHandleChatMessage,
+    handleUserUpdate: mockHandleUserUpdate,
+  }),
+}));
+
 // Import AFTER mocks (important for module reset isolation)
 import { useWebSocket } from './useWebSocket';
 
 describe('useWebSocket', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHandleUserUpdate.mockReset();
+    mockHandleChatMessage.mockReset();
     vi.useFakeTimers();
     mockWsInstance.readyState = 1;
   });
@@ -132,6 +144,24 @@ describe('useWebSocket', () => {
       expect(() => {
         mockWsInstance.onmessage?.(new MessageEvent('message', { data: 'not-json{{{' }));
       }).not.toThrow();
+    });
+
+    it('dispatches user:update payload to useChat().handleUserUpdate()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const profile = {
+        id: 'user-001',
+        displayName: 'Alice Updated',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTag: null,
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'user:update', payload: profile }),
+        }),
+      );
+      expect(mockHandleUserUpdate).toHaveBeenCalledWith(profile);
     });
   });
 

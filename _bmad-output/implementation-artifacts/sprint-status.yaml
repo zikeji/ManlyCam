@@ -73,7 +73,7 @@ development_status:
   epic-4: in-progress
   4-1-chat-panel-message-sending-and-real-time-delivery: done  # code-review findings #5 fixed: test isolation (afterEach unmount), scroll state preservation across tabs, ScrollArea replacement documented
   4-2-chat-history-on-load-and-infinite-scroll: done  # code-review findings #2 fixed: export module-level refs directly, add empty-messages edge case test, fix timezone-sensitive tests. 338 total tests passing
-  4-3-message-grouping-avatars-and-usertag-display: backlog
+  4-3-message-grouping-avatars-and-usertag-display: review
   4-4-unread-badge-sidebar-collapse-expand-and-state-persistence: backlog
   4-5-own-message-edit-and-delete: backlog
   4-6-viewer-presence-list-and-typing-indicator: backlog

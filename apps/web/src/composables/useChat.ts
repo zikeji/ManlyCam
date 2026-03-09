@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue';
 import { apiFetch } from '@/lib/api';
-import type { ChatMessage } from '@manlycam/types';
+import type { ChatMessage, UserProfile } from '@manlycam/types';
 
 // Module-level singletons — all callers share the same refs (same pattern as useStream)
 // Exported directly for test reset (do not access via useChat factory in tests)
@@ -9,6 +9,19 @@ export const hasMore = ref(true);
 export const isLoadingHistory = ref(false);
 
 export const oldestMessageId = computed(() => messages.value[0]?.id);
+
+export const handleUserUpdate = (profile: UserProfile): void => {
+  messages.value = messages.value.map((msg) =>
+    msg.userId === profile.id
+      ? {
+          ...msg,
+          displayName: profile.displayName,
+          avatarUrl: profile.avatarUrl,
+          userTag: profile.userTag,
+        }
+      : msg,
+  );
+};
 
 export const useChat = () => {
   const sendChatMessage = async (content: string): Promise<void> => {
@@ -55,5 +68,6 @@ export const useChat = () => {
     loadMoreHistory,
     hasMore,
     isLoadingHistory,
+    handleUserUpdate,
   };
 };

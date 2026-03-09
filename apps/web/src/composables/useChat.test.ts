@@ -5,8 +5,16 @@ vi.mock('@/lib/api', () => ({
 }));
 
 import { apiFetch } from '@/lib/api';
-import { useChat } from './useChat';
-import type { ChatMessage } from '@manlycam/types';
+import { useChat, handleUserUpdate } from './useChat';
+import type { ChatMessage, UserProfile } from '@manlycam/types';
+
+const mockUserProfile: UserProfile = {
+  id: 'user-001',
+  displayName: 'Updated Name',
+  avatarUrl: 'https://example.com/new-avatar.jpg',
+  role: 'ViewerCompany',
+  userTag: { text: 'Staff', color: '#00FF00' },
+};
 
 const mockMessage: ChatMessage = {
   id: 'msg-001',
@@ -201,6 +209,48 @@ describe('useChat', () => {
       await loadMoreHistory();
 
       expect(isLoadingHistory.value).toBe(false);
+    });
+  });
+
+  describe('handleUserUpdate', () => {
+    it('updates displayName, avatarUrl, and userTag on matching messages', () => {
+      const { messages } = useChat();
+      messages.value = [{ ...mockMessage, userId: 'user-001' }];
+
+      handleUserUpdate(mockUserProfile);
+
+      expect(messages.value[0].displayName).toBe('Updated Name');
+      expect(messages.value[0].avatarUrl).toBe('https://example.com/new-avatar.jpg');
+      expect(messages.value[0].userTag).toEqual({ text: 'Staff', color: '#00FF00' });
+    });
+
+    it('leaves messages from other userIds unchanged', () => {
+      const { messages } = useChat();
+      const otherMsg = { ...mockMessage, id: 'msg-002', userId: 'user-999', displayName: 'Other' };
+      messages.value = [{ ...mockMessage, userId: 'user-001' }, otherMsg];
+
+      handleUserUpdate(mockUserProfile);
+
+      expect(messages.value[1].displayName).toBe('Other');
+      expect(messages.value[1].userId).toBe('user-999');
+    });
+
+    it('works when messages is empty (no error thrown)', () => {
+      const { messages } = useChat();
+      messages.value = [];
+      expect(() => handleUserUpdate(mockUserProfile)).not.toThrow();
+      expect(messages.value).toHaveLength(0);
+    });
+
+    it('correctly sets userTag to null when profile has userTag null', () => {
+      const { messages } = useChat();
+      messages.value = [
+        { ...mockMessage, userId: 'user-001', userTag: { text: 'Old', color: '#000' } },
+      ];
+
+      handleUserUpdate({ ...mockUserProfile, userTag: null });
+
+      expect(messages.value[0].userTag).toBeNull();
     });
   });
 });
