@@ -190,24 +190,21 @@ This is a personal maker project with no revenue or growth objectives. Success i
 
 ### IoT / Pi Layer
 
-The Raspberry Pi Zero W 2 is a **thin frp agent**, not an application server. Its sole responsibility is maintaining tunnels to the upstream server and exposing the camera device.
+The Raspberry Pi Zero W 2 runs **frpc** and **mediamtx** as two independent systemd services — no custom binary. Its sole responsibility is maintaining frp tunnels to the upstream server and exposing the mediamtx camera pipeline.
 
 **frp Tunnel Architecture (Pi-side):**
 
 | Tunnel | Purpose | MVP |
 |---|---|---|
-| Stream proxy | Forwards camera stream to upstream for distribution to viewers | ✅ Yes |
-| API proxy | Forwards Pi's mediamtx HTTP API to upstream server for camera control | ✅ Yes |
+| Stream proxy | Forwards mediamtx RTSP to upstream for WebRTC relay to viewers | ✅ Yes |
+| API proxy | Forwards mediamtx HTTP API to upstream server for camera control | ✅ Yes |
 | SSH tunnel | Allows remote SSH access to Pi via upstream | ❌ Post-MVP |
 
-**Binary and Deployment:**
-- The Pi runs a single compiled binary managed by **systemd**
-- Install path: `/opt/manlycam/` (standard for non-package-managed binaries)
-- systemd unit starts the binary on boot; responsible for restart-on-failure
-- Sensitive configuration (upstream server address, frp auth token, etc.) stored in a **separate config file** on the Pi — never baked into the binary
-- GitHub Actions builds Pi binaries (cross-compiled for ARM); CI artifacts contain no PII or sensitive configuration
-- A CLI helper command (e.g. `manlycam download-latest`) pulls the latest binary from CI and restarts the service — primary update mechanism
-- Manual SSH + artifact replacement is the fallback update path
+**Deployment:**
+- The Pi runs frpc and mediamtx as two independent **systemd** services, each with restart-on-failure
+- Sensitive configuration (upstream server address, frp auth tokens) stored in `frpc.toml` and `mediamtx.yml` — native config files for each tool, with restricted filesystem permissions
+- An install script (`install.sh --endpoint <url>`) handles downloading frpc and mediamtx, generating both config files, and registering the systemd units
+- No custom binary is distributed; no CI artifact is published for the Pi
 
 **Power and Shutdown Behavior:**
 - Pi may be unplugged without graceful shutdown — this is expected and normal
@@ -285,13 +282,11 @@ The upstream server is the **primary application host** — it handles all viewe
 
 **Must-Have Capabilities:**
 
-*Pi / IoT Agent:*
-- frp agent binary: stream proxy + API proxy tunnels; systemd on boot with restart-on-failure
-- Config file separated from binary at install time (no PII/sensitive data in CI artifacts)
-- GitHub Actions CI: cross-compiled ARM binary for Pi Zero W 2
-- `manlycam download-latest` CLI helper — pulls latest binary from CI and restarts service
-- Install script + README: flash Raspbian Trixie → verify camera with `rpicam-still` → run installer with `--endpoint <url>`
-- Captive portal: WiFi-failure-triggered only (IoT standard); lives in same agent binary/service
+*Pi / IoT Setup:*
+- frpc and mediamtx installed as systemd services via `install.sh --endpoint <url>`; both services managed with restart-on-failure
+- All sensitive configuration in `frpc.toml` and `mediamtx.yml` — no credentials in any CI artifact
+- Install script + operator README: flash Raspberry Pi OS Lite → verify camera with `rpicam-still` → run install script
+- WiFi configuration is the operator's responsibility; wifi-connect is one option and is documented (optional)
 
 *Authentication & Access:*
 - Google OAuth sign-in (`openid email profile` scopes; gravatar fallback for avatar)
@@ -351,7 +346,7 @@ The upstream server is the **primary application host** — it handles all viewe
 | Google OAuth avatar scope | Resolved — `openid email profile` | Gravatar fallback if profile image unavailable |
 | Camera control implementation | mediamtx HTTP API proxied via frp tunnel; settings persisted in DB and re-applied on Pi reconnect | Resolved during 3.2c pivot — see 3-6 architecture notes |
 | Stream stops unexpectedly | Primary failure mode | systemd restart-on-failure; upstream detects tunnel drop and shows graceful state |
-| PII in CI artifacts | Pi binary must never contain sensitive config | Config file separated from binary at install time; CI artifacts are clean |
+| PII in CI artifacts | No Pi binary is published; frpc.toml and mediamtx.yml stay on-device | Install script generates config files on the Pi; no credentials in any CI artifact |
 
 ---
 
@@ -421,19 +416,18 @@ The upstream server is the **primary application host** — it handles all viewe
 
 ### IoT Agent & Infrastructure
 
-- **FR45:** The Pi agent establishes and maintains an frp stream proxy tunnel to the upstream server on boot
-- **FR46:** The Pi agent establishes and maintains an frp API proxy tunnel to the upstream server on boot, enabling camera control commands from the backend
-- **FR47:** The Pi agent is managed by systemd with automatic restart-on-failure
-- **FR48:** The Pi agent reads sensitive configuration (upstream server address, auth tokens) from a separate config file that is not bundled in the binary or CI artifacts
-- **FR49:** Administrators can update the Pi agent via `update-manlycam`, which compares the installed version (`manlycam-agent --version`) against the latest GitHub release (auto-versioned via semver), downloads the artifact if a newer version exists, and restarts the service
-- **FR50:** The Pi agent includes an install script and README covering the full bootstrap flow (OS flash → camera verification via `rpicam-still` → endpoint configuration via `--endpoint <url>`)
-- **FR51:** The Pi agent activates a captive portal for WiFi configuration when it cannot connect to a known network; the captive portal loosely follows the branding and theming guidelines of the main web interface
+- **FR45:** frpc is installed as a systemd service on the Pi and establishes the stream proxy tunnel to the upstream server automatically on boot, with restart-on-failure
+- **FR46:** frpc is configured with an API proxy tunnel to the upstream server on boot, enabling camera control commands from the backend to reach mediamtx's HTTP API on the Pi
+- **FR47:** frpc and mediamtx are each managed as independent systemd services with automatic restart-on-failure; transient crashes in either service do not require manual intervention
+- **FR48:** All Pi-side sensitive configuration (upstream server address, frp auth tokens) is stored in `frpc.toml` and `mediamtx.yml` — native config files for each tool, with restricted filesystem permissions; no credentials are stored in any CI artifact
+- **FR50:** An install script and operator README cover the full bootstrap flow: OS flash → camera verification (`rpicam-still`) → frpc and mediamtx installation and systemd service configuration via `./install.sh --endpoint <url>`; an uninstall script provides clean removal
+- **FR51:** WiFi configuration on a new Pi is the operator's responsibility; the operator documentation optionally covers wifi-connect as one approach — operators who configure WiFi via other means (Pi Imager preconfiguration, wpa_supplicant, etc.) are fully supported; no custom captive portal is implemented
 
 ### Platform & Developer Operations
 
 - **FR52:** The web application is a single-page application; all viewer, chat, and admin features are accessible within a single page surface without full navigation
 - **FR53:** The upstream server detects Pi tunnel disconnection and reflects the appropriate stream state to all connected viewers without crashing or data loss
-- **FR54:** GitHub Actions produces cross-compiled ARM binaries for the Pi agent with automatic semver versioning and GitHub Releases; CI artifacts contain no PII or sensitive configuration
+- **FR54:** GitHub Actions CI/CD pipelines build and publish Docker images for the server and web app; the Go agent workspace and its CI pipeline have been removed from the monorepo; no Pi binary artifact is published from this repository
 - **FR55:** The application is configurable with an instance-specific pet name (e.g. "Manly") and site name (e.g. "ManlyCam"); these values are set at upstream server deploy time alongside other server-side configuration (OAuth credentials, database credentials, `site_url`, etc.) and are used throughout the UI, landing page, and any branding surfaces — no hardcoded references to either value exist in the codebase
 
 ---
@@ -452,7 +446,7 @@ The upstream server is the **primary application host** — it handles all viewe
 - **NFR5:** Google OAuth is validated once at login; the server issues a DB-backed session cookie (`httpOnly SameSite=Strict Secure`) for subsequent request authentication. User profile data (display name, avatar) is upserted to the user record on each login; if profile information changes between sessions, the update is reflected on next login and broadcast to all connected clients via WebSocket. Clients are not instructed to re-validate OAuth tokens mid-session.
 - **NFR6:** User allowlist and role checks are enforced server-side; access cannot be bypassed by client manipulation
 - **NFR7:** Session revocation on ban takes effect immediately via WebSocket signal to the affected client's active connection; allowlist removal does not revoke existing sessions
-- **NFR8:** The Pi agent binary published via CI contains no credentials, server addresses, or PII; all sensitive configuration is stored in a separate on-device config file with restricted filesystem permissions
+- **NFR8:** No Pi agent binary is published via CI; all Pi-side sensitive configuration is stored in `frpc.toml` and `mediamtx.yml` on-device with restricted filesystem permissions
 - **NFR9:** Audit log entries for moderation actions are append-only and cannot be modified or deleted by any web UI action
 
 ### Reliability

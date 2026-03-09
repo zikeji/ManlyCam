@@ -73,18 +73,17 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR44: The allowlist controls registration eligibility only; adding or removing entries does not affect already-authenticated users. Banning a user takes effect immediately, revoking all active sessions via WebSocket signal.
 
 **IoT Agent & Infrastructure**
-- FR45: The Pi agent establishes and maintains an frp stream proxy tunnel to the upstream server on boot
-- FR46: The Pi agent establishes and maintains an frp API proxy tunnel to the upstream server on boot, enabling camera control commands from the backend
-- FR47: The Pi agent is managed by systemd with automatic restart-on-failure
-- FR48: The Pi agent reads sensitive configuration from a separate config file that is not bundled in the binary or CI artifacts
-- FR49: Administrators can update the Pi agent via `update-manlycam`, which compares the installed version against the latest GitHub release, downloads the artifact if newer, and restarts the service
-- FR50: The Pi agent includes an install script and README covering the full bootstrap flow (OS flash → camera verification → endpoint configuration)
-- FR51: The Pi agent activates a captive portal for WiFi configuration when it cannot connect to a known network
+- FR45: frpc is installed as a systemd service on the Pi and establishes the stream proxy tunnel to the upstream server on boot, with restart-on-failure
+- FR46: frpc is configured with an API proxy tunnel to the upstream server on boot, enabling camera control commands from the backend to reach mediamtx's HTTP API on the Pi
+- FR47: frpc and mediamtx are each managed as independent systemd services with automatic restart-on-failure
+- FR48: All Pi-side sensitive configuration is stored in frpc.toml and mediamtx.yml — native config files for each tool, with restricted filesystem permissions; no credentials in any CI artifact
+- FR50: An install script and operator README cover the full bootstrap flow: OS flash → camera verification → frpc + mediamtx installation via `./install.sh --endpoint <url>`; an uninstall script provides clean removal
+- FR51: WiFi configuration is the operator's responsibility; the operator documentation optionally covers wifi-connect as one approach — no custom captive portal is implemented
 
 **Platform & Developer Operations**
 - FR52: The web application is a single-page application; all viewer, chat, and admin features are accessible within a single page surface without full navigation
 - FR53: The upstream server detects Pi tunnel disconnection and reflects the appropriate stream state to all connected viewers without crashing or data loss
-- FR54: GitHub Actions produces cross-compiled ARM binaries for the Pi agent with automatic semver versioning and GitHub Releases; CI artifacts contain no PII or sensitive configuration
+- FR54: GitHub Actions CI/CD builds and publishes Docker images for the server and web app; the Go agent workspace and its CI pipeline have been removed from the monorepo; no Pi binary artifact is published
 - FR55: The application is configurable with an instance-specific pet name and site name set at deploy time; no hardcoded references exist in the codebase
 
 ### NonFunctional Requirements
@@ -229,16 +228,16 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 | FR42 | Epic 2 | CLI add/remove individual email allowlist entries |
 | FR43 | Epic 2 | CLI ban/unban user accounts |
 | FR44 | Epic 2 | Immediate active session enforcement on allowlist/blocklist change |
-| FR45 | Epic 3 | Pi agent frp stream proxy tunnel on boot |
-| FR46 | Epic 3 | Pi agent frp API proxy tunnel on boot (camera control) |
-| FR47 | Epic 3 | Pi agent systemd restart-on-failure |
-| FR48 | Epic 3 | Pi agent config file separated from binary (no PII in CI) |
-| FR49 | Epic 6 | `update-manlycam` self-update: version compare → download → restart |
-| FR50 | Epic 6 | Install script + README: OS flash → camera verify → endpoint config |
-| FR51 | Epic 6 | Captive portal for WiFi config on boot (unknown network) |
+| FR45 | Epic 6 | frpc systemd service: stream proxy tunnel on boot |
+| FR46 | Epic 6 | frpc systemd service: API proxy tunnel on boot (camera control) |
+| FR47 | Epic 6 | frpc + mediamtx systemd restart-on-failure |
+| FR48 | Epic 6 | frpc.toml + mediamtx.yml: sensitive config in native config files |
+| FR49 | N/A   | REMOVED — no Go binary; no self-update mechanism |
+| FR50 | Epic 6 | Install script + operator README: OS flash → camera verify → frpc/mediamtx setup |
+| FR51 | Epic 6 | WiFi config: operator's choice; wifi-connect optionally documented in README |
 | FR52 | Epic 3 | Single-page application constraint |
 | FR53 | Epic 3 | Graceful Pi tunnel-drop handling (no server crash, state broadcast) |
-| FR54 | Epic 1 | GitHub Actions CI/CD: cross-compiled ARM binary, semver releases |
+| FR54 | Epic 1 | GitHub Actions CI/CD: server + web Docker images; agent CI removed |
 | FR55 | Epic 1 | Deploy-time config: pet name, site name, OAuth creds, DB URL |
 
 ## Epic List
@@ -248,7 +247,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 The development team can scaffold, build, test, and deploy all three components of ManlyCam from a single repository. The monorepo is initialized with pnpm workspaces, shared TypeScript types, all application scaffolds, Prisma schema, CI/CD pipelines, and deployment reference configurations — providing the complete foundation on which all subsequent epics are built.
 
 **FRs covered:** FR54, FR55
-**Additional:** pnpm workspace root, `packages/types` (WsMessage discriminated union, role enums, ULID helpers), Prisma schema (all models + initial migration), Hono server scaffold, Vite/Vue SPA scaffold, Go agent `go mod init`, all Dockerfile + deploy reference configs (Caddy, nginx, Traefik, docker-compose), pino + prom-client skeleton, `.env.example` files, zod-validated env module
+**Additional:** pnpm workspace root, `packages/types` (WsMessage discriminated union, role enums, ULID helpers), Prisma schema (all models + initial migration), Hono server scaffold, Vite/Vue SPA scaffold, all Dockerfile + deploy reference configs (Caddy, nginx, Traefik, docker-compose), pino + prom-client skeleton, `.env.example` files, zod-validated env module
 
 ---
 
@@ -264,7 +263,8 @@ Authorized viewers — both company domain users and individually allowlisted gu
 
 Viewers can watch Manly live in their browser with clear stream state communication at all times. The admin can start/stop the stream and adjust camera settings from any device, on any screen size. The Pi agent tunnels the camera feed through frp, and the upstream server transcodes and relays it to all viewers — handling tunnel drops and state transitions gracefully.
 
-**FRs covered:** FR9, FR10, FR11, FR12, FR13, FR14, FR15, FR45, FR46, FR47, FR48, FR52, FR53
+**FRs covered:** FR9, FR10, FR11, FR12, FR13, FR14, FR15, FR52, FR53
+**Note:** FR45, FR46, FR47, FR48 moved to Epic 6 — Pi setup is now an install script + systemd services, not a story within Epic 3
 
 ---
 
@@ -284,11 +284,11 @@ Moderators can maintain a healthy chat environment by muting, banning, and delet
 
 ---
 
-### Epic 6: Pi Agent Operational Tooling
+### Epic 6: Pi Operational Tooling
 
-The admin can bootstrap a new Pi from scratch, update the agent in the field via a single command, and recover WiFi connectivity without SSH. First-time setup is fully documented; subsequent updates are self-contained and automated.
+Any operator can bootstrap a Raspberry Pi Zero W 2 as a ManlyCam camera node from scratch using a single install script. The script installs frpc and mediamtx, configures each with correct defaults for ManlyCam, and registers both as systemd services. WiFi configuration is handled by the operator's tool of choice (wifi-connect is one option, documented as optional). Complete documentation covers initial setup, service management, troubleshooting, and clean uninstall.
 
-**FRs covered:** FR49, FR50, FR51
+**FRs covered:** FR45, FR46, FR47, FR48, FR50, FR51
 
 ---
 
@@ -1344,99 +1344,93 @@ This function is called in every code path that returns a `UserProfile` — REST
 
 ---
 
-## Epic 6: Pi Agent Operational Tooling
+## Epic 6: Pi Operational Tooling
 
-The Go-based Pi agent (`apps/agent`) ships with everything needed for a non-technical operator to set up and maintain the camera: a one-command install script, a self-update binary, and a captive portal for network configuration. The agent is cross-compiled for ARM via GitHub Actions CI and distributed as a versioned GitHub Release artifact.
+Any operator can bootstrap a Raspberry Pi Zero W 2 as a ManlyCam camera node from scratch using a single install script. The script installs frpc and mediamtx, configures each with correct defaults for ManlyCam, and registers both as systemd services. WiFi configuration is handled by the operator's tool of choice (wifi-connect is one option, documented as optional). Complete documentation covers initial setup, service management, troubleshooting, and clean uninstall.
 
-### Story 6.1: `update-manlycam` Self-Update Command
+> **Planning note (2026-03-08):** Epic 6 was redefined via sprint change proposal after the Epic 3 retrospective revealed that the Go Pi agent's purpose was fully absorbed by mediamtx. The original stories (self-update command, Go install script, captive portal) have been replaced. See `sprint-change-proposal-2026-03-08.md` for the full rationale.
 
-As a **Pi operator**,
-I want to run a single command to update the Pi agent to the latest version,
-So that I can pick up bug fixes and new features without SSH-ing in and doing it manually.
+### Story 6.1: Remove Go Agent from Monorepo
+
+As a **developer**,
+I want the Go agent workspace and its CI pipeline removed from the monorepo,
+So that the codebase reflects the current architecture and there is no dead code to maintain.
 
 **Acceptance Criteria:**
 
-**Given** the operator runs `update-manlycam` on the Pi
-**When** the command executes
-**Then** it fetches the latest release metadata from the GitHub Releases API (`GET https://api.github.com/repos/zikeji/ManlyCam/releases/latest`) and compares the `tag_name` against the embedded `Version` constant in the running binary (set at build time via `-ldflags "-X main.Version=..."`))
+**Given** the `apps/agent/` directory exists in the monorepo
+**When** Story 6.1 is complete
+**Then** `apps/agent/` is deleted, `.github/workflows/agent.yml` is deleted, and `pnpm-workspace.yaml` no longer references `apps/agent`
 
-**Given** the latest release version is newer than the installed version
-**When** the comparison completes
-**Then** the binary downloads the matching ARM artifact (`.tar.gz`) from the release assets, verifies its SHA256 checksum against the published `.sha256` file, extracts the new binary, replaces the installed binary at `/usr/local/bin/manlycam`, and restarts the systemd service (`systemctl restart manlycam`)
+**Given** `AGENT_API_KEY` exists in `apps/server/src/env.ts`
+**When** an audit confirms it is unused (no server-side code sends or validates this header post-agent removal)
+**Then** `AGENT_API_KEY` is removed from `env.ts`, `.env.example`, and `agentAuth.ts` middleware is removed
 
-**Given** the installed version is already up to date
-**When** the version check runs
-**Then** the command prints `"Already up to date (v{version})"` and exits with code 0 — no download or restart occurs
+**Given** the cleanup is complete
+**When** `pnpm install` is run from the repo root
+**Then** workspace resolves without errors; no broken imports or references to the agent remain
 
-**Given** the download or checksum verification fails
-**When** the error is detected
-**Then** the command aborts, prints a clear error message, and leaves the previously installed binary untouched — the service continues to run the old version
-
-**And** `update-manlycam` is a standalone sub-command (or separate symlinked binary) that does not require the manlycam streaming service to be stopped before running; the binary swap uses `os.Rename()` for atomic replacement on the same filesystem
+**And** server CI and web CI still pass after the removal
 
 ---
 
-### Story 6.2: Install Script and Operator README
+### Story 6.2: Pi Install and Uninstall Script
 
 As a **Pi operator**,
-I want a documented, scripted setup process that gets the camera operational from a freshly flashed SD card,
-So that setup is reproducible and does not require Linux expertise.
+I want a single install script that configures frpc and mediamtx as systemd services,
+So that I can get a Pi up and running as a ManlyCam camera node with one command.
 
 **Acceptance Criteria:**
 
-**Given** an operator has a freshly flashed Raspberry Pi OS Lite image
-**When** they follow the `README.md` bootstrap section
-**Then** the documented steps cover: (1) OS flash via Raspberry Pi Imager with SSH enabled, (2) first-boot SSH connection, (3) camera module verification via `rpicam-hello`, (4) running the one-line install script
+**Given** a freshly flashed Raspberry Pi OS Lite (64-bit) with SSH access
+**When** the operator runs `./install.sh --endpoint <upstream-url> --frp-token <token>`
+**Then** the script downloads frpc and mediamtx binaries for linux/arm, generates `/etc/manlycam/frpc.toml` and `/etc/manlycam/mediamtx.yml` with correct defaults, creates systemd service units for both, enables and starts both services
 
-**Given** the operator runs `curl -sSL https://raw.githubusercontent.com/zikeji/ManlyCam/main/apps/agent/install.sh | bash`
+**Given** the install script has run successfully
+**When** the operator checks service status
+**Then** `systemctl status frpc` and `systemctl status mediamtx` both report active (running)
+
+**Given** both services are running and the upstream server is reachable
+**When** the operator checks the stream
+**Then** the RTSP tunnel is established and mediamtx API is accessible via the frp API tunnel
+
+**Given** the install script is run a second time on an already-configured Pi
 **When** the script executes
-**Then** it: (1) downloads the latest ARM release artifact from GitHub Releases, (2) verifies the SHA256 checksum, (3) installs the binary to `/usr/local/bin/manlycam`, (4) installs `manlycam.service` to `/etc/systemd/system/`, (5) runs `systemctl enable --now manlycam`
+**Then** it is idempotent — updates config files and restarts services without error; does not overwrite any manual config changes made outside the script's managed keys
 
-**Given** the service starts for the first time with no configuration file present
-**When** `manlycam` runs
-**Then** it creates a default config file at `/etc/manlycam/config.toml` with placeholder values and prints instructions for editing it — the service does not crash on first run
+**Given** the operator runs `./uninstall.sh`
+**When** the script completes
+**Then** both services are stopped and disabled, config files are removed, binaries are removed, and the Pi is in a clean state
 
-**Given** the README covers configuration
-**When** an operator reads it
-**Then** it documents all required config keys in the TOML format: `[frp]` section (`server_addr`, `server_port`, `auth_token`), `[stream]` section (`width`, `height`, `framerate`, `codec`), and `[update]` section (`github_repo`)
-
-**And** the install script is idempotent: running it a second time on an already-configured Pi updates the binary to the latest version without overwriting an existing config file
+**And** both scripts are tested on Raspberry Pi OS Lite (64-bit) on a Pi Zero W 2
 
 ---
 
-### Story 6.3: Captive Portal for WiFi Configuration
+### Story 6.3: Operator Documentation
 
 As a **Pi operator**,
-I want the Pi to broadcast a WiFi hotspot and serve a configuration portal when it cannot connect to a known network,
-So that I can set up or change the WiFi credentials without needing a keyboard or monitor attached to the Pi.
+I want complete documentation for the full Pi lifecycle,
+So that I can set up, manage, and troubleshoot the camera node without requiring deep knowledge of frpc or mediamtx internals.
 
 **Acceptance Criteria:**
 
-**Given** the Pi boots and cannot associate with any known WiFi network within 30 seconds
-**When** the manlycam agent detects the lack of connectivity
-**Then** it starts a WiFi access point named `ManlyCam-Setup` (passphrase: `manlycam`) using `hostapd` and starts a DHCP server (`dnsmasq`) so connecting devices receive an IP address
+**Given** an operator reads the `pi/README.md`
+**When** they follow the bootstrap section
+**Then** the documented steps cover: OS flash (Raspberry Pi Imager, SSH key setup) → camera verification (`rpicam-still`) → install script usage → confirming stream is live
 
-**Given** an operator connects their phone or laptop to the `ManlyCam-Setup` network
-**When** their device sends any HTTP request (standard captive portal detection)
-**Then** they are redirected to `http://192.168.4.1/` which serves the configuration portal
+**Given** the README covers service management
+**When** an operator reads it
+**Then** it documents: checking status (`systemctl status`), restarting services, viewing logs (`journalctl -u frpc` / `journalctl -u mediamtx`), and what to do when the stream is down
 
-**Given** the configuration portal loads in the browser
-**When** the page renders
-**Then** it displays a list of nearby SSIDs (obtained by running `iw dev wlan0 scan`), a password input field, and a "Connect" button
+**Given** the README covers WiFi configuration
+**When** an operator reads it
+**Then** it notes that WiFi setup is the operator's responsibility; wifi-connect is mentioned as one optional approach with a link to its documentation — operators using other methods (Pi Imager preconfiguration, wpa_supplicant, etc.) require no additional steps
 
-**Given** the operator selects an SSID, enters the password, and submits the form
-**When** the portal handler processes the submission
-**Then** the Pi writes the new network credentials to `wpa_supplicant.conf` (or `NetworkManager` equivalent), shuts down the AP, and attempts to connect to the new network
+**Given** the README covers the full lifecycle
+**When** an operator reads it
+**Then** it also documents: the uninstall procedure and how to update frpc/mediamtx to newer versions
 
-**Given** the connection attempt succeeds (IP obtained within 30 seconds of AP teardown)
-**When** connectivity is confirmed
-**Then** the manlycam streaming service starts normally and the operator's browser displays a "Connected — streaming started" message on a final portal page
-
-**Given** the connection attempt fails (wrong password or network unreachable)
-**When** the 30-second timeout expires
-**Then** the Pi re-activates the `ManlyCam-Setup` AP and the portal reloads with an error banner "Connection failed — please check your credentials"
-
-**And** the captive portal UI is mobile-first, requires no JavaScript framework (plain HTML + minimal inline CSS is sufficient), and loads fully within a 5-second captive portal timeout window
+**And** all documented commands are accurate and tested against the actual install script from Story 6.2
 
 ---
 

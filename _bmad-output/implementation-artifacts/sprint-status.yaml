@@ -59,7 +59,7 @@ development_status:
   2-5-cli-allowlist-and-ban-management: done
   epic-2-retrospective: done  # Completed 2026-03-07
 
-  epic-3: in-progress
+  epic-3: done  # Retrospective completed 2026-03-08
   3-1-pi-agent-camera-pipeline-and-frp-tunnels: done
   3-2-server-frp-stream-ingestion-and-hls-transcoding: done
   3-2b-mediamtx-rtsp-architecture-pivot: done  # unplanned: rpicam-vid --listen caused camera lock on disconnect; pivot to mediamtx+RTSP decouples camera from server lifetime; corrects both 3.1 (Pi agent) and 3.2 (server transport)
@@ -67,8 +67,8 @@ development_status:
   3-3-spa-shell-stream-player-and-4-state-ui: done  # code-review findings #3-6 fixed: error handling for WHEP POST, watch error recovery, 8 new error path tests, 75 total tests passing
   3-4-websocket-hub-and-real-time-state-broadcasting: done  # code-review findings #2-3 fixed: removed immediate:true from user watch, added error handling to WS init message
   3-5-admin-stream-start-stop-toggle: done
-  3-6-admin-camera-controls-sidebar: review
-  epic-3-retrospective: optional
+  3-6-admin-camera-controls-sidebar: done
+  epic-3-retrospective: done  # Completed 2026-03-08
 
   epic-4: backlog
   4-1-chat-panel-message-sending-and-real-time-delivery: backlog
@@ -88,8 +88,8 @@ development_status:
   5-6-usertag-assignment-and-server-computed-effective-usertag: backlog
   epic-5-retrospective: optional
 
-  epic-6: backlog
-  6-1-update-manlycam-self-update-command: backlog
-  6-2-install-script-and-operator-readme: backlog
-  6-3-captive-portal-for-wifi-configuration: backlog
+  epic-6: backlog  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md
+  6-1-remove-go-agent-from-monorepo: backlog
+  6-2-pi-install-and-uninstall-script: backlog
+  6-3-operator-documentation: backlog
   epic-6-retrospective: optional

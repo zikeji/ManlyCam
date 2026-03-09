@@ -87,16 +87,18 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 
 ### Primary Technology Domain
 
-Dual-component hybrid: Go IoT agent (Pi) + TypeScript full-stack web (upstream server + Vue SPA)
+TypeScript full-stack web (upstream server + Vue SPA) + Pi configured via install script (frpc + mediamtx systemd services)
 
 ### Architecture Component Map
 
 | Component | Language/Runtime | Scaffold |
 |---|---|---|
-| `apps/agent` (Pi binary) | Go 1.24+ | `go mod init` |
-| `apps/server` (Hono API + WebSocket + HLS stream transcoder + admin CLI) | Node.js + TypeScript + Hono | `pnpm create hono@latest apps/server --template nodejs` |
+| `apps/server` (Hono API + WebSocket + stream relay + admin CLI) | Node.js + TypeScript + Hono | `pnpm create hono@latest apps/server --template nodejs` |
 | `apps/web` (Vue SPA) | TypeScript + Vue 3 + Vite 6 | `pnpm create vite@latest apps/web -- --template vue-ts` |
 | `packages/types` (shared TS types) | TypeScript | Manual |
+| Pi setup | Bash install script + systemd units | `install.sh --endpoint <url>` |
+
+> **Note:** `apps/agent` (Go) has been removed from the monorepo. The Pi runs frpc and mediamtx as direct systemd services configured by the install script.
 
 ### Monorepo Structure
 
@@ -106,12 +108,10 @@ manlycam/
 ├── package.json
 ├── .github/
 │   └── workflows/
-│       ├── agent-ci.yml            # triggered on apps/agent/**
 │       ├── server-ci.yml           # triggered on apps/server/**
 │       ├── web-ci.yml              # triggered on apps/web/**
 │       └── types-ci.yml            # triggered on packages/types/**
 ├── apps/
-│   ├── agent/
 │   ├── server/
 │   │   ├── deploy/
 │   │   │   ├── manlycam-server.service   # systemd unit (bare-metal)
@@ -191,21 +191,27 @@ pnpm add @prisma/client prisma @hono/node-server
                                   [PostgreSQL]
 ```
 
-#### Pi Agent: Go 1.24
+#### Pi Setup: Install Script + systemd Services
 
-```bash
-mkdir apps/agent && cd apps/agent
-go mod init github.com/zikeji/ManlyCam/apps/agent
-go get github.com/spf13/cobra
-```
+The Pi runs two independent systemd services — no custom binary:
 
-**Pi agent responsibilities:**
-- **Camera pipeline:** Launch and supervise `mediamtx` subprocess with `rpiCamera` source; camera stays active regardless of consumer connections; RTSP exposed at `:8554/cam` and tunneled to server via frp stream tunnel (see 3-2b pivot)
-- **Camera control:** frp API tunnel exposes mediamtx HTTP API (`:9997`) to server; server proxies `PATCH /v3/config/paths/patch/cam` for runtime camera parameter changes (see 3-6 architecture notes)
-- **frp client:** Maintain two persistent tunnels (stream proxy + API proxy) with auto-reconnect on drop
-- **Captive portal:** WiFi config portal when no known network reachable on boot
-- **Self-update:** `manlycam-agent --self-update` — compares running version against latest release at configured `update_url` (defaults to this repo's GitHub Releases API, TBD); overridable in `/etc/manlycam/config.toml`; downloads ARM artifact, replaces binary, restarts systemd service
-- Managed by systemd with restart-on-failure; config at `/etc/manlycam/config.toml` — never in binary
+| Service | Binary | Config | Purpose |
+|---|---|---|---|
+| `frpc.service` | frpc (frp client) | `frpc.toml` | Maintains stream proxy + API proxy tunnels to upstream |
+| `mediamtx.service` | mediamtx | `mediamtx.yml` | rpiCamera source → RTSP at `:8554/cam`; HTTP API at `:9997` |
+
+**Install script (`install.sh --endpoint <url> --frp-token <token>`):**
+- Downloads frpc and mediamtx binaries for linux/arm
+- Generates `frpc.toml` (tunnel definitions, server address, auth token)
+- Generates `mediamtx.yml` (rpiCamera source, RTSP/WHEP settings, HTTP API config)
+- Creates and enables systemd unit files for both services
+- Idempotent: re-running updates config and restarts services
+
+**Camera pipeline** (unchanged from 3-2b pivot): mediamtx rpiCamera source → RTSP `:8554/cam` → frp stream tunnel → server mediamtx ingestion → WebRTC WHEP
+
+**Camera control** (unchanged from 3-6): Server proxies `PATCH /v3/config/paths/patch/cam` → frp API tunnel → mediamtx HTTP API `:9997` on Pi
+
+**WiFi:** Operator's responsibility. wifi-connect is one option, documented in the operator README as optional.
 
 ### CI/CD Strategy
 
@@ -213,13 +219,12 @@ Path-filtered GitHub Actions — each component releases independently on merge 
 
 | Workflow | Path filter | Steps |
 |---|---|---|
-| `agent-ci.yml` | `apps/agent/**` | go vet, go test, cross-compile (`GOOS=linux GOARCH=arm GOARM=7`), create GitHub Release (semver — required for `--self-update` version comparison) |
-| `server-ci.yml` | `apps/server/**` | lint (ESLint), typecheck (tsc --noEmit), test (Vitest), build Docker image (Node.js + ffmpeg), push to registry, rolling deploy |
+| `server-ci.yml` | `apps/server/**` | lint (ESLint), typecheck (tsc --noEmit), test (Vitest), build Docker image (Node.js + mediamtx), push to registry, rolling deploy |
 | `web-ci.yml` | `apps/web/**` | lint, typecheck, test (Vitest), Vite build, build Docker image, push to registry, rolling deploy |
 | `types-ci.yml` | `packages/types/**` | typecheck only |
 
 - **Server and web:** rolling — image tagged with commit SHA + `latest`; no semver
-- **Agent:** semver tags — required for `--self-update` comparison
+- **Pi:** no CI artifact — frpc and mediamtx are installed by the operator via `install.sh`
 
 ### Future Architectural Seams
 
@@ -244,12 +249,11 @@ Path-filtered GitHub Actions — each component releases independently on merge 
 | WS fan-out | In-process EventEmitter | Single instance; appropriate for 10–20 viewers; Redis seam documented |
 | Stream transcoding | mediamtx → WebRTC | Pi mediamtx RTSP → server mediamtx WHEP; no ffmpeg (see 3-2c pivot) |
 | Admin CLI | Node.js in `apps/server/src/cli/` | Shared Prisma client; no separate deploy |
-| Pi agent language | Go 1.24 | ARM cross-compile, single binary, systemd |
-| Pi self-update | `manlycam-agent --self-update` | Bundled in agent; config-driven update URL |
+| Pi setup | Bash install script | frpc + mediamtx as systemd services; no custom binary |
 | Pi camera pipeline | mediamtx `rpiCamera` source → RTSP → frp | Camera always-on regardless of consumers; RTSP tunneled to server (see 3-2b pivot) |
 | Containerisation | Docker (server + web) | Rolling deploy via CI/CD |
 | Reverse proxy options | Caddy, nginx, Traefik (all in `deploy/`) | Traefik for Docker-native; Caddy for simplicity; nginx for familiarity |
-| CI/CD | GitHub Actions, path-filtered | Independent release cycles; agent semver, server/web rolling |
+| CI/CD | GitHub Actions, path-filtered | Independent release cycles; server/web rolling Docker images |
 | Monorepo | pnpm workspaces | Minimal tooling |
 | Shared types | `packages/types` | WS shapes, role enums, stream state |
 | Code linting | ESLint 9.x + airbnb-base | Root config; all apps/packages; enforced in CI |
@@ -455,40 +459,45 @@ type WsMessage =
 { error: { code: string, message: string } }
 ```
 
-### Pi Agent: Camera Stream Configuration
+### Pi Configuration: frpc + mediamtx
 
-Single binary, single systemd unit, single config file. All `rpicam-vid` parameters in `config.toml`.
+The Pi runs two systemd services configured by `install.sh`. No custom binary.
 
-**`/etc/manlycam/config.toml`:**
+**`/etc/manlycam/frpc.toml`** (generated by install script):
 ```toml
-[stream]
-width       = 2328
-height      = 1748
-framerate   = 30
-codec       = "mjpeg"
-hflip       = true
-vflip       = true
-output_port = 5000
+serverAddr = "upstream.example.com"
+serverPort = 7000
+auth.token = "change-me-to-a-random-secret"
 
-[frp]
-server_addr = "upstream.example.com"
-server_port = 7000
-auth_token  = "secret"
+[[proxies]]
+name       = "stream"
+type       = "tcp"
+localPort  = 8554      # mediamtx RTSP
+remotePort = 11935     # server mediamtx source: rtsp://frps:11935/cam
 
-[update]
-update_url  = "https://api.github.com/repos/zikeji/ManlyCam/releases/latest"
+[[proxies]]
+name       = "api"
+type       = "tcp"
+localPort  = 9997      # mediamtx HTTP API
+remotePort = 11936     # server camera control proxy
 ```
 
-Agent constructs and supervises:
-```
-rpicam-vid -t 0 --width {width} --height {height} --framerate {framerate} \
-  --codec {codec} [--hflip] [--vflip] --inline --listen \
-  -o tcp://0.0.0.0:{output_port}
+**`/etc/manlycam/mediamtx.yml`** (generated by install script — key sections):
+```yaml
+rtspAddress: :8554
+api: yes
+apiAddress: 127.0.0.1:9997
+
+paths:
+  cam:
+    source: rpiCamera
 ```
 
-**Agent testing scope:**
-- `go test`: config parsing, `rpicam-vid` command-building from config (assert constructed args), version comparison, captive portal WiFi detection logic
-- Camera pipeline integration (actual `rpicam-vid` + frp) = hardware-only, on-device
+**Install script responsibilities:**
+- Downloads frpc and mediamtx binaries for linux/arm from GitHub Releases
+- Generates both config files with values from `--endpoint` and `--frp-token` flags
+- Creates `/etc/systemd/system/frpc.service` and `/etc/systemd/system/mediamtx.service`
+- Enables and starts both services
 
 ### frps Server Configuration
 
@@ -516,21 +525,12 @@ dashboard_user = "admin"
 dashboard_pwd = "change-me"
 ```
 
-**Tunnel Configuration (defined by Pi agent `frpc.toml`, generated by `tunnel.BuildFRPConfig()`):**
-The agent (`frpc` on Pi) defines two tunnels:
-1. **Stream tunnel** → Forwards Pi's mediamtx RTSP to frps remote port 11935 (server mediamtx ingestion)
-2. **API tunnel** → Forwards Pi's mediamtx HTTP API to frps remote port 11936 (server camera control proxy)
+**Tunnel Configuration (defined in `/etc/manlycam/frpc.toml`, generated by install script):**
+Two tunnels:
+1. **Stream tunnel** → Forwards Pi's mediamtx RTSP (`:8554`) to frps remote port 11935 (server mediamtx ingestion)
+2. **API tunnel** → Forwards Pi's mediamtx HTTP API (`:9997`) to frps remote port 11936 (server camera control proxy)
 
-Current frpc sections (on Pi) — see `apps/agent/deploy/config.example.toml`:
-```toml
-[frp.stream]
-local_port = 8554        # mediamtx RTSP port
-remote_port = 11935      # server mediamtx source: rtsp://frps:11935/cam
-
-[frp.api]
-local_port = 9997        # mediamtx HTTP API (loopback-only on Pi)
-remote_port = 11936      # server proxies camera control commands here
-```
+See frpc config example in the Pi Configuration section above.
 
 **Deployment Context:**
 - Docker Compose: frps runs in `snowdreamtech/frps:latest` container, mounts `frps.toml`
@@ -591,15 +591,15 @@ router.beforeEach(async (to) => {
 - `prom-client` — `GET /metrics` scrape endpoint; tracks: active WS connections, stream state, HLS segment generation rate, request durations
 - Grafana Cloud agent ships stdout → Loki; scrapes `/metrics` → Prometheus
 
-*Agent (`apps/agent`):*
-- `log/slog` (Go stdlib) — structured JSON to stdout → systemd journal → Grafana agent
-- `prometheus/client_golang` — local metrics port: frp tunnel uptime, camera subprocess status, reconnect count, last self-update check
-- Grafana agent on upstream server scrapes Pi metrics via frp API tunnel
+*Pi (frpc + mediamtx):*
+- mediamtx has native logging to stdout → systemd journal
+- frpc logs tunnel status to stdout → systemd journal
+- No custom metrics from Pi; tunnel health is inferred from mediamtx API polling on the server
 
 **Testing:**
 - Server: Vitest (unit + integration); Prisma test DB; coverage via `@vitest/coverage-v8`
 - Web: Vitest + Vue Test Utils; coverage via `@vitest/coverage-v8`
-- Agent: `go test` (config parsing, command-building, version comparison); camera pipeline = on-device only
+- Pi setup: tested manually on hardware; install script is idempotent and can be re-run safely
 - Coverage thresholds: established in Story 2-1c; enforced in CI thereafter
 - E2E: post-MVP
 
@@ -823,36 +823,13 @@ export const useStream = () => {
 manlycam/
 ├── .github/
 │   └── workflows/
-│       ├── agent.yml            # Go build + GitHub Release on semver tag
 │       ├── server.yml           # Docker build + push on apps/server/** change
 │       └── web.yml              # Docker build + push on apps/web/** change
+├── pi/
+│   ├── install.sh               # frpc + mediamtx install + systemd service setup
+│   ├── uninstall.sh             # clean removal
+│   └── README.md                # operator documentation
 ├── apps/
-│   ├── agent/
-│   │   ├── cmd/
-│   │   │   └── root.go          # cobra root command + persistent flags
-│   │   ├── internal/
-│   │   │   ├── config/
-│   │   │   │   ├── config.go    # load/validate config from file + env
-│   │   │   │   └── config_test.go
-│   │   │   ├── camera/
-│   │   │   │   ├── pipeline.go  # rpicam-vid subprocess lifecycle manager
-│   │   │   │   └── pipeline_test.go
-│   │   │   ├── tunnel/
-│   │   │   │   ├── frp.go       # frp client: stream proxy + API proxy
-│   │   │   │   └── frp_test.go
-│   │   │   ├── portal/
-│   │   │   │   ├── portal.go    # captive portal HTTP server
-│   │   │   │   └── portal_test.go
-│   │   │   └── updater/
-│   │   │       ├── updater.go   # self-update: version compare → download ARM artifact → restart
-│   │   │       └── updater_test.go
-│   │   ├── deploy/
-│   │   │   ├── manlycam-agent.service   # systemd unit file
-│   │   │   └── config.example.yaml     # annotated config template
-│   │   ├── go.mod
-│   │   ├── go.sum
-│   │   └── main.go
-│   │
 │   ├── server/
 │   │   ├── prisma/
 │   │   │   ├── schema.prisma    # User, Session, ChatMessage, AllowlistEntry models
@@ -871,7 +848,7 @@ manlycam/
 │   │   │   │   ├── auth.ts      # session cookie → ctx.var.user injection
 │   │   │   │   ├── requireAuth.ts  # 401 if no session
 │   │   │   │   ├── requireAdmin.ts # 403 if not admin
-│   │   │   │   ├── agentAuth.ts # validates X-Agent-Key header for Pi agent routes
+│   │   │   │   ├── agentAuth.ts # validates X-Agent-Key header (audit in Story 6-1 — may be removed)
 │   │   │   │   └── logger.ts    # pino request logger middleware
 │   │   │   ├── routes/
 │   │   │   │   ├── auth.ts      # GET /api/auth/google, GET /api/auth/google/callback, POST /api/auth/logout
@@ -1058,9 +1035,8 @@ manlycam/
 - **Server side**: Hono routes accessible at `{BASE_URL}:{FRP_API_PORT}/api/stream/*` — but **frp itself is a separate process** (`frps` binary), not managed by Node.js. frp server runs independently on the upstream host and handles tunnel authentication via its own token (`frp_token` in frp config — not related to the Hono app).
 - **Two distinct auth layers:**
   1. **frp tunnel auth (frpc ↔ frps):** frp's built-in `token` field in both `frpc.toml` (Pi) and `frps.toml` (server). Managed entirely within frp config — Node.js has no involvement.
-  2. **Agent → Hono API auth:** When the Pi agent makes HTTP calls to Hono endpoints (stream status, heartbeat), it includes `X-Agent-Key: {AGENT_API_KEY}` header. Hono validates this in `src/middleware/agentAuth.ts` and applies it to the `/api/stream/agent/*` route group only. `AGENT_API_KEY` is a separate pre-shared secret from the frp token.
-- **Agent-facing endpoints** (protected by `agentAuth.ts`):
-  - `GET /api/stream/agent/status` — agent polls for start/stop commands
+  2. **frp API tunnel auth:** The frp API tunnel itself is authenticated at the frp token level. The server connects to the mediamtx HTTP API on the Pi via `http://localhost:{FRP_API_PORT}` — this is a loopback connection on the server to the frp-exposed port; no additional API key is required at the application layer.
+- Note: `AGENT_API_KEY` and `agentAuth.ts` middleware are candidates for removal (Story 6-1 audit) — they were designed for Go agent → Hono API calls that were never built.
   - `POST /api/stream/agent/heartbeat` — agent reports camera/tunnel health
 - **Admin-facing stream endpoints** (protected by `requireAdmin`):
   - `POST /api/stream/start`, `POST /api/stream/stop` — admin panel actions
