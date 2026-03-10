@@ -7,7 +7,18 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { MicOff } from 'lucide-vue-next';
+import { ref } from 'vue';
 import type { UserPresence, Role } from '@manlycam/types';
 
 const props = defineProps<{
@@ -35,7 +46,24 @@ function canMuteViewer(viewerRole: string): boolean {
 const emit = defineEmits<{
   muteUser: [userId: string];
   unmuteUser: [userId: string];
+  banUser: [userId: string];
 }>();
+
+const showBanDialog = ref(false);
+const targetForBan = ref<UserPresence | null>(null);
+
+function confirmBan(viewer: UserPresence) {
+  targetForBan.value = viewer;
+  showBanDialog.value = true;
+}
+
+function executeBan() {
+  if (targetForBan.value) {
+    emit('banUser', targetForBan.value.id);
+  }
+  showBanDialog.value = false;
+  targetForBan.value = null;
+}
 
 function initials(name: string): string {
   return name
@@ -94,6 +122,12 @@ function initials(name: string): string {
             >
               Unmute
             </ContextMenuItem>
+            <ContextMenuItem
+              @click="confirmBan(viewer)"
+              class="text-red-400 focus:text-red-400"
+            >
+              Ban
+            </ContextMenuItem>
           </ContextMenuContent>
         </ContextMenu>
 
@@ -116,5 +150,25 @@ function initials(name: string): string {
         </div>
       </li>
     </ul>
+
+    <AlertDialog :open="showBanDialog" @update:open="showBanDialog = $event">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Ban {{ targetForBan?.displayName }}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This will revoke their access immediately and terminate all active sessions. This action cannot be undone from the UI.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            @click="executeBan"
+          >
+            Ban User
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </div>
 </template>

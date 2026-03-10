@@ -32,7 +32,7 @@ vi.mock('@/components/ui/alert-dialog', () => ({
   }),
   AlertDialogAction: defineComponent({
     emits: ['click'],
-    template: '<button data-alert-action @click="$emit(\'click\')">Delete</button>',
+    template: '<button data-alert-action @click="$emit(\'click\')"><slot/></button>',
   }),
 }));
 
@@ -303,6 +303,42 @@ describe('ChatMessage.vue', () => {
       await nextTick();
 
       expect(wrapper.find('[data-alert-dialog]').exists()).toBe(true);
+    });
+  });
+
+  describe('AlertDialog ban flow', () => {
+    it('clicking Ban in context menu opens AlertDialog', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, canMuteAuthor: true },
+      });
+
+      const banItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Ban');
+      await banItem!.trigger('click');
+      await nextTick();
+
+      expect(wrapper.find('[data-alert-dialog]').exists()).toBe(true);
+      expect(wrapper.find('[data-alert-title]').text()).toBe('Ban Test User?');
+    });
+
+    it('clicking Ban action in AlertDialog emits banUser and closes dialog', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, canMuteAuthor: true },
+      });
+
+      const banItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Ban');
+      await banItem!.trigger('click');
+      await nextTick();
+
+      const actionBtn = wrapper.findAll('[data-alert-action]').find(b => b.text() === 'Ban User');
+      await actionBtn!.trigger('click');
+      await nextTick();
+
+      expect(wrapper.emitted('banUser')).toEqual([['user-001']]);
+      expect(wrapper.find('[data-alert-dialog]').exists()).toBe(false);
     });
   });
 

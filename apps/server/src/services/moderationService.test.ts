@@ -3,25 +3,85 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('../db/client.js', () => ({
   prisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
+    session: { deleteMany: vi.fn() },
     auditLog: { create: vi.fn() },
+    $transaction: vi.fn((cb) => cb({
+      user: { update: vi.fn() },
+      session: { deleteMany: vi.fn() },
+      auditLog: { create: vi.fn() },
+    })),
   },
 }));
 
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid-001') }));
 
 vi.mock('../services/wsHub.js', () => ({
-  wsHub: { broadcast: vi.fn() },
+  wsHub: {
+    broadcast: vi.fn(),
+    revokeUserSessions: vi.fn(),
+  },
 }));
 
 import { prisma } from '../db/client.js';
 import { wsHub } from '../services/wsHub.js';
-import { muteUser, unmuteUser } from './moderationService.js';
+import { muteUser, unmuteUser, banUser } from './moderationService.js';
 import { AppError } from '../lib/errors.js';
 
-const viewerTarget = { id: 'target-001', role: 'ViewerCompany', mutedAt: null };
-const modTarget = { id: 'target-mod', role: 'Moderator', mutedAt: null };
-const adminTarget = { id: 'target-admin', role: 'Admin', mutedAt: null };
+const viewerTarget = { id: 'target-001', role: 'ViewerCompany', mutedAt: null, bannedAt: null };
+const modTarget = { id: 'target-mod', role: 'Moderator', mutedAt: null, bannedAt: null };
+const adminTarget = { id: 'target-admin', role: 'Admin', mutedAt: null, bannedAt: null };
 
+describe('banUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('bans a ViewerCompany as Moderator — success', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(viewerTarget as never);
+    const txMock = {
+      user: { update: vi.fn().mockResolvedValue({}) },
+      session: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => cb(txMock));
+
+    await banUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'target-001' });
+
+    expect(txMock.user.update).toHaveBeenCalledWith({
+      where: { id: 'target-001' },
+      data: { bannedAt: expect.any(Date) },
+    });
+    expect(txMock.session.deleteMany).toHaveBeenCalledWith({
+      where: { userId: 'target-001' },
+    });
+    expect(txMock.auditLog.create).toHaveBeenCalledWith({
+      data: { id: 'test-ulid-001', action: 'ban', actorId: 'actor-001', targetId: 'target-001' },
+    });
+    expect(wsHub.revokeUserSessions).toHaveBeenCalledWith('target-001', 'banned');
+  });
+
+  it('throws FORBIDDEN when caller is ViewerCompany', async () => {
+    await expect(
+      banUser({ actorId: 'actor-001', actorRole: 'ViewerCompany', targetUserId: 'target-001' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', statusCode: 403 });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_FOUND when target user does not exist', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    await expect(
+      banUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'nonexistent' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', statusCode: 404 });
+  });
+
+  it('throws INSUFFICIENT_ROLE when Moderator tries to ban another Moderator', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(modTarget as never);
+    await expect(
+      banUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'target-mod' }),
+    ).rejects.toMatchObject({ code: 'INSUFFICIENT_ROLE', statusCode: 403 });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
 describe('muteUser', () => {
   beforeEach(() => {
     vi.clearAllMocks();

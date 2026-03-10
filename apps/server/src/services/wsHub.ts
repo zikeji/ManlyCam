@@ -1,6 +1,6 @@
 import type { Role, UserPresence, UserTag, WsMessage } from '@manlycam/types';
 
-type WSClient = { send: (data: string) => void };
+type WSClient = { send: (data: string) => void; close: () => void };
 
 interface Connection {
   client: WSClient;
@@ -49,6 +49,20 @@ export class WsHub {
         conn.client.send(data);
       } catch {
         // client disconnected
+      }
+    }
+  }
+
+  revokeUserSessions(userId: string, reason: string): void {
+    const data = JSON.stringify({ type: 'session:revoked', payload: { reason } });
+    for (const conn of this.connections.values()) {
+      if (conn.userId === userId) {
+        try {
+          conn.client.send(data);
+          conn.client.close();
+        } catch {
+          // already closing or gone
+        }
       }
     }
   }

@@ -97,6 +97,14 @@ async function handleUnmuteUser(userId: string) {
   }
 }
 
+async function handleBanUser(userId: string) {
+  try {
+    await apiFetch(`/api/users/${userId}/ban`, { method: 'DELETE' });
+  } catch (err) {
+    console.error('Failed to ban user:', err);
+  }
+}
+
 // Map from message ID → ChatMessage component instance (for programmatic startEdit)
 const msgRefs: Record<string, { startEdit: () => void }> = {};
 
@@ -331,6 +339,7 @@ async function handleSend(content: string) {
                     @request-delete="handleMessageDelete"
                     @mute-user="handleMuteUser"
                     @unmute-user="handleUnmuteUser"
+                    @ban-user="handleBanUser"
                   />
                 </template>
               </div>
@@ -376,6 +385,7 @@ async function handleSend(content: string) {
               :current-user-role="user?.role"
               @mute-user="handleMuteUser"
               @unmute-user="handleUnmuteUser"
+              @ban-user="handleBanUser"
             />
           </div>
         </Transition>

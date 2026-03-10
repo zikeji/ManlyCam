@@ -48,7 +48,10 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
         onOpen(_evt, ws) {
           const dispose = wsHub.addClient(
             connectionId,
-            { send: (data) => ws.send(data) },
+            { 
+              send: (data) => ws.send(data),
+              close: () => ws.close()
+            },
             userPresence,
           );
           disposeMap.set(ws as object, { dispose, connectionId, userId: userPresence.id });

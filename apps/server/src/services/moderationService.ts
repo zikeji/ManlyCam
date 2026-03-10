@@ -52,3 +52,33 @@ export async function unmuteUser({ actorId, actorRole, targetUserId }: MuteParam
   });
   wsHub.broadcast({ type: 'moderation:unmuted', payload: { userId: targetUserId } });
 }
+
+export async function banUser({ actorId, actorRole, targetUserId }: MuteParams): Promise<void> {
+  if (ROLE_RANK[actorRole] < ROLE_RANK.Moderator) {
+    throw new AppError('Insufficient permissions.', 'FORBIDDEN', 403);
+  }
+  const target = await prisma.user.findUnique({ where: { id: targetUserId } });
+  if (!target) throw new AppError('User not found.', 'NOT_FOUND', 404);
+  if (!canModerateOver(actorRole, target.role as Role)) {
+    throw new AppError(
+      'Cannot moderate users with equal or higher role.',
+      'INSUFFICIENT_ROLE',
+      403,
+    );
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: targetUserId },
+      data: { bannedAt: new Date() },
+    });
+    await tx.session.deleteMany({
+      where: { userId: targetUserId },
+    });
+    await tx.auditLog.create({
+      data: { id: ulid(), action: 'ban', actorId, targetId: targetUserId },
+    });
+  });
+
+  wsHub.revokeUserSessions(targetUserId, 'banned');
+}

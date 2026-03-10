@@ -3,7 +3,7 @@ import { WsHub } from './wsHub.js';
 import type { UserPresence } from '@manlycam/types';
 
 function makeClient() {
-  return { send: vi.fn() };
+  return { send: vi.fn(), close: vi.fn() };
 }
 
 const baseUser: UserPresence = {
@@ -110,6 +110,39 @@ describe('WsHub', () => {
     it('does not throw if connectionId is not found', () => {
       const msg = { type: 'presence:join' as const, payload: baseUser };
       expect(() => hub.broadcastExcept('nonexistent', msg)).not.toThrow();
+    });
+  });
+
+  describe('revokeUserSessions', () => {
+    it('sends session:revoked and closes connections for a given userId', () => {
+      const clientA1 = makeClient();
+      const clientA2 = makeClient();
+      const clientB = makeClient();
+
+      hub.addClient('conn-a1', clientA1, baseUser);
+      hub.addClient('conn-a2', clientA2, baseUser);
+      hub.addClient('conn-b', clientB, userB);
+
+      hub.revokeUserSessions('user-001', 'banned');
+
+      const expectedMsg = JSON.stringify({ type: 'session:revoked', payload: { reason: 'banned' } });
+
+      expect(clientA1.send).toHaveBeenCalledWith(expectedMsg);
+      expect(clientA1.close).toHaveBeenCalled();
+      expect(clientA2.send).toHaveBeenCalledWith(expectedMsg);
+      expect(clientA2.close).toHaveBeenCalled();
+
+      expect(clientB.send).not.toHaveBeenCalled();
+      expect(clientB.close).not.toHaveBeenCalled();
+    });
+
+    it('does not throw if client.send or close throws', () => {
+      const client = {
+        send: vi.fn().mockImplementation(() => { throw new Error('gone'); }),
+        close: vi.fn().mockImplementation(() => { throw new Error('gone'); }),
+      };
+      hub.addClient('conn-1', client, baseUser);
+      expect(() => hub.revokeUserSessions('user-001', 'banned')).not.toThrow();
     });
   });
 

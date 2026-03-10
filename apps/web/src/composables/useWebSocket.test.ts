@@ -78,6 +78,12 @@ vi.mock('./usePresence', () => ({
   handleModerationUnmuted: mockHandleModerationUnmuted,
 }));
 
+// --- router mock ---
+const mockRouterPush = vi.hoisted(() => vi.fn());
+vi.mock('@/router', () => ({
+  router: { push: mockRouterPush },
+}));
+
 // Import AFTER mocks (important for module reset isolation)
 import { useWebSocket } from './useWebSocket';
 import * as useChatModule from './useChat';
@@ -305,6 +311,17 @@ describe('useWebSocket', () => {
         new MessageEvent('message', { data: JSON.stringify({ type: 'typing:stop', payload }) }),
       );
       expect(mockHandleTypingStop).toHaveBeenCalledWith(payload);
+    });
+
+    it('redirects to /banned on session:revoked message', () => {
+      const { connect } = useWebSocket();
+      connect();
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'session:revoked', payload: { reason: 'banned' } }),
+        }),
+      );
+      expect(mockRouterPush).toHaveBeenCalledWith('/banned');
     });
   });
 

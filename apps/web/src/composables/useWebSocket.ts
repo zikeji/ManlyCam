@@ -1,4 +1,5 @@
 import { ref, inject, type InjectionKey, type Ref } from 'vue';
+import { router } from '@/router';
 import { useStream } from './useStream';
 import { useChat, handleUserUpdate, handleChatEdit, handleChatDelete } from './useChat';
 import {
@@ -74,6 +75,9 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'moderation:unmuted') {
         handleModerationUnmuted(msg.payload);
+      }
+      if (msg.type === 'session:revoked') {
+        router.push('/banned');
       }
     } catch {
       // Ignore malformed messages

@@ -32,6 +32,30 @@ vi.mock('@/components/ui/context-menu', () => ({
   }),
 }));
 
+// Stub AlertDialog components
+vi.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: defineComponent({
+    props: ['open'],
+    template: '<div v-if="open" class="alert-dialog-stub"><slot /></div>',
+    emits: ['update:open'],
+  }),
+  AlertDialogContent: defineComponent({ template: '<div class="alert-content-stub"><slot /></div>' }),
+  AlertDialogHeader: defineComponent({ template: '<div class="alert-header-stub"><slot /></div>' }),
+  AlertDialogFooter: defineComponent({ template: '<div class="alert-footer-stub"><slot /></div>' }),
+  AlertDialogTitle: defineComponent({ template: '<div class="alert-title-stub"><slot /></div>' }),
+  AlertDialogDescription: defineComponent({
+    template: '<div class="alert-description-stub"><slot /></div>',
+  }),
+  AlertDialogCancel: defineComponent({
+    template: '<button class="alert-cancel-stub" @click="$emit(\'click\')"><slot /></button>',
+    emits: ['click'],
+  }),
+  AlertDialogAction: defineComponent({
+    template: '<button class="alert-action-stub" @click="$emit(\'click\')"><slot /></button>',
+    emits: ['click'],
+  }),
+}));
+
 let wrapper: VueWrapper | null = null;
 
 afterEach(() => {
@@ -168,7 +192,31 @@ describe('PresenceList', () => {
       expect(wrapper.emitted('unmuteUser')).toEqual([['user-001']]);
     });
 
-    it('does not show Mute/Unmute for the current user (self)', () => {
+    it('shows Ban item for any viewer when Admin viewing ViewerGuest', () => {
+      wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
+      expect(wrapper.text()).toContain('Ban');
+    });
+
+    it('clicking Ban opens AlertDialog', async () => {
+      wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
+      const banItem = wrapper.findAll('.ctx-item-stub').find((el) => el.text() === 'Ban');
+      await banItem!.trigger('click');
+      expect(wrapper.find('.alert-dialog-stub').exists()).toBe(true);
+      expect(wrapper.find('.alert-title-stub').text()).toContain('Ban Alice?');
+    });
+
+    it('clicking Ban action in AlertDialog emits banUser and closes dialog', async () => {
+      wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
+      await wrapper.findAll('.ctx-item-stub').find((el) => el.text() === 'Ban')!.trigger('click');
+
+      const actionBtn = wrapper.find('.alert-action-stub');
+      await actionBtn.trigger('click');
+
+      expect(wrapper.emitted('banUser')).toEqual([['user-001']]);
+      expect(wrapper.find('.alert-dialog-stub').exists()).toBe(false);
+    });
+
+    it('does not show Mute/Unmute/Ban for the current user (self)', () => {
       // Create a lower-privileged viewer that admin alice can mute
       const lowPrivilegedBob: UserPresence = { ...bob, role: 'ViewerCompany' };
       wrapper = mount(PresenceList, {
@@ -178,11 +226,12 @@ describe('PresenceList', () => {
           currentUserId: 'user-001',
         },
       });
-      // alice is currentUser — should have no mute option; lowPrivilegedBob should have it
+      // alice is currentUser — should have no mute/ban options; lowPrivilegedBob should have them
       const items = wrapper.findAll('.ctx-item-stub');
-      // Only lowPrivilegedBob's mute item should appear
-      expect(items).toHaveLength(1);
-      expect(items[0].text()).toBe('Mute');
+      // Only lowPrivilegedBob's items should appear: Mute + Ban
+      expect(items).toHaveLength(2);
+      expect(items.map((i) => i.text())).toContain('Mute');
+      expect(items.map((i) => i.text())).toContain('Ban');
     });
   });
 });

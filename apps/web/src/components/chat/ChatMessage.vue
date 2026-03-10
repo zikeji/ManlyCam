@@ -42,6 +42,7 @@ const emit = defineEmits<{
   requestDelete: [messageId: string];
   muteUser: [userId: string];
   unmuteUser: [userId: string];
+  banUser: [userId: string];
 }>();
 
 const timeLabel = computed(() => formatTime(props.message.createdAt));
@@ -57,6 +58,7 @@ const editTextareaRef = ref<HTMLTextAreaElement | null>(null);
 const rootRef = ref<HTMLElement | null>(null);
 const canSave = computed(() => editContent.value.trim().length > 0);
 const showDeleteDialog = ref(false);
+const showBanDialog = ref(false);
 
 function startEdit() {
   isEditing.value = true;
@@ -104,6 +106,11 @@ function executeDelete() {
   showDeleteDialog.value = false;
   emit('requestDelete', props.message.id);
 }
+
+function executeBan() {
+  showBanDialog.value = false;
+  emit('banUser', props.message.userId);
+}
 </script>
 
 <template>
@@ -139,6 +146,9 @@ function executeDelete() {
       </ContextMenuItem>
       <ContextMenuItem v-if="canMuteAuthor && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
         Unmute
+      </ContextMenuItem>
+      <ContextMenuItem v-if="canMuteAuthor" @click="showBanDialog = true" class="text-red-400 focus:text-red-400">
+        Ban
       </ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
@@ -268,6 +278,9 @@ function executeDelete() {
       <ContextMenuItem v-if="canMuteAuthor && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
         Unmute
       </ContextMenuItem>
+      <ContextMenuItem v-if="canMuteAuthor" @click="showBanDialog = true" class="text-red-400 focus:text-red-400">
+        Ban
+      </ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
   <div v-else ref="rootRef" role="listitem" class="relative group flex items-start gap-2 px-3 py-1.5 hover:bg-white/[.03]">
@@ -347,6 +360,26 @@ function executeDelete() {
           @click="executeDelete"
         >
           Delete
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
+  <AlertDialog :open="showBanDialog" @update:open="showBanDialog = $event">
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Ban {{ message.displayName }}?</AlertDialogTitle>
+        <AlertDialogDescription>
+          This will revoke their access immediately and terminate all active sessions. This action cannot be undone from the UI.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction
+          class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          @click="executeBan"
+        >
+          Ban User
         </AlertDialogAction>
       </AlertDialogFooter>
     </AlertDialogContent>
