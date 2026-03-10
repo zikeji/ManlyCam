@@ -5,6 +5,7 @@ import { useAuth } from '@/composables/useAuth';
 import { usePresence } from '@/composables/usePresence';
 import { useWebSocket } from '@/composables/useWebSocket';
 import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
+import { apiFetch } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TabsIndicator } from 'reka-ui';
 import ChatMessage from './ChatMessage.vue';
@@ -81,11 +82,19 @@ function canMuteAuthorMsg(msg: ChatMessageType): boolean {
 }
 
 async function handleMuteUser(userId: string) {
-  await fetch(`/api/users/${userId}/mute`, { method: 'POST' });
+  try {
+    await apiFetch(`/api/users/${userId}/mute`, { method: 'POST' });
+  } catch (err) {
+    console.error('Failed to mute user:', err);
+  }
 }
 
 async function handleUnmuteUser(userId: string) {
-  await fetch(`/api/users/${userId}/unmute`, { method: 'POST' });
+  try {
+    await apiFetch(`/api/users/${userId}/unmute`, { method: 'POST' });
+  } catch (err) {
+    console.error('Failed to unmute user:', err);
+  }
 }
 
 // Map from message ID → ChatMessage component instance (for programmatic startEdit)
@@ -363,8 +372,8 @@ async function handleSend(content: string) {
           <div v-else key="viewers" class="absolute inset-0 overflow-y-auto">
             <PresenceList
               :viewers="viewers"
-              :can-mute-users="isPrivileged"
               :current-user-id="user?.id"
+              :current-user-role="user?.role"
               @mute-user="handleMuteUser"
               @unmute-user="handleUnmuteUser"
             />

@@ -61,77 +61,99 @@ const mutedAlice: UserPresence = { ...alice, isMuted: true };
 
 describe('PresenceList', () => {
   it('shows "Just you for now 👀" when viewers is empty', () => {
-    wrapper = mount(PresenceList, { props: { viewers: [], canMuteUsers: false } });
+    wrapper = mount(PresenceList, { props: { viewers: [], currentUserRole: 'Admin' } });
     expect(wrapper.text()).toContain('Just you for now 👀');
   });
 
   it('renders one row per viewer', () => {
-    wrapper = mount(PresenceList, { props: { viewers: [alice, bob], canMuteUsers: false } });
+    wrapper = mount(PresenceList, {
+      props: { viewers: [alice, bob], currentUserRole: 'ViewerGuest' },
+    });
     const items = wrapper.findAll('li');
     expect(items).toHaveLength(2);
   });
 
   it('row shows display name', () => {
-    wrapper = mount(PresenceList, { props: { viewers: [alice], canMuteUsers: false } });
+    wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'ViewerGuest' } });
     expect(wrapper.text()).toContain('Alice');
   });
 
   it('row shows userTag text when userTag is non-null', () => {
-    wrapper = mount(PresenceList, { props: { viewers: [bob], canMuteUsers: false } });
+    wrapper = mount(PresenceList, { props: { viewers: [bob], currentUserRole: 'ViewerGuest' } });
     expect(wrapper.text()).toContain('Staff');
   });
 
   it('row does NOT show tag element when userTag is null', () => {
-    wrapper = mount(PresenceList, { props: { viewers: [alice], canMuteUsers: false } });
+    wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'ViewerGuest' } });
     const tagSpans = wrapper.findAll('span[style]');
     expect(tagSpans).toHaveLength(0);
   });
 
   it('does not show empty state when viewers are present', () => {
-    wrapper = mount(PresenceList, { props: { viewers: [alice], canMuteUsers: false } });
+    wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'ViewerGuest' } });
     expect(wrapper.text()).not.toContain('Just you for now');
   });
 
   describe('muted indicator', () => {
-    it('shows MicOff icon when viewer is muted AND canMuteUsers is true', () => {
-      wrapper = mount(PresenceList, { props: { viewers: [mutedAlice], canMuteUsers: true } });
+    it('shows MicOff icon when viewer is muted AND current user is privileged', () => {
+      wrapper = mount(PresenceList, { props: { viewers: [mutedAlice], currentUserRole: 'Admin' } });
       expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(true);
     });
 
-    it('does NOT show MicOff icon when viewer is muted but canMuteUsers is false', () => {
-      wrapper = mount(PresenceList, { props: { viewers: [mutedAlice], canMuteUsers: false } });
+    it('does NOT show MicOff icon when viewer is muted but current user is not privileged', () => {
+      wrapper = mount(PresenceList, {
+        props: { viewers: [mutedAlice], currentUserRole: 'ViewerGuest' },
+      });
       expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(false);
     });
 
     it('does NOT show MicOff icon when viewer is not muted', () => {
-      wrapper = mount(PresenceList, { props: { viewers: [alice], canMuteUsers: true } });
+      wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
       expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(false);
     });
   });
 
   describe('context menu — mute/unmute', () => {
-    it('shows Mute item (not Unmute) for unmuted viewer when canMuteUsers is true', () => {
-      wrapper = mount(PresenceList, { props: { viewers: [alice], canMuteUsers: true } });
+    it('shows Mute item (not Unmute) for unmuted viewer when Admin viewing ViewerGuest', () => {
+      wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
       expect(wrapper.text()).toContain('Mute');
       expect(wrapper.text()).not.toContain('Unmute');
     });
 
-    it('shows Unmute item (not Mute) for muted viewer when canMuteUsers is true', () => {
-      wrapper = mount(PresenceList, { props: { viewers: [mutedAlice], canMuteUsers: true } });
+    it('shows Unmute item (not Mute) for muted viewer when Admin viewing ViewerGuest', () => {
+      wrapper = mount(PresenceList, { props: { viewers: [mutedAlice], currentUserRole: 'Admin' } });
       expect(wrapper.text()).toContain('Unmute');
       expect(wrapper.text()).not.toContain('Mute');
     });
 
-    it('does not show Mute/Unmute when canMuteUsers is false', () => {
+    it('does not show context menu when currentUserRole is not privileged', () => {
       wrapper = mount(PresenceList, {
-        props: { viewers: [alice, mutedAlice], canMuteUsers: false },
+        props: { viewers: [alice, mutedAlice], currentUserRole: 'ViewerGuest' },
+      });
+      expect(wrapper.text()).not.toContain('Mute');
+      expect(wrapper.text()).not.toContain('Unmute');
+    });
+
+    it('does not show context menu when Moderator viewing another Moderator (AC 4 — role hierarchy)', () => {
+      const moderator: UserPresence = { ...alice, role: 'Moderator' };
+      wrapper = mount(PresenceList, {
+        props: { viewers: [moderator], currentUserRole: 'Moderator' },
+      });
+      expect(wrapper.text()).not.toContain('Mute');
+      expect(wrapper.text()).not.toContain('Unmute');
+    });
+
+    it('does not show context menu when Moderator viewing Admin (AC 4 — role hierarchy)', () => {
+      const admin: UserPresence = { ...bob, role: 'Admin' };
+      wrapper = mount(PresenceList, {
+        props: { viewers: [admin], currentUserRole: 'Moderator' },
       });
       expect(wrapper.text()).not.toContain('Mute');
       expect(wrapper.text()).not.toContain('Unmute');
     });
 
     it('emits muteUser with viewer id when Mute is clicked', async () => {
-      wrapper = mount(PresenceList, { props: { viewers: [alice], canMuteUsers: true } });
+      wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
       const items = wrapper.findAll('.ctx-item-stub');
       const muteItem = items.find((el) => el.text() === 'Mute');
       await muteItem!.trigger('click');
@@ -139,7 +161,7 @@ describe('PresenceList', () => {
     });
 
     it('emits unmuteUser with viewer id when Unmute is clicked', async () => {
-      wrapper = mount(PresenceList, { props: { viewers: [mutedAlice], canMuteUsers: true } });
+      wrapper = mount(PresenceList, { props: { viewers: [mutedAlice], currentUserRole: 'Admin' } });
       const items = wrapper.findAll('.ctx-item-stub');
       const unmuteItem = items.find((el) => el.text() === 'Unmute');
       await unmuteItem!.trigger('click');
@@ -147,12 +169,18 @@ describe('PresenceList', () => {
     });
 
     it('does not show Mute/Unmute for the current user (self)', () => {
+      // Create a lower-privileged viewer that admin alice can mute
+      const lowPrivilegedBob: UserPresence = { ...bob, role: 'ViewerCompany' };
       wrapper = mount(PresenceList, {
-        props: { viewers: [alice, bob], canMuteUsers: true, currentUserId: 'user-001' },
+        props: {
+          viewers: [alice, lowPrivilegedBob],
+          currentUserRole: 'Admin',
+          currentUserId: 'user-001',
+        },
       });
-      // alice is currentUser — should have no mute option; bob should still have it
+      // alice is currentUser — should have no mute option; lowPrivilegedBob should have it
       const items = wrapper.findAll('.ctx-item-stub');
-      // Only bob's mute item should appear
+      // Only lowPrivilegedBob's mute item should appear
       expect(items).toHaveLength(1);
       expect(items[0].text()).toBe('Mute');
     });
