@@ -3,6 +3,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { AppError } from '../lib/errors.js';
 import { createMessage, getHistory, editMessage, deleteMessage } from '../services/chatService.js';
 import type { AppEnv } from '../lib/types.js';
+import type { Role } from '@manlycam/types';
 
 export function createChatRouter() {
   const chatRouter = new Hono<AppEnv>();
@@ -62,7 +63,7 @@ export function createChatRouter() {
   chatRouter.delete('/api/chat/messages/:messageId', requireAuth, async (c) => {
     const messageId = c.req.param('messageId');
     const user = c.get('user')!;
-    await deleteMessage({ messageId, userId: user.id });
+    await deleteMessage({ messageId, userId: user.id, callerRole: user.role as Role });
     return c.body(null, 204);
   });
 

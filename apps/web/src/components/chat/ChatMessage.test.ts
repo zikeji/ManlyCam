@@ -4,25 +4,35 @@ import { defineComponent, nextTick } from 'vue';
 import ChatMessage from './ChatMessage.vue';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
-// Mock lucide-vue-next MoreHorizontal icon with data-icon attribute
-vi.mock('lucide-vue-next', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('lucide-vue-next')>();
-  return {
-    ...actual,
-    MoreHorizontal: defineComponent({
-      template: '<svg data-icon="MoreHorizontal" />',
-    }),
-  };
-});
-
-// Mock dropdown-menu with simple stubs that fire click events
-vi.mock('@/components/ui/dropdown-menu', () => ({
-  DropdownMenu: defineComponent({ template: '<div><slot/></div>' }),
-  DropdownMenuTrigger: defineComponent({ template: '<div><slot/></div>' }),
-  DropdownMenuContent: defineComponent({ template: '<div><slot/></div>' }),
-  DropdownMenuItem: defineComponent({
+// Mock context-menu with simple stubs that render slots and fire click events
+vi.mock('@/components/ui/context-menu', () => ({
+  ContextMenu: defineComponent({ template: '<div><slot/></div>' }),
+  ContextMenuTrigger: defineComponent({ template: '<div><slot/></div>' }),
+  ContextMenuContent: defineComponent({ template: '<div data-context-menu-content><slot/></div>' }),
+  ContextMenuItem: defineComponent({
     emits: ['click'],
-    template: '<div @click="$emit(\'click\', $event)"><slot/></div>',
+    template: '<div data-context-menu-item @click="$emit(\'click\', $event)"><slot/></div>',
+  }),
+}));
+
+// Mock alert-dialog with stubs that render slot content and support :open prop
+vi.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: defineComponent({
+    props: ['open'],
+    template: '<div v-if="open" data-alert-dialog><slot/></div>',
+  }),
+  AlertDialogContent: defineComponent({ template: '<div><slot/></div>' }),
+  AlertDialogHeader: defineComponent({ template: '<div><slot/></div>' }),
+  AlertDialogFooter: defineComponent({ template: '<div><slot/></div>' }),
+  AlertDialogTitle: defineComponent({ template: '<div data-alert-title><slot/></div>' }),
+  AlertDialogDescription: defineComponent({ template: '<div><slot/></div>' }),
+  AlertDialogCancel: defineComponent({
+    emits: ['click'],
+    template: '<button data-alert-cancel @click="$emit(\'click\')">Cancel</button>',
+  }),
+  AlertDialogAction: defineComponent({
+    emits: ['click'],
+    template: '<button data-alert-action @click="$emit(\'click\')">Delete</button>',
   }),
 }));
 
@@ -39,6 +49,7 @@ const baseMessage: ChatMessageType = {
   userId: 'user-001',
   displayName: 'Test User',
   avatarUrl: null,
+  authorRole: 'ViewerCompany',
   content: 'Hello world',
   editHistory: null,
   updatedAt: null,
@@ -74,7 +85,6 @@ describe('ChatMessage.vue', () => {
 
   it('renders avatar fallback initials (first letter of each word)', () => {
     wrapper = mount(ChatMessage, { props: { message: baseMessage } });
-    // "Test User" → T + U = "TU"
     expect(wrapper.text()).toContain('TU');
   });
 
@@ -141,15 +151,158 @@ describe('ChatMessage.vue', () => {
     expect(wrapper.text()).not.toContain('VIP');
   });
 
-  describe('context menu (group row)', () => {
-    it('context menu button NOT rendered when isOwn=false', () => {
-      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: false } });
-      expect(wrapper.find('[aria-label="Message actions"]').exists()).toBe(false);
+  describe('context menu visibility (group row)', () => {
+    it('no context menu rendered when isOwn=false and canModerateDelete=false', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: false, canModerateDelete: false },
+      });
+      expect(wrapper.find('[data-context-menu-content]').exists()).toBe(false);
     });
 
-    it('context menu button IS rendered when isOwn=true', () => {
+    it('context menu rendered when isOwn=true', () => {
       wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
-      expect(wrapper.find('[aria-label="Message actions"]').exists()).toBe(true);
+      expect(wrapper.find('[data-context-menu-content]').exists()).toBe(true);
+    });
+
+    it('context menu rendered when canModerateDelete=true', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: false, canModerateDelete: true },
+      });
+      expect(wrapper.find('[data-context-menu-content]').exists()).toBe(true);
+    });
+
+    it('Edit option present when isOwn=true', () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+      const items = wrapper.findAll('[data-context-menu-item]');
+      const texts = items.map((i) => i.text().trim());
+      expect(texts).toContain('Edit');
+    });
+
+    it('Edit option NOT present when canModerateDelete=true and isOwn=false', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: false, canModerateDelete: true },
+      });
+      const items = wrapper.findAll('[data-context-menu-item]');
+      const texts = items.map((i) => i.text().trim());
+      expect(texts).not.toContain('Edit');
+      expect(texts).toContain('Delete');
+    });
+
+    it('Delete option present when isOwn=true', () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+      const items = wrapper.findAll('[data-context-menu-item]');
+      const texts = items.map((i) => i.text().trim());
+      expect(texts).toContain('Delete');
+    });
+  });
+
+  describe('context menu visibility (continuation row)', () => {
+    it('no context menu rendered when isOwn=false and canModerateDelete=false (continuation)', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: baseMessage,
+          isContinuation: true,
+          isOwn: false,
+          canModerateDelete: false,
+        },
+      });
+      expect(wrapper.find('[data-context-menu-content]').exists()).toBe(false);
+    });
+
+    it('context menu rendered when isOwn=true (continuation)', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isContinuation: true, isOwn: true },
+      });
+      expect(wrapper.find('[data-context-menu-content]').exists()).toBe(true);
+    });
+
+    it('context menu rendered when canModerateDelete=true (continuation)', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: baseMessage,
+          isContinuation: true,
+          isOwn: false,
+          canModerateDelete: true,
+        },
+      });
+      expect(wrapper.find('[data-context-menu-content]').exists()).toBe(true);
+    });
+  });
+
+  describe('AlertDialog delete flow', () => {
+    it('clicking Delete in context menu opens AlertDialog', async () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+
+      const deleteItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Delete');
+      await deleteItem!.trigger('click');
+      await nextTick();
+
+      expect(wrapper.find('[data-alert-dialog]').exists()).toBe(true);
+      expect(wrapper.find('[data-alert-title]').text()).toBe('Delete message?');
+    });
+
+    it('clicking Delete action in AlertDialog emits requestDelete and closes dialog', async () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+
+      const deleteItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Delete');
+      await deleteItem!.trigger('click');
+      await nextTick();
+
+      await wrapper.find('[data-alert-action]').trigger('click');
+      await nextTick();
+
+      const emitted = wrapper.emitted('requestDelete');
+      expect(emitted).toBeTruthy();
+      expect(emitted![0]).toEqual(['msg-001']);
+      expect(wrapper.find('[data-alert-dialog]').exists()).toBe(false);
+    });
+
+    it('clicking Cancel in AlertDialog does NOT emit requestDelete', async () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+
+      const deleteItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Delete');
+      await deleteItem!.trigger('click');
+      await nextTick();
+
+      await wrapper.find('[data-alert-cancel]').trigger('click');
+      await nextTick();
+
+      expect(wrapper.emitted('requestDelete')).toBeFalsy();
+    });
+
+    it('shift+click Delete skips AlertDialog and emits requestDelete directly', async () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+
+      const deleteItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Delete');
+      const el = deleteItem!.element as HTMLElement;
+      el.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
+      await nextTick();
+
+      expect(wrapper.find('[data-alert-dialog]').exists()).toBe(false);
+      const emitted = wrapper.emitted('requestDelete');
+      expect(emitted).toBeTruthy();
+      expect(emitted![0]).toEqual(['msg-001']);
+    });
+
+    it('moderator delete: clicking Delete in context menu opens AlertDialog', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: false, canModerateDelete: true },
+      });
+
+      const deleteItem = wrapper.find('[data-context-menu-item]');
+      expect(deleteItem.text().trim()).toBe('Delete');
+      await deleteItem.trigger('click');
+      await nextTick();
+
+      expect(wrapper.find('[data-alert-dialog]').exists()).toBe(true);
     });
   });
 
@@ -158,13 +311,12 @@ describe('ChatMessage.vue', () => {
       wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
     });
 
-    function findDropdownItem(w: VueWrapper, text: string) {
-      return w.findAll('div').find((el) => el.element.textContent?.trim() === text);
+    function findMenuItem(w: VueWrapper, text: string) {
+      return w.findAll('[data-context-menu-item]').find((el) => el.text().trim() === text);
     }
 
     it('clicking Edit opens textarea pre-filled with message content', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       const textarea = wrapper!.find('textarea');
@@ -173,8 +325,7 @@ describe('ChatMessage.vue', () => {
     });
 
     it('Escape key cancels edit and restores message body', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       await wrapper!.find('textarea').trigger('keydown', { key: 'Escape' });
@@ -185,8 +336,7 @@ describe('ChatMessage.vue', () => {
     });
 
     it('Enter key submits edit and emits requestEdit with message ID and trimmed content', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       const textarea = wrapper!.find('textarea');
@@ -200,8 +350,7 @@ describe('ChatMessage.vue', () => {
     });
 
     it('clicking Save emits requestEdit with message ID and trimmed content', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       await wrapper!.find('textarea').setValue('New content');
@@ -215,8 +364,7 @@ describe('ChatMessage.vue', () => {
     });
 
     it('clicking Cancel restores message body without emitting', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       const cancelBtn = wrapper!.findAll('button').find((b) => b.text().trim() === 'Cancel');
@@ -228,8 +376,7 @@ describe('ChatMessage.vue', () => {
     });
 
     it('does not submit when editContent is empty/whitespace', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       await wrapper!.find('textarea').setValue('   ');
@@ -241,8 +388,7 @@ describe('ChatMessage.vue', () => {
     });
 
     it('Save button is disabled when textarea is empty', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       await wrapper!.find('textarea').setValue('');
@@ -253,65 +399,11 @@ describe('ChatMessage.vue', () => {
     });
 
     it('Save button is enabled when textarea has content', async () => {
-      const editItem = findDropdownItem(wrapper!, 'Edit');
-      await editItem!.trigger('click');
+      await findMenuItem(wrapper!, 'Edit')!.trigger('click');
       await nextTick();
 
       const saveBtn = wrapper!.findAll('button').find((b) => b.text().trim() === 'Save');
       expect((saveBtn!.element as HTMLButtonElement).disabled).toBe(false);
-    });
-  });
-
-  describe('delete (group row)', () => {
-    function findDeleteItem(w: VueWrapper) {
-      return w.findAll('div').find((el) => el.element.textContent?.trim() === 'Delete');
-    }
-
-    it('clicking Delete calls window.confirm', async () => {
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
-
-      const deleteItem = findDeleteItem(wrapper);
-      await deleteItem!.trigger('click');
-
-      expect(confirmSpy).toHaveBeenCalled();
-    });
-
-    it('when confirm returns true, emits requestDelete with message ID', async () => {
-      vi.spyOn(window, 'confirm').mockReturnValue(true);
-      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
-
-      const deleteItem = findDeleteItem(wrapper);
-      await deleteItem!.trigger('click');
-
-      const emitted = wrapper.emitted('requestDelete');
-      expect(emitted).toBeTruthy();
-      expect(emitted![0]).toEqual(['msg-001']);
-    });
-
-    it('when confirm returns false, does NOT emit requestDelete', async () => {
-      vi.spyOn(window, 'confirm').mockReturnValue(false);
-      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
-
-      const deleteItem = findDeleteItem(wrapper);
-      await deleteItem!.trigger('click');
-
-      expect(wrapper.emitted('requestDelete')).toBeFalsy();
-    });
-
-    it('shift+click skips confirm and emits requestDelete directly', async () => {
-      const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
-
-      const deleteItem = findDeleteItem(wrapper);
-      const el = deleteItem!.element as HTMLElement;
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true, shiftKey: true }));
-      await nextTick();
-
-      expect(confirmSpy).not.toHaveBeenCalled();
-      const emitted = wrapper.emitted('requestDelete');
-      expect(emitted).toBeTruthy();
-      expect(emitted![0]).toEqual(['msg-001']);
     });
   });
 
@@ -370,20 +462,6 @@ describe('ChatMessage.vue', () => {
       });
       const root = wrapper.find('[role="listitem"]');
       expect(root.classes().join(' ')).toContain('pl-[52px]');
-    });
-
-    it('context menu button NOT rendered when isOwn=false (continuation)', () => {
-      wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isContinuation: true, isOwn: false },
-      });
-      expect(wrapper.find('[aria-label="Message actions"]').exists()).toBe(false);
-    });
-
-    it('context menu button IS rendered when isOwn=true (continuation)', () => {
-      wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isContinuation: true, isOwn: true },
-      });
-      expect(wrapper.find('[aria-label="Message actions"]').exists()).toBe(true);
     });
 
     it('(edited) NOT shown when message.updatedAt is null (continuation)', () => {

@@ -70,7 +70,7 @@ development_status:
   3-6-admin-camera-controls-sidebar: done
   epic-3-retrospective: done  # Completed 2026-03-08
 
-  epic-4: in-progress
+  epic-4: done # Retrospective completed 2026-03-09
   4-1-chat-panel-message-sending-and-real-time-delivery: done  # code-review findings #5 fixed: test isolation (afterEach unmount), scroll state preservation across tabs, ScrollArea replacement documented
   4-2-chat-history-on-load-and-infinite-scroll: done  # code-review findings #2 fixed: export module-level refs directly, add empty-messages edge case test, fix timezone-sensitive tests. 338 total tests passing
   4-3-message-grouping-avatars-and-usertag-display: done  # code-review findings #2-3 fixed: direct import of handleUserUpdate, removed redundant pr-3 class. 214 tests passing
@@ -78,10 +78,10 @@ development_status:
   4-4b-bug-fixes-camera-control-toggles-and-mobile-landscape: done  # code-review findings #2-3 fixed: test isolation (afterEach unmount), AC #7 toggle behavior (keep overlay visible on repeated taps), added repeated-tap test. 285 tests passing
   4-5-own-message-edit-and-delete: done  # code-review findings documented: Shift+click delete bypass (AC #6 power-user), up-arrow last-message edit (AC #8), file list completed, test count corrected
   4-6-viewer-presence-list-and-typing-indicator: done  # code-review findings documented: HIGH - typing debounce spec mismatch (heartbeat pattern intentional), MEDIUM - StreamPlayer.test.ts undocumented, timing variance. Post-review summary added 2026-03-09
-  epic-4-retrospective: optional
+  epic-4-retrospective: done  # Completed 2026-03-09
 
-  epic-5: backlog
-  5-1-moderator-and-admin-delete-any-chat-message: backlog
+  epic-5: in-progress
+  5-1-moderator-and-admin-delete-any-chat-message: review
   5-2-mute-and-unmute: backlog
   5-3-ban-with-immediate-session-revocation: backlog
   5-4-non-privileged-ui-gating: backlog

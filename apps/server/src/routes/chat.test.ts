@@ -61,6 +61,7 @@ const mockChatMessage = {
   userId: 'user-001',
   displayName: 'Test User',
   avatarUrl: null,
+  authorRole: 'ViewerCompany' as const,
   content: 'Hello world',
   editHistory: null,
   updatedAt: null,
@@ -448,7 +449,7 @@ describe('DELETE /api/chat/messages/:messageId', () => {
     expect(res.status).toBe(403);
   });
 
-  it('calls deleteMessage with messageId and userId', async () => {
+  it('calls deleteMessage with messageId, userId, and callerRole', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
     vi.mocked(deleteMessage).mockResolvedValue(undefined);
 
@@ -457,6 +458,30 @@ describe('DELETE /api/chat/messages/:messageId', () => {
       headers: { cookie: 'session_id=valid-session' },
     });
 
-    expect(deleteMessage).toHaveBeenCalledWith({ messageId: 'msg-001', userId: 'user-001' });
+    expect(deleteMessage).toHaveBeenCalledWith({
+      messageId: 'msg-001',
+      userId: 'user-001',
+      callerRole: expect.any(String),
+    });
+  });
+
+  it('returns 403 when deleteMessage throws INSUFFICIENT_ROLE', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteMessage).mockRejectedValue(
+      new AppError(
+        'Cannot delete messages from users with equal or higher role.',
+        'INSUFFICIENT_ROLE',
+        403,
+      ),
+    );
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('INSUFFICIENT_ROLE');
   });
 });

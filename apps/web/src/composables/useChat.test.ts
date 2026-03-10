@@ -29,6 +29,7 @@ const mockMessage: ChatMessage = {
   userId: 'user-001',
   displayName: 'Test User',
   avatarUrl: null,
+  authorRole: 'ViewerCompany',
   content: 'Hello',
   editHistory: null,
   updatedAt: null,

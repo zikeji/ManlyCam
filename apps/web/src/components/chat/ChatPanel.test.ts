@@ -106,6 +106,7 @@ const mockMessage: ChatMessage = {
   userId: 'user-001',
   displayName: 'Alice',
   avatarUrl: null,
+  authorRole: 'ViewerCompany',
   content: 'Hello!',
   editHistory: null,
   updatedAt: null,
@@ -455,12 +456,13 @@ describe('ChatPanel.vue', () => {
           stubs: {
             ChatMessage: {
               name: 'ChatMessage',
-              props: ['message', 'isContinuation', 'isOwn'],
+              props: ['message', 'isContinuation', 'isOwn', 'canModerateDelete'],
               emits: ['requestEdit', 'requestDelete'],
               template: `
                 <div
                   :data-msg-id="message.id"
                   :data-is-own="String(isOwn)"
+                  :data-can-moderate-delete="String(canModerateDelete)"
                   @click.own="$emit('requestEdit', message.id, 'edited')"
                 >
                   <button class="trigger-edit" @click="$emit('requestEdit', message.id, 'edited')">edit</button>
@@ -513,6 +515,122 @@ describe('ChatPanel.vue', () => {
       await flushPromises();
 
       expect(mockDeleteMessage).toHaveBeenCalledWith('msg-001');
+    });
+  });
+
+  describe('canModerateDelete prop (permission matrix)', () => {
+    function mountWithStub() {
+      return mount(ChatPanel, {
+        global: {
+          stubs: {
+            ChatMessage: {
+              name: 'ChatMessage',
+              props: ['message', 'isContinuation', 'isOwn', 'canModerateDelete'],
+              template: `<div :data-msg-id="message.id" :data-can-moderate-delete="String(canModerateDelete)" />`,
+            },
+          },
+        },
+      });
+    }
+
+    const viewerMessage: ChatMessage = {
+      ...mockMessage,
+      id: 'msg-other',
+      userId: 'user-999', // someone else's message
+      authorRole: 'ViewerCompany',
+    };
+    const modMessage: ChatMessage = {
+      ...mockMessage,
+      id: 'msg-mod',
+      userId: 'user-mod',
+      authorRole: 'Moderator',
+    };
+    const adminMessage: ChatMessage = {
+      ...mockMessage,
+      id: 'msg-admin',
+      userId: 'user-admin',
+      authorRole: 'Admin',
+    };
+
+    it('ViewerCompany: canModerateDelete=false for all others messages', async () => {
+      mockMessages.value = [viewerMessage];
+      // useAuth mock returns ViewerCompany by default
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-other"]').attributes('data-can-moderate-delete')).toBe(
+        'false',
+      );
+    });
+
+    it('Moderator: canModerateDelete=true for ViewerCompany message', async () => {
+      const { useAuth } = await import('@/composables/useAuth');
+      vi.mocked(useAuth).mockReturnValueOnce({
+        user: ref({ id: 'user-001', displayName: 'Test User', avatarUrl: null, role: 'Moderator' }),
+        logout: vi.fn(),
+      } as never);
+      mockMessages.value = [viewerMessage];
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-other"]').attributes('data-can-moderate-delete')).toBe(
+        'true',
+      );
+    });
+
+    it('Moderator: canModerateDelete=false for Moderator message', async () => {
+      const { useAuth } = await import('@/composables/useAuth');
+      vi.mocked(useAuth).mockReturnValueOnce({
+        user: ref({ id: 'user-001', displayName: 'Test User', avatarUrl: null, role: 'Moderator' }),
+        logout: vi.fn(),
+      } as never);
+      mockMessages.value = [modMessage];
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-mod"]').attributes('data-can-moderate-delete')).toBe(
+        'false',
+      );
+    });
+
+    it('Admin: canModerateDelete=true for Moderator message', async () => {
+      const { useAuth } = await import('@/composables/useAuth');
+      vi.mocked(useAuth).mockReturnValueOnce({
+        user: ref({ id: 'user-001', displayName: 'Test User', avatarUrl: null, role: 'Admin' }),
+        logout: vi.fn(),
+      } as never);
+      mockMessages.value = [modMessage];
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-mod"]').attributes('data-can-moderate-delete')).toBe(
+        'true',
+      );
+    });
+
+    it('Admin: canModerateDelete=false for Admin message', async () => {
+      const { useAuth } = await import('@/composables/useAuth');
+      vi.mocked(useAuth).mockReturnValueOnce({
+        user: ref({ id: 'user-001', displayName: 'Test User', avatarUrl: null, role: 'Admin' }),
+        logout: vi.fn(),
+      } as never);
+      mockMessages.value = [adminMessage];
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-admin"]').attributes('data-can-moderate-delete')).toBe(
+        'false',
+      );
+    });
+
+    it('canModerateDelete=false for own message (own handled by isOwn)', async () => {
+      const { useAuth } = await import('@/composables/useAuth');
+      vi.mocked(useAuth).mockReturnValueOnce({
+        user: ref({ id: 'user-001', displayName: 'Test User', avatarUrl: null, role: 'Admin' }),
+        logout: vi.fn(),
+      } as never);
+      // Own message — userId matches user.id
+      mockMessages.value = [{ ...adminMessage, userId: 'user-001' }];
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-admin"]').attributes('data-can-moderate-delete')).toBe(
+        'false',
+      );
     });
   });
 });

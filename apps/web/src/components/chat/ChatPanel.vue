@@ -12,6 +12,7 @@ import ChatInput from './ChatInput.vue';
 import ProfileAnchor from '@/components/stream/ProfileAnchor.vue';
 import PresenceList from './PresenceList.vue';
 import TypingIndicator from './TypingIndicator.vue';
+import { Role } from '@manlycam/types';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 const emit = defineEmits<{ openCameraControls: [] }>();
@@ -49,6 +50,23 @@ function isNearBottom(): boolean {
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 const EDIT_WINDOW_MS = 5 * 60 * 1000;
+
+const ROLE_RANK: Record<string, number> = {
+  Admin: 3,
+  Moderator: 2,
+  ViewerCompany: 1,
+  ViewerGuest: 0,
+};
+
+const isPrivileged = computed(() =>
+  user.value?.role === Role.Admin || user.value?.role === Role.Moderator,
+);
+
+function canModerateDeleteMsg(msg: ChatMessageType): boolean {
+  if (!user.value || !isPrivileged.value) return false;
+  if (msg.userId === user.value.id) return false; // own messages handled by isOwn
+  return (ROLE_RANK[user.value.role] ?? 0) > (ROLE_RANK[msg.authorRole] ?? 0);
+}
 
 // Map from message ID → ChatMessage component instance (for programmatic startEdit)
 const msgRefs: Record<string, { startEdit: () => void }> = {};
@@ -167,7 +185,14 @@ async function handleMessageEdit(messageId: string, newContent: string) {
 }
 
 async function handleMessageDelete(messageId: string) {
-  await deleteMessage(messageId);
+  try {
+    await deleteMessage(messageId);
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === 'INSUFFICIENT_ROLE') {
+      window.alert('You do not have permission to delete that message.');
+    }
+  }
 }
 
 function handleEditLast() {
@@ -270,6 +295,7 @@ async function handleSend(content: string) {
                     :message="item.data"
                     :is-continuation="item.isContinuation"
                     :is-own="user?.id === item.data.userId"
+                    :can-moderate-delete="canModerateDeleteMsg(item.data)"
                     @request-edit="handleMessageEdit"
                     @request-delete="handleMessageDelete"
                   />

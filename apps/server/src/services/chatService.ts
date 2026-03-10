@@ -2,7 +2,8 @@ import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
 import { AppError } from '../lib/errors.js';
-import type { ChatMessage, ChatEdit, UserTag, WsMessage } from '@manlycam/types';
+import { ROLE_RANK, canModerateOver } from '../lib/roleUtils.js';
+import type { ChatMessage, ChatEdit, Role, UserTag, WsMessage } from '@manlycam/types';
 import type { User } from '@prisma/client';
 
 type EditHistoryEntry = { content: string; editedAt: string };
@@ -35,6 +36,7 @@ function toApiChatMessage(row: MessageRow): ChatMessage {
     userId: row.userId,
     displayName: row.user.displayName,
     avatarUrl: row.user.avatarUrl,
+    authorRole: row.user.role as Role,
     content: row.content,
     editHistory: (row.editHistory as { content: string; editedAt: string }[] | null) ?? null,
     updatedAt: row.updatedAt?.toISOString() ?? null,
@@ -124,18 +126,46 @@ export async function editMessage(params: {
   return chatEdit;
 }
 
-export async function deleteMessage(params: { messageId: string; userId: string }): Promise<void> {
-  const { messageId, userId } = params;
+export async function deleteMessage(params: {
+  messageId: string;
+  userId: string;
+  callerRole: Role;
+}): Promise<void> {
+  const { messageId, userId, callerRole } = params;
 
-  const existing = await prisma.message.findUnique({ where: { id: messageId } });
+  const existing = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { user: true },
+  });
   if (!existing) throw new AppError('Message not found', 'NOT_FOUND', 404);
-  if (existing.userId !== userId) throw new AppError('Forbidden', 'FORBIDDEN', 403);
   if (existing.deletedAt) throw new AppError('Message not found', 'NOT_FOUND', 404);
 
-  await prisma.message.update({
-    where: { id: messageId },
-    data: { deletedAt: new Date(), deletedBy: userId },
-  });
+  if (existing.userId === userId) {
+    // Self-delete: no role check, no audit log
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date(), deletedBy: userId },
+    });
+  } else {
+    // Moderator-initiated delete
+    if (ROLE_RANK[callerRole] < ROLE_RANK.Moderator) {
+      throw new AppError('Insufficient permissions.', 'FORBIDDEN', 403);
+    }
+    if (!canModerateOver(callerRole, existing.user.role as Role)) {
+      throw new AppError(
+        'Cannot delete messages from users with equal or higher role.',
+        'INSUFFICIENT_ROLE',
+        403,
+      );
+    }
+    await prisma.message.update({
+      where: { id: messageId },
+      data: { deletedAt: new Date(), deletedBy: userId },
+    });
+    await prisma.auditLog.create({
+      data: { id: ulid(), action: 'message_delete', actorId: userId, targetId: messageId },
+    });
+  }
 
   wsHub.broadcast({ type: 'chat:delete', payload: { messageId } });
 }

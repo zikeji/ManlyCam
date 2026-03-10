@@ -34,6 +34,7 @@ export interface ChatMessage {
   userId: string
   displayName: string
   avatarUrl: string | null
+  authorRole: Role
   content: string
   editHistory: { content: string; editedAt: string }[] | null // null = never edited
   updatedAt: string | null

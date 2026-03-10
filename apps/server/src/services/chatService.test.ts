@@ -8,6 +8,9 @@ vi.mock('../db/client.js', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
   },
 }));
 
@@ -20,6 +23,7 @@ vi.mock('./wsHub.js', () => ({
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
 import { createMessage, getHistory, editMessage, deleteMessage } from './chatService.js';
+import type { MockInstance } from 'vitest';
 
 const mockUser = {
   id: 'user-001',
@@ -75,6 +79,7 @@ describe('chatService.createMessage', () => {
       userId: 'user-001',
       displayName: 'Test User',
       avatarUrl: null,
+      authorRole: 'ViewerCompany',
       content: 'Hello world',
       editHistory: null,
       updatedAt: null,
@@ -235,6 +240,7 @@ describe('chatService.getHistory', () => {
       userId: 'user-001',
       displayName: 'Test User',
       avatarUrl: null,
+      authorRole: 'ViewerCompany',
       content: 'Hello world',
       editHistory: null,
       updatedAt: null,
@@ -374,36 +380,31 @@ describe('chatService.editMessage', () => {
 });
 
 describe('chatService.deleteMessage', () => {
+  const authorUser = { ...mockUser, id: 'user-002', role: 'ViewerCompany' };
   const baseRow = {
     id: 'msg-001',
-    userId: 'user-001',
+    userId: 'user-002',
     content: 'Hello',
     editHistory: null,
     updatedAt: null,
     deletedAt: null,
     deletedBy: null,
     createdAt: new Date('2026-03-08T10:00:00.000Z'),
+    user: authorUser,
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(prisma.message.update).mockResolvedValue({} as never);
+    (vi.mocked(prisma.auditLog.create) as MockInstance).mockResolvedValue({} as never);
   });
 
   it('throws 404 when message not found', async () => {
     vi.mocked(prisma.message.findUnique).mockResolvedValue(null);
 
-    await expect(deleteMessage({ messageId: 'msg-001', userId: 'user-001' })).rejects.toMatchObject(
-      { statusCode: 404, code: 'NOT_FOUND' },
-    );
-  });
-
-  it('throws 403 when userId does not match', async () => {
-    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
-
-    await expect(deleteMessage({ messageId: 'msg-001', userId: 'user-999' })).rejects.toMatchObject(
-      { statusCode: 403, code: 'FORBIDDEN' },
-    );
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-002', callerRole: 'ViewerCompany' }),
+    ).rejects.toMatchObject({ statusCode: 404, code: 'NOT_FOUND' });
   });
 
   it('throws 404 when message is already deleted', async () => {
@@ -412,15 +413,16 @@ describe('chatService.deleteMessage', () => {
       deletedAt: new Date(),
     } as never);
 
-    await expect(deleteMessage({ messageId: 'msg-001', userId: 'user-001' })).rejects.toMatchObject(
-      { statusCode: 404, code: 'NOT_FOUND' },
-    );
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-002', callerRole: 'ViewerCompany' }),
+    ).rejects.toMatchObject({ statusCode: 404, code: 'NOT_FOUND' });
   });
 
-  it('updates deletedAt and deletedBy on message row', async () => {
-    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+  it('self-delete: soft-deletes own message regardless of role', async () => {
+    const ownRow = { ...baseRow, userId: 'user-001', user: { ...authorUser, id: 'user-001' } };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(ownRow as never);
 
-    await deleteMessage({ messageId: 'msg-001', userId: 'user-001' });
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'ViewerCompany' });
 
     expect(prisma.message.update).toHaveBeenCalledWith({
       where: { id: 'msg-001' },
@@ -428,14 +430,103 @@ describe('chatService.deleteMessage', () => {
     });
   });
 
-  it('broadcasts chat:delete WS event with messageId', async () => {
-    vi.mocked(prisma.message.findUnique).mockResolvedValue({ ...baseRow } as never);
+  it('self-delete: does NOT create audit log entry', async () => {
+    const ownRow = { ...baseRow, userId: 'user-001', user: { ...authorUser, id: 'user-001' } };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(ownRow as never);
 
-    await deleteMessage({ messageId: 'msg-001', userId: 'user-001' });
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Admin' });
+
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('self-delete: broadcasts chat:delete WS event', async () => {
+    const ownRow = { ...baseRow, userId: 'user-001', user: { ...authorUser, id: 'user-001' } };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(ownRow as never);
+
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'ViewerCompany' });
 
     expect(wsHub.broadcast).toHaveBeenCalledWith({
       type: 'chat:delete',
       payload: { messageId: 'msg-001' },
     });
+  });
+
+  it('throws 403 FORBIDDEN when non-privileged user tries to delete others message', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(baseRow as never);
+
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'ViewerCompany' }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+  });
+
+  it('throws 403 FORBIDDEN for ViewerGuest deleting others message', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(baseRow as never);
+
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'ViewerGuest' }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'FORBIDDEN' });
+  });
+
+  it('mod-delete: Moderator can delete ViewerCompany message', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(baseRow as never);
+
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Moderator' });
+
+    expect(prisma.message.update).toHaveBeenCalledWith({
+      where: { id: 'msg-001' },
+      data: { deletedAt: expect.any(Date), deletedBy: 'user-001' },
+    });
+  });
+
+  it('mod-delete: creates AuditLog entry for Moderator-initiated delete', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(baseRow as never);
+
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Moderator' });
+
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        id: expect.any(String),
+        action: 'message_delete',
+        actorId: 'user-001',
+        targetId: 'msg-001',
+      },
+    });
+  });
+
+  it('mod-delete: Moderator CANNOT delete another Moderator message — 403 INSUFFICIENT_ROLE', async () => {
+    const modRow = { ...baseRow, user: { ...authorUser, role: 'Moderator' } };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(modRow as never);
+
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Moderator' }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'INSUFFICIENT_ROLE' });
+  });
+
+  it('mod-delete: Moderator CANNOT delete Admin message — 403 INSUFFICIENT_ROLE', async () => {
+    const adminRow = { ...baseRow, user: { ...authorUser, role: 'Admin' } };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(adminRow as never);
+
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Moderator' }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'INSUFFICIENT_ROLE' });
+  });
+
+  it('mod-delete: Admin CAN delete Moderator message', async () => {
+    const modRow = { ...baseRow, user: { ...authorUser, role: 'Moderator' } };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(modRow as never);
+
+    await deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Admin' });
+
+    expect(prisma.message.update).toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalled();
+  });
+
+  it('mod-delete: Admin CANNOT delete another Admin message — 403 INSUFFICIENT_ROLE', async () => {
+    const adminRow = { ...baseRow, user: { ...authorUser, role: 'Admin' } };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(adminRow as never);
+
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Admin' }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'INSUFFICIENT_ROLE' });
   });
 });
