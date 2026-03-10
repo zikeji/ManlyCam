@@ -66,7 +66,14 @@ export function createChatRouter() {
   chatRouter.delete('/api/chat/messages/:messageId', requireAuth, async (c) => {
     const messageId = c.req.param('messageId');
     const user = c.get('user')!;
-    await deleteMessage({ messageId, userId: user.id, callerRole: user.role as Role });
+    try {
+      await deleteMessage({ messageId, userId: user.id, callerRole: user.role as Role });
+    } catch (err) {
+      if (err instanceof AppError && err.code === 'INSUFFICIENT_ROLE') {
+        throw new AppError('Insufficient permissions.', 'FORBIDDEN', 403);
+      }
+      throw err;
+    }
     return c.body(null, 204);
   });
 

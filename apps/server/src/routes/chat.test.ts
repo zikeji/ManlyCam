@@ -497,6 +497,6 @@ describe('DELETE /api/chat/messages/:messageId', () => {
 
     expect(res.status).toBe(403);
     const body = (await res.json()) as { error: { code: string } };
-    expect(body.error.code).toBe('INSUFFICIENT_ROLE');
+    expect(body.error.code).toBe('FORBIDDEN');
   });
 });

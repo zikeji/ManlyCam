@@ -895,4 +895,48 @@ ShadCN UI is built on Radix UI primitives, which supply correct ARIA roles, keyb
 4. **Sidebar state persistence:** Store left/right collapse state in `localStorage`. Re-hydrate before first paint to prevent layout flash.
 5. **Focus-visible only:** Use Tailwind `focus-visible:` variant so outlines appear for keyboard users but not mouse/touch. ShadCN does this by default.
 6. **Reduced motion:** Wrap all `transition` and `@keyframes` in `@media (prefers-reduced-motion: no-preference)` or use Tailwind's `motion-safe:` prefix.
-7. **Landmark regions:** `<main>` wraps stream + sidebars; `<aside>` for each sidebar; `<nav>` is omitted (SPA, no traditional navigation).
+7. Landmark regions: `<main>` wraps stream + sidebars; `<aside>` for each sidebar; `<nav>` is omitted (SPA, no traditional navigation).
+
+---
+
+## Moderation & Administrative Gating
+
+### Moderation Context Menus
+
+Elevated moderation actions are surfaced via contextual menus to keep the primary interface clean.
+
+| Aspect | Detail |
+|---|---|
+| **Trigger** | Right-click (desktop) / Long-press (mobile) |
+| **Surface** | Chat Message Row, Viewer Presence Row |
+| **Visibility Rule** | Items only visible if `callerRole` outranks `targetRole` (`canModerateOver`) |
+| **Non-Privileged** | No moderation items visible in any context menu |
+
+**Menu Actions by Surface:**
+
+- **Chat Message**:
+    - `Edit` (Always visible for own messages)
+    - `Delete` (Visible for own messages OR if `canModerateOver` author)
+    - `Mute / Unmute` (Visible if `canModerateOver` author)
+    - `Ban` (Visible if `canModerateOver` author)
+- **Presence List**:
+    - `Mute / Unmute` (Visible if `canModerateOver` viewer)
+    - `Ban` (Visible if `canModerateOver` viewer)
+
+### MicOff (Muted) Indicator
+
+The `MicOff` icon serves as a status signal for moderators to track active mutes.
+
+- **Visibility**: Only visible to users with `role >= Moderator`.
+- **Placement**: Next to the display name in `PresenceList` and `ChatMessage` header.
+- **Privacy**: Standard viewers (`ViewerCompany`, `ViewerGuest`) cannot see who is muted, preventing social stigma.
+
+### Administrative Affordances
+
+Administrative controls are strictly gated to the `Admin` role to prevent accidental or unauthorized stream disruption.
+
+- **Admin Panel Toggle (Chevron)**: Only visible if `role === Admin`.
+- **Start/Stop Stream Toggle**: Only visible in `ProfileAnchor` popover if `role === Admin`.
+- **Camera Controls Button**: Only visible in `ProfileAnchor` popover (mobile) if `role === Admin`.
+- **Server Enforcement**: All corresponding API endpoints return `403 FORBIDDEN` if called by non-admins, regardless of UI visibility.
+
