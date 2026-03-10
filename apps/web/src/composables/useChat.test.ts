@@ -21,6 +21,7 @@ const mockUserProfile: UserProfile = {
   displayName: 'Updated Name',
   avatarUrl: 'https://example.com/new-avatar.jpg',
   role: 'ViewerCompany',
+  isMuted: false,
   userTag: { text: 'Staff', color: '#00FF00' },
 };
 

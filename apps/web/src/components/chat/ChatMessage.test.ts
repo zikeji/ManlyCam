@@ -480,6 +480,81 @@ describe('ChatMessage.vue', () => {
     });
   });
 
+  describe('muted indicator and mute/unmute context menu', () => {
+    it('shows MicOff indicator when isAuthorMuted=true and canMuteAuthor=true', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isAuthorMuted: true, canMuteAuthor: true },
+      });
+      expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(true);
+    });
+
+    it('does NOT show MicOff indicator when isAuthorMuted=true but canMuteAuthor=false', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isAuthorMuted: true, canMuteAuthor: false },
+      });
+      expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(false);
+    });
+
+    it('does NOT show MicOff indicator when isAuthorMuted=false', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isAuthorMuted: false, canMuteAuthor: true },
+      });
+      expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(false);
+    });
+
+    it('shows Mute item when canMuteAuthor=true and author is not muted', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: false },
+      });
+      const items = wrapper.findAll('[data-context-menu-item]');
+      const texts = items.map((i) => i.text().trim());
+      expect(texts).toContain('Mute');
+      expect(texts).not.toContain('Unmute');
+    });
+
+    it('shows Unmute item when canMuteAuthor=true and author is muted', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: true },
+      });
+      const items = wrapper.findAll('[data-context-menu-item]');
+      const texts = items.map((i) => i.text().trim());
+      expect(texts).toContain('Unmute');
+      expect(texts).not.toContain('Mute');
+    });
+
+    it('emits muteUser with userId when Mute is clicked', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: false },
+      });
+      const muteItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Mute');
+      await muteItem!.trigger('click');
+      expect(wrapper.emitted('muteUser')).toEqual([['user-001']]);
+    });
+
+    it('emits unmuteUser with userId when Unmute is clicked', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: true },
+      });
+      const unmuteItem = wrapper
+        .findAll('[data-context-menu-item]')
+        .find((el) => el.text().trim() === 'Unmute');
+      await unmuteItem!.trigger('click');
+      expect(wrapper.emitted('unmuteUser')).toEqual([['user-001']]);
+    });
+
+    it('does not show Mute/Unmute when canMuteAuthor=false', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: true, canMuteAuthor: false },
+      });
+      const items = wrapper.findAll('[data-context-menu-item]');
+      const texts = items.map((i) => i.text().trim());
+      expect(texts).not.toContain('Mute');
+      expect(texts).not.toContain('Unmute');
+    });
+  });
+
   describe('isContinuation=false (explicit group header)', () => {
     it('renders Avatar when isContinuation is false', () => {
       wrapper = mount(ChatMessage, {

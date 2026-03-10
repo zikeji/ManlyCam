@@ -67,17 +67,20 @@ vi.mock('@/composables/useWebSocket', () => ({
 
 const mockViewers = ref([]);
 const mockTypingUsers = ref([]);
+const mockMutedUserIds = ref(new Set<string>());
 
 vi.mock('@/composables/usePresence', () => ({
   usePresence: vi.fn(() => ({
     viewers: mockViewers,
     typingUsers: mockTypingUsers,
+    mutedUserIds: mockMutedUserIds,
   })),
 }));
 
 vi.mock('./PresenceList.vue', () => ({
   default: defineComponent({
-    props: ['viewers'],
+    props: ['viewers', 'canMuteUsers', 'currentUserId'],
+    emits: ['muteUser', 'unmuteUser'],
     template: '<div data-testid="presence-list" />',
   }),
 }));
@@ -126,6 +129,7 @@ describe('ChatPanel.vue', () => {
     mockIsLoadingHistory.value = false;
     mockViewers.value = [];
     mockTypingUsers.value = [];
+    mockMutedUserIds.value = new Set<string>();
     mockInitHistory.mockResolvedValue(undefined);
     mockLoadMoreHistory.mockResolvedValue(undefined);
     mockEditMessage.mockResolvedValue(undefined);
@@ -456,8 +460,15 @@ describe('ChatPanel.vue', () => {
           stubs: {
             ChatMessage: {
               name: 'ChatMessage',
-              props: ['message', 'isContinuation', 'isOwn', 'canModerateDelete'],
-              emits: ['requestEdit', 'requestDelete'],
+              props: [
+                'message',
+                'isContinuation',
+                'isOwn',
+                'canModerateDelete',
+                'isAuthorMuted',
+                'canMuteAuthor',
+              ],
+              emits: ['requestEdit', 'requestDelete', 'muteUser', 'unmuteUser'],
               template: `
                 <div
                   :data-msg-id="message.id"
@@ -525,7 +536,15 @@ describe('ChatPanel.vue', () => {
           stubs: {
             ChatMessage: {
               name: 'ChatMessage',
-              props: ['message', 'isContinuation', 'isOwn', 'canModerateDelete'],
+              props: [
+                'message',
+                'isContinuation',
+                'isOwn',
+                'canModerateDelete',
+                'isAuthorMuted',
+                'canMuteAuthor',
+              ],
+              emits: ['requestEdit', 'requestDelete', 'muteUser', 'unmuteUser'],
               template: `<div :data-msg-id="message.id" :data-can-moderate-delete="String(canModerateDelete)" />`,
             },
           },

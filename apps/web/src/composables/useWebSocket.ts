@@ -8,6 +8,8 @@ import {
   handleTypingStart,
   handleTypingStop,
   handlePresenceUserUpdate,
+  handleModerationMuted,
+  handleModerationUnmuted,
 } from './usePresence';
 import type { WsMessage } from '@manlycam/types';
 
@@ -66,6 +68,12 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'typing:stop') {
         handleTypingStop(msg.payload);
+      }
+      if (msg.type === 'moderation:muted') {
+        handleModerationMuted(msg.payload);
+      }
+      if (msg.type === 'moderation:unmuted') {
+        handleModerationUnmuted(msg.payload);
       }
     } catch {
       // Ignore malformed messages

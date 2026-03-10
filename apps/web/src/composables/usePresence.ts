@@ -4,6 +4,7 @@ import type { UserPresence, UserProfile } from '@manlycam/types';
 // Module-level singletons — same pattern as useChat.ts
 export const viewers = ref<UserPresence[]>([]);
 export const typingUsers = ref<{ userId: string; displayName: string }[]>([]);
+export const mutedUserIds = ref<Set<string>>(new Set());
 
 // Typing timer cleanup map (module-level)
 const typingTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -11,6 +12,7 @@ const TYPING_AUTO_CLEAR_MS = 6000; // 4s heartbeat + 2s grace
 
 export const handlePresenceSeed = (users: UserPresence[]): void => {
   viewers.value = users;
+  mutedUserIds.value = new Set(users.filter((u) => u.isMuted).map((u) => u.id));
 };
 
 export const handlePresenceJoin = (user: UserPresence): void => {
@@ -41,6 +43,18 @@ export const handleTypingStart = (payload: { userId: string; displayName: string
   );
 };
 
+export const handleModerationMuted = ({ userId }: { userId: string }): void => {
+  viewers.value = viewers.value.map((v) => (v.id === userId ? { ...v, isMuted: true } : v));
+  mutedUserIds.value = new Set([...mutedUserIds.value, userId]);
+};
+
+export const handleModerationUnmuted = ({ userId }: { userId: string }): void => {
+  viewers.value = viewers.value.map((v) => (v.id === userId ? { ...v, isMuted: false } : v));
+  const next = new Set(mutedUserIds.value);
+  next.delete(userId);
+  mutedUserIds.value = next;
+};
+
 export const handlePresenceUserUpdate = (profile: UserProfile): void => {
   viewers.value = viewers.value.map((v) =>
     v.id === profile.id
@@ -55,5 +69,5 @@ export const handlePresenceUserUpdate = (profile: UserProfile): void => {
 };
 
 export const usePresence = () => {
-  return { viewers, typingUsers };
+  return { viewers, typingUsers, mutedUserIds };
 };

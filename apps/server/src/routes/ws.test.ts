@@ -141,6 +141,7 @@ describe('WS lifecycle — onOpen (AC #2, #3)', () => {
         displayName: 'Test User',
         avatarUrl: null,
         role: 'ViewerCompany',
+        isMuted: false,
         userTag: null,
       },
     ]);

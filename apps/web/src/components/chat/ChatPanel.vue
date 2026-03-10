@@ -20,7 +20,7 @@ const emit = defineEmits<{ openCameraControls: [] }>();
 const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory, editMessage, deleteMessage } =
   useChat();
 const { user } = useAuth();
-const { viewers, typingUsers } = usePresence();
+const { viewers, typingUsers, mutedUserIds } = usePresence();
 const { sendTypingStart, sendTypingStop } = useWebSocket();
 
 const scrollRef = ref<HTMLElement | null>(null);
@@ -62,10 +62,30 @@ const isPrivileged = computed(() =>
   user.value?.role === Role.Admin || user.value?.role === Role.Moderator,
 );
 
+const isSelfMuted = computed(
+  () =>
+    (user.value?.mutedAt !== null && user.value?.mutedAt !== undefined) ||
+    mutedUserIds.value.has(user.value?.id ?? ''),
+);
+
 function canModerateDeleteMsg(msg: ChatMessageType): boolean {
   if (!user.value || !isPrivileged.value) return false;
   if (msg.userId === user.value.id) return false; // own messages handled by isOwn
   return (ROLE_RANK[user.value.role] ?? 0) > (ROLE_RANK[msg.authorRole] ?? 0);
+}
+
+function canMuteAuthorMsg(msg: ChatMessageType): boolean {
+  if (!user.value || !isPrivileged.value) return false;
+  if (msg.userId === user.value.id) return false;
+  return (ROLE_RANK[user.value.role] ?? 0) > (ROLE_RANK[msg.authorRole] ?? 0);
+}
+
+async function handleMuteUser(userId: string) {
+  await fetch(`/api/users/${userId}/mute`, { method: 'POST' });
+}
+
+async function handleUnmuteUser(userId: string) {
+  await fetch(`/api/users/${userId}/unmute`, { method: 'POST' });
 }
 
 // Map from message ID → ChatMessage component instance (for programmatic startEdit)
@@ -296,8 +316,12 @@ async function handleSend(content: string) {
                     :is-continuation="item.isContinuation"
                     :is-own="user?.id === item.data.userId"
                     :can-moderate-delete="canModerateDeleteMsg(item.data)"
+                    :is-author-muted="mutedUserIds.has(item.data.userId)"
+                    :can-mute-author="canMuteAuthorMsg(item.data)"
                     @request-edit="handleMessageEdit"
                     @request-delete="handleMessageDelete"
+                    @mute-user="handleMuteUser"
+                    @unmute-user="handleUnmuteUser"
                   />
                 </template>
               </div>
@@ -312,6 +336,7 @@ async function handleSend(content: string) {
               />
               <ChatInput
                 class="flex-1"
+                :muted="isSelfMuted"
                 @send="handleSend"
                 @edit-last="handleEditLast"
                 @typing-start="sendTypingStart"
@@ -322,6 +347,7 @@ async function handleSend(content: string) {
             <!-- Desktop input: standalone -->
             <div class="p-2 pb-0 pt-4 border-t border-[hsl(var(--border))] hidden lg:block">
               <ChatInput
+                :muted="isSelfMuted"
                 @send="handleSend"
                 @edit-last="handleEditLast"
                 @typing-start="sendTypingStart"
@@ -335,7 +361,13 @@ async function handleSend(content: string) {
 
           <!-- Viewers tab -->
           <div v-else key="viewers" class="absolute inset-0 overflow-y-auto">
-            <PresenceList :viewers="viewers" />
+            <PresenceList
+              :viewers="viewers"
+              :can-mute-users="isPrivileged"
+              :current-user-id="user?.id"
+              @mute-user="handleMuteUser"
+              @unmute-user="handleUnmuteUser"
+            />
           </div>
         </Transition>
       </div>

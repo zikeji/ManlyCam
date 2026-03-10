@@ -219,4 +219,30 @@ describe('ChatInput.vue', () => {
       expect(sendCalls.length).toBeGreaterThan(0);
     });
   });
+
+  describe('muted prop', () => {
+    it('shows muted placeholder when muted=true', () => {
+      wrapper = mount(ChatInput, { props: { muted: true } });
+      const textarea = wrapper.find('textarea');
+      expect(textarea.attributes('placeholder')).toBe('You are muted');
+    });
+
+    it('textarea is readonly when muted=true', () => {
+      wrapper = mount(ChatInput, { props: { muted: true } });
+      expect(wrapper.find('textarea').attributes('readonly')).toBeDefined();
+    });
+
+    it('send button is disabled when muted=true even with content', async () => {
+      // muted=true — the normal textarea isn't rendered, so button checks muted directly
+      wrapper = mount(ChatInput, { props: { muted: true } });
+      const button = wrapper.find('button[aria-label="Send message"]');
+      expect(button.attributes('disabled')).toBeDefined();
+    });
+
+    it('shows normal placeholder when muted=false', () => {
+      wrapper = mount(ChatInput, { props: { muted: false } });
+      const textarea = wrapper.find('textarea');
+      expect(textarea.attributes('placeholder')).toBe('Message ManlyCam…');
+    });
+  });
 });

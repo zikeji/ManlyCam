@@ -17,6 +17,7 @@ import { meRouter } from './routes/me.js';
 import { streamRouter } from './routes/stream.js';
 import { createWsRouter } from './routes/ws.js';
 import { createChatRouter } from './routes/chat.js';
+import { createModerationRouter } from './routes/moderation.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +36,7 @@ export function createApp() {
   app.route('/', meRouter);
   app.route('/', streamRouter);
   app.route('/', createChatRouter());
+  app.route('/', createModerationRouter());
 
   // WebSocket — createNodeWebSocket must receive the app instance before routes are added
   // so it can intercept upgrade requests through the full middleware pipeline.

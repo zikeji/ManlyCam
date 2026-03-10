@@ -23,6 +23,7 @@ export interface UserProfile {
   displayName: string
   avatarUrl: string | null
   role: Role
+  isMuted: boolean
   userTag: UserTag | null
 }
 

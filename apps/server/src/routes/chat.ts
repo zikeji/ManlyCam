@@ -27,6 +27,9 @@ export function createChatRouter() {
     }
 
     const user = c.get('user')!;
+    if (user.mutedAt !== null) {
+      throw new AppError('You are muted and cannot send messages.', 'USER_MUTED', 403);
+    }
     const message = await createMessage({ userId: user.id, content });
     return c.json({ message }, 201);
   });

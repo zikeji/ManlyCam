@@ -8,6 +8,7 @@ interface Connection {
   displayName: string;
   avatarUrl: string | null;
   role: Role;
+  isMuted: boolean;
   userTag: UserTag | null;
 }
 
@@ -21,6 +22,7 @@ export class WsHub {
       displayName: user.displayName,
       avatarUrl: user.avatarUrl,
       role: user.role,
+      isMuted: user.isMuted,
       userTag: user.userTag,
     });
     return () => {
@@ -62,6 +64,7 @@ export class WsHub {
           displayName: conn.displayName,
           avatarUrl: conn.avatarUrl,
           role: conn.role,
+          isMuted: conn.isMuted,
           userTag: conn.userTag,
         });
       }

@@ -11,6 +11,7 @@ const baseUser: UserPresence = {
   displayName: 'Alice',
   avatarUrl: null,
   role: 'ViewerCompany',
+  isMuted: false,
   userTag: null,
 };
 
@@ -19,6 +20,7 @@ const userB: UserPresence = {
   displayName: 'Bob',
   avatarUrl: 'https://example.com/bob.jpg',
   role: 'Admin',
+  isMuted: false,
   userTag: { text: 'Staff', color: '#ff0000' },
 };
 
@@ -126,6 +128,7 @@ describe('WsHub', () => {
         displayName: 'Alice',
         avatarUrl: null,
         role: 'ViewerCompany',
+        isMuted: false,
         userTag: null,
       });
       expect(list.find((u) => u.id === 'user-002')).toEqual({
@@ -133,6 +136,7 @@ describe('WsHub', () => {
         displayName: 'Bob',
         avatarUrl: 'https://example.com/bob.jpg',
         role: 'Admin',
+        isMuted: false,
         userTag: { text: 'Staff', color: '#ff0000' },
       });
     });

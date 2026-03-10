@@ -3,6 +3,8 @@ import { ref, computed, onUnmounted } from 'vue';
 import { Button } from '@/components/ui/button';
 import { SendHorizontal } from 'lucide-vue-next';
 
+defineProps<{ muted?: boolean }>();
+
 const emit = defineEmits<{ send: [content: string]; editLast: []; typingStart: []; typingStop: [] }>();
 
 const content = ref('');
@@ -73,6 +75,7 @@ onUnmounted(() => {
   <div class="flex items-center gap-2">
     <div class="relative flex-1">
       <textarea
+        v-if="!muted"
         v-model="content"
         aria-label="Message ManlyCam"
         placeholder="Message ManlyCam…"
@@ -81,6 +84,14 @@ onUnmounted(() => {
         class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[120px]"
         @keydown="handleKeydown"
         @input="handleInput"
+      />
+      <textarea
+        v-else
+        readonly
+        aria-label="You are muted"
+        placeholder="You are muted"
+        rows="1"
+        class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[120px] cursor-not-allowed opacity-50"
       />
       <span
         v-if="showCounter"
@@ -94,7 +105,7 @@ onUnmounted(() => {
       variant="ghost"
       size="icon"
       class="shrink-0 h-9 w-9"
-      :disabled="isEmpty"
+      :disabled="isEmpty || muted"
       aria-label="Send message"
       @click="send"
     >

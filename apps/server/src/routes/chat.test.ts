@@ -164,6 +164,21 @@ describe('POST /api/chat/messages', () => {
     expect(res.status).toBe(201);
   });
 
+  it('returns 403 USER_MUTED when user is muted', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue({ ...mockUser, mutedAt: new Date() } as never);
+
+    const res = await createApp().app.request('/api/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: 'Hello world' }),
+    });
+
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('USER_MUTED');
+    expect(createMessage).not.toHaveBeenCalled();
+  });
+
   it('calls createMessage with userId and content', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
     vi.mocked(createMessage).mockResolvedValue(mockChatMessage);

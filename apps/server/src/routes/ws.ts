@@ -40,6 +40,7 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
         displayName: rawUser.displayName,
         avatarUrl: rawUser.avatarUrl ?? null,
         role: rawUser.role as Role,
+        isMuted: rawUser.mutedAt !== null,
         userTag: computeUserTag(rawUser),
       };
 

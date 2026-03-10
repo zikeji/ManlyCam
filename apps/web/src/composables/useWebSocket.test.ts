@@ -64,6 +64,8 @@ const mockHandlePresenceLeave = vi.hoisted(() => vi.fn());
 const mockHandleTypingStart = vi.hoisted(() => vi.fn());
 const mockHandleTypingStop = vi.hoisted(() => vi.fn());
 const mockHandlePresenceUserUpdate = vi.hoisted(() => vi.fn());
+const mockHandleModerationMuted = vi.hoisted(() => vi.fn());
+const mockHandleModerationUnmuted = vi.hoisted(() => vi.fn());
 
 vi.mock('./usePresence', () => ({
   handlePresenceSeed: mockHandlePresenceSeed,
@@ -72,6 +74,8 @@ vi.mock('./usePresence', () => ({
   handleTypingStart: mockHandleTypingStart,
   handleTypingStop: mockHandleTypingStop,
   handlePresenceUserUpdate: mockHandlePresenceUserUpdate,
+  handleModerationMuted: mockHandleModerationMuted,
+  handleModerationUnmuted: mockHandleModerationUnmuted,
 }));
 
 // Import AFTER mocks (important for module reset isolation)
@@ -173,6 +177,7 @@ describe('useWebSocket', () => {
         displayName: 'Alice Updated',
         avatarUrl: null,
         role: 'ViewerCompany',
+        isMuted: false,
         userTag: null,
       };
       mockWsInstance.onmessage?.(
@@ -221,6 +226,7 @@ describe('useWebSocket', () => {
           displayName: 'Alice',
           avatarUrl: null,
           role: 'ViewerCompany',
+          isMuted: false,
           userTag: null,
         },
       ];
@@ -238,6 +244,7 @@ describe('useWebSocket', () => {
         displayName: 'Bob',
         avatarUrl: null,
         role: 'Admin',
+        isMuted: false,
         userTag: null,
       };
       mockWsInstance.onmessage?.(
@@ -264,6 +271,30 @@ describe('useWebSocket', () => {
         new MessageEvent('message', { data: JSON.stringify({ type: 'typing:start', payload }) }),
       );
       expect(mockHandleTypingStart).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches moderation:muted payload to handleModerationMuted()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { userId: 'user-001' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'moderation:muted', payload }),
+        }),
+      );
+      expect(mockHandleModerationMuted).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches moderation:unmuted payload to handleModerationUnmuted()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { userId: 'user-001' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'moderation:unmuted', payload }),
+        }),
+      );
+      expect(mockHandleModerationUnmuted).toHaveBeenCalledWith(payload);
     });
 
     it('dispatches typing:stop payload to handleTypingStop()', () => {

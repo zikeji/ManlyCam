@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue';
 import type { ChatMessage } from '@manlycam/types';
+import { MicOff } from 'lucide-vue-next';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { renderMarkdownLite } from '@/lib/markdown';
 import { formatTime, initials } from '@/lib/dateFormat';
@@ -32,11 +33,15 @@ const props = defineProps<{
   isContinuation?: boolean;
   isOwn?: boolean;
   canModerateDelete?: boolean;
+  isAuthorMuted?: boolean;
+  canMuteAuthor?: boolean;
 }>();
 
 const emit = defineEmits<{
   requestEdit: [messageId: string, newContent: string];
   requestDelete: [messageId: string];
+  muteUser: [userId: string];
+  unmuteUser: [userId: string];
 }>();
 
 const timeLabel = computed(() => formatTime(props.message.createdAt));
@@ -103,7 +108,7 @@ function executeDelete() {
 
 <template>
   <!-- Continuation row: only message body, indented to align with group header text -->
-  <ContextMenu v-if="isContinuation && (isOwn || canModerateDelete) && !isEditing">
+  <ContextMenu v-if="isContinuation && (isOwn || canModerateDelete || canMuteAuthor) && !isEditing">
     <ContextMenuTrigger as-child>
       <div ref="rootRef" role="listitem" class="relative group px-3 py-0.5 pl-[52px] hover:bg-white/[.03]">
         <template v-if="!isEditing">
@@ -126,8 +131,14 @@ function executeDelete() {
     </ContextMenuTrigger>
     <ContextMenuContent>
       <ContextMenuItem v-if="isOwn" @click="startEdit">Edit</ContextMenuItem>
-      <ContextMenuItem @click="(e: MouseEvent) => confirmDelete(e)" class="text-red-400 focus:text-red-400">
+      <ContextMenuItem v-if="isOwn || canModerateDelete" @click="(e: MouseEvent) => confirmDelete(e)" class="text-red-400 focus:text-red-400">
         Delete
+      </ContextMenuItem>
+      <ContextMenuItem v-if="canMuteAuthor && !isAuthorMuted" @click="emit('muteUser', props.message.userId)">
+        Mute
+      </ContextMenuItem>
+      <ContextMenuItem v-if="canMuteAuthor && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
+        Unmute
       </ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>
@@ -176,7 +187,7 @@ function executeDelete() {
   </div>
 
   <!-- Group header row: avatar + name + tag + timestamp + message body -->
-  <ContextMenu v-else-if="(isOwn || canModerateDelete) && !isEditing">
+  <ContextMenu v-else-if="(isOwn || canModerateDelete || canMuteAuthor) && !isEditing">
     <ContextMenuTrigger as-child>
       <div ref="rootRef" role="listitem" class="relative group flex items-start gap-2 px-3 py-1.5 hover:bg-white/[.03]">
         <Avatar class="h-8 w-8 shrink-0 mt-0.5">
@@ -192,6 +203,11 @@ function executeDelete() {
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-sm font-semibold text-foreground truncate">{{ message.displayName }}</span>
+            <MicOff
+              v-if="isAuthorMuted && canMuteAuthor"
+              class="h-3 w-3 shrink-0 text-muted-foreground"
+              aria-label="Muted"
+            />
             <span
               v-if="message.userTag"
               class="text-xs px-1.5 py-0.5 rounded font-semibold shrink-0"
@@ -243,8 +259,14 @@ function executeDelete() {
     </ContextMenuTrigger>
     <ContextMenuContent>
       <ContextMenuItem v-if="isOwn" @click="startEdit">Edit</ContextMenuItem>
-      <ContextMenuItem @click="(e: MouseEvent) => confirmDelete(e)" class="text-red-400 focus:text-red-400">
+      <ContextMenuItem v-if="isOwn || canModerateDelete" @click="(e: MouseEvent) => confirmDelete(e)" class="text-red-400 focus:text-red-400">
         Delete
+      </ContextMenuItem>
+      <ContextMenuItem v-if="canMuteAuthor && !isAuthorMuted" @click="emit('muteUser', props.message.userId)">
+        Mute
+      </ContextMenuItem>
+      <ContextMenuItem v-if="canMuteAuthor && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
+        Unmute
       </ContextMenuItem>
     </ContextMenuContent>
   </ContextMenu>

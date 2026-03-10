@@ -82,7 +82,7 @@ development_status:
 
   epic-5: in-progress
   5-1-moderator-and-admin-delete-any-chat-message: done  # code-review findings documented: zero critical/high/medium issues. All 12 ACs implemented. 564 tests passing. Ready 2026-03-10
-  5-2-mute-and-unmute: backlog
+  5-2-mute-and-unmute: review
   5-3-ban-with-immediate-session-revocation: backlog
   5-4-non-privileged-ui-gating: backlog
   5-5-four-tier-role-hierarchy-cli-admin-grant-web-ui-moderator-management: backlog

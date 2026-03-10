@@ -2,12 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   viewers,
   typingUsers,
+  mutedUserIds,
   handlePresenceSeed,
   handlePresenceJoin,
   handlePresenceLeave,
   handleTypingStart,
   handleTypingStop,
   handlePresenceUserUpdate,
+  handleModerationMuted,
+  handleModerationUnmuted,
   usePresence,
 } from './usePresence';
 import type { UserPresence } from '@manlycam/types';
@@ -17,6 +20,7 @@ const userA: UserPresence = {
   displayName: 'Alice',
   avatarUrl: null,
   role: 'ViewerCompany',
+  isMuted: false,
   userTag: null,
 };
 
@@ -25,6 +29,7 @@ const userB: UserPresence = {
   displayName: 'Bob',
   avatarUrl: 'https://example.com/bob.jpg',
   role: 'Admin',
+  isMuted: false,
   userTag: { text: 'Staff', color: '#ff0000' },
 };
 
@@ -32,6 +37,7 @@ describe('usePresence', () => {
   beforeEach(() => {
     viewers.value = [];
     typingUsers.value = [];
+    mutedUserIds.value = new Set();
     vi.useFakeTimers();
   });
 
@@ -57,6 +63,21 @@ describe('usePresence', () => {
       viewers.value = [userA];
       handlePresenceSeed([]);
       expect(viewers.value).toHaveLength(0);
+    });
+
+    it('populates mutedUserIds from muted users in seed', () => {
+      handlePresenceSeed([
+        { ...userA, isMuted: true },
+        { ...userB, isMuted: false },
+      ]);
+      expect(mutedUserIds.value.has('user-001')).toBe(true);
+      expect(mutedUserIds.value.has('user-002')).toBe(false);
+    });
+
+    it('clears mutedUserIds when seeded with no muted users', () => {
+      mutedUserIds.value = new Set(['old-id']);
+      handlePresenceSeed([userA, userB]);
+      expect(mutedUserIds.value.size).toBe(0);
     });
   });
 
@@ -155,6 +176,7 @@ describe('usePresence', () => {
         displayName: 'Alice Updated',
         avatarUrl: 'https://example.com/new.jpg',
         role: 'ViewerCompany',
+        isMuted: false,
         userTag: { text: 'VIP', color: '#00ff00' },
       });
       expect(viewers.value[0].displayName).toBe('Alice Updated');
@@ -169,6 +191,7 @@ describe('usePresence', () => {
         displayName: 'Alice Updated',
         avatarUrl: null,
         role: 'ViewerCompany',
+        isMuted: false,
         userTag: null,
       });
       expect(viewers.value[1].displayName).toBe('Bob');
@@ -181,9 +204,52 @@ describe('usePresence', () => {
         displayName: 'Ghost',
         avatarUrl: null,
         role: 'ViewerCompany',
+        isMuted: false,
         userTag: null,
       });
       expect(viewers.value[0].displayName).toBe('Alice');
+    });
+  });
+
+  describe('handleModerationMuted', () => {
+    it('sets isMuted: true for matching viewer', () => {
+      viewers.value = [{ ...userA }, { ...userB }];
+      handleModerationMuted({ userId: 'user-001' });
+      expect(viewers.value[0].isMuted).toBe(true);
+      expect(viewers.value[1].isMuted).toBe(false);
+    });
+
+    it('adds userId to mutedUserIds', () => {
+      viewers.value = [{ ...userA }];
+      handleModerationMuted({ userId: 'user-001' });
+      expect(mutedUserIds.value.has('user-001')).toBe(true);
+    });
+
+    it('no-op when userId not in viewers list', () => {
+      viewers.value = [{ ...userA }];
+      handleModerationMuted({ userId: 'nonexistent' });
+      expect(viewers.value[0].isMuted).toBe(false);
+    });
+  });
+
+  describe('handleModerationUnmuted', () => {
+    it('sets isMuted: false for matching viewer', () => {
+      viewers.value = [{ ...userA, isMuted: true }, { ...userB }];
+      handleModerationUnmuted({ userId: 'user-001' });
+      expect(viewers.value[0].isMuted).toBe(false);
+    });
+
+    it('removes userId from mutedUserIds', () => {
+      mutedUserIds.value = new Set(['user-001']);
+      viewers.value = [{ ...userA, isMuted: true }];
+      handleModerationUnmuted({ userId: 'user-001' });
+      expect(mutedUserIds.value.has('user-001')).toBe(false);
+    });
+
+    it('no-op when userId not in viewers list', () => {
+      viewers.value = [{ ...userA, isMuted: true }];
+      handleModerationUnmuted({ userId: 'nonexistent' });
+      expect(viewers.value[0].isMuted).toBe(true);
     });
   });
 
