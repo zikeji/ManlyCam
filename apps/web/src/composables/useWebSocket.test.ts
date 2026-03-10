@@ -57,6 +57,23 @@ vi.mock('@/composables/useChat', () => ({
   handleChatDelete: mockHandleChatDelete,
 }));
 
+// --- usePresence mock ---
+const mockHandlePresenceSeed = vi.hoisted(() => vi.fn());
+const mockHandlePresenceJoin = vi.hoisted(() => vi.fn());
+const mockHandlePresenceLeave = vi.hoisted(() => vi.fn());
+const mockHandleTypingStart = vi.hoisted(() => vi.fn());
+const mockHandleTypingStop = vi.hoisted(() => vi.fn());
+const mockHandlePresenceUserUpdate = vi.hoisted(() => vi.fn());
+
+vi.mock('./usePresence', () => ({
+  handlePresenceSeed: mockHandlePresenceSeed,
+  handlePresenceJoin: mockHandlePresenceJoin,
+  handlePresenceLeave: mockHandlePresenceLeave,
+  handleTypingStart: mockHandleTypingStart,
+  handleTypingStop: mockHandleTypingStop,
+  handlePresenceUserUpdate: mockHandlePresenceUserUpdate,
+}));
+
 // Import AFTER mocks (important for module reset isolation)
 import { useWebSocket } from './useWebSocket';
 import * as useChatModule from './useChat';
@@ -148,7 +165,7 @@ describe('useWebSocket', () => {
       }).not.toThrow();
     });
 
-    it('dispatches user:update payload to handleUserUpdate()', () => {
+    it('dispatches user:update payload to handleUserUpdate() AND handlePresenceUserUpdate()', () => {
       const { connect } = useWebSocket();
       connect();
       const profile = {
@@ -164,6 +181,7 @@ describe('useWebSocket', () => {
         }),
       );
       expect(vi.mocked(useChatModule.handleUserUpdate)).toHaveBeenCalledWith(profile);
+      expect(mockHandlePresenceUserUpdate).toHaveBeenCalledWith(profile);
     });
 
     it('dispatches chat:edit payload to handleChatEdit()', () => {
@@ -192,6 +210,70 @@ describe('useWebSocket', () => {
         }),
       );
       expect(mockHandleChatDelete).toHaveBeenCalledWith('msg-001');
+    });
+
+    it('dispatches presence:seed payload to handlePresenceSeed()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = [
+        {
+          id: 'user-001',
+          displayName: 'Alice',
+          avatarUrl: null,
+          role: 'ViewerCompany',
+          userTag: null,
+        },
+      ];
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'presence:seed', payload }) }),
+      );
+      expect(mockHandlePresenceSeed).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches presence:join payload to handlePresenceJoin()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = {
+        id: 'user-002',
+        displayName: 'Bob',
+        avatarUrl: null,
+        role: 'Admin',
+        userTag: null,
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'presence:join', payload }) }),
+      );
+      expect(mockHandlePresenceJoin).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches presence:leave payload to handlePresenceLeave()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { userId: 'user-001' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'presence:leave', payload }) }),
+      );
+      expect(mockHandlePresenceLeave).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches typing:start payload to handleTypingStart()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { userId: 'user-001', displayName: 'Alice' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'typing:start', payload }) }),
+      );
+      expect(mockHandleTypingStart).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches typing:stop payload to handleTypingStop()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { userId: 'user-001' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'typing:stop', payload }) }),
+      );
+      expect(mockHandleTypingStop).toHaveBeenCalledWith(payload);
     });
   });
 
@@ -304,6 +386,32 @@ describe('useWebSocket', () => {
       mockWsInstance.readyState = 3;
       mockWsInstance.onclose?.({} as CloseEvent);
       expect(isConnected.value).toBe(false);
+    });
+  });
+
+  describe('sendTypingStart / sendTypingStop', () => {
+    it('sendTypingStart sends typing:start when socket is open', () => {
+      const { connect, sendTypingStart } = useWebSocket();
+      connect();
+      mockWsInstance.readyState = 1; // OPEN
+      sendTypingStart();
+      expect(mockWsInstance.send).toHaveBeenCalledWith(JSON.stringify({ type: 'typing:start' }));
+    });
+
+    it('sendTypingStop sends typing:stop when socket is open', () => {
+      const { connect, sendTypingStop } = useWebSocket();
+      connect();
+      mockWsInstance.readyState = 1; // OPEN
+      sendTypingStop();
+      expect(mockWsInstance.send).toHaveBeenCalledWith(JSON.stringify({ type: 'typing:stop' }));
+    });
+
+    it('sendTypingStart does not send when socket is not OPEN', () => {
+      const { connect, sendTypingStart } = useWebSocket();
+      connect();
+      mockWsInstance.readyState = 3; // CLOSED
+      sendTypingStart();
+      expect(mockWsInstance.send).not.toHaveBeenCalled();
     });
   });
 });

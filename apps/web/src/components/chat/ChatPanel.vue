@@ -2,12 +2,16 @@
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
 import { useChat } from '@/composables/useChat';
 import { useAuth } from '@/composables/useAuth';
+import { usePresence } from '@/composables/usePresence';
+import { useWebSocket } from '@/composables/useWebSocket';
 import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TabsIndicator } from 'reka-ui';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import ProfileAnchor from '@/components/stream/ProfileAnchor.vue';
+import PresenceList from './PresenceList.vue';
+import TypingIndicator from './TypingIndicator.vue';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 const emit = defineEmits<{ openCameraControls: [] }>();
@@ -15,6 +19,8 @@ const emit = defineEmits<{ openCameraControls: [] }>();
 const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory, editMessage, deleteMessage } =
   useChat();
 const { user } = useAuth();
+const { viewers, typingUsers } = usePresence();
+const { sendTypingStart, sendTypingStop } = useWebSocket();
 
 const scrollRef = ref<HTMLElement | null>(null);
 const sentinelRef = ref<HTMLElement | null>(null);
@@ -272,24 +278,38 @@ async function handleSend(content: string) {
             </div>
 
             <!-- Mobile input bar: avatar + input -->
-            <div class="flex items-center gap-2 p-2 border-t border-[hsl(var(--border))] lg:hidden">
+            <div class="flex items-center gap-2 p-2 pb-0 pt-4 border-t border-[hsl(var(--border))] lg:hidden">
               <ProfileAnchor
                 :isDesktop="false"
                 v-model:popover-open="profilePopoverOpen"
                 @open-camera-controls="emit('openCameraControls')"
               />
-              <ChatInput class="flex-1" @send="handleSend" @edit-last="handleEditLast" />
+              <ChatInput
+                class="flex-1"
+                @send="handleSend"
+                @edit-last="handleEditLast"
+                @typing-start="sendTypingStart"
+                @typing-stop="sendTypingStop"
+              />
             </div>
 
             <!-- Desktop input: standalone -->
-            <div class="p-2 border-t border-[hsl(var(--border))] hidden lg:block">
-              <ChatInput @send="handleSend" @edit-last="handleEditLast" />
+            <div class="p-2 pb-0 pt-4 border-t border-[hsl(var(--border))] hidden lg:block">
+              <ChatInput
+                @send="handleSend"
+                @edit-last="handleEditLast"
+                @typing-start="sendTypingStart"
+                @typing-stop="sendTypingStop"
+              />
             </div>
+
+            <!-- Typing indicator — below input bars, only visible when active -->
+            <TypingIndicator :typing-users="typingUsers" />
           </div>
 
           <!-- Viewers tab -->
-          <div v-else key="viewers" class="absolute inset-0">
-            <!-- Story 4.6: presence list -->
+          <div v-else key="viewers" class="absolute inset-0 overflow-y-auto">
+            <PresenceList :viewers="viewers" />
           </div>
         </Transition>
       </div>

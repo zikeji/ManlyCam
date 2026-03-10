@@ -62,6 +62,7 @@ export type WsMessage =
   | { type: 'chat:edit';          payload: ChatEdit }
   | { type: 'chat:delete';        payload: { messageId: string } }
   | { type: 'stream:state';       payload: StreamState }
+  | { type: 'presence:seed';      payload: UserPresence[] }
   | { type: 'presence:join';      payload: UserPresence }
   | { type: 'presence:leave';     payload: { userId: string } }
   | { type: 'typing:start';       payload: { userId: string; displayName: string } }

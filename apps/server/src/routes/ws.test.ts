@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Capture the handler factory passed to upgradeWebSocket so we can invoke
-// onOpen / onClose directly in tests without real WS infrastructure.
+// onOpen / onClose / onMessage directly in tests without real WS infrastructure.
+type MockWs = { send: ReturnType<typeof vi.fn> };
 type WsHandlerFactory = (c: unknown) => {
-  onOpen?: (evt: unknown, ws: { send: (data: string) => void }) => void;
-  onClose?: (evt: unknown, ws: { send: (data: string) => void }) => void;
+  onOpen?: (evt: unknown, ws: MockWs) => void;
+  onClose?: (evt: unknown, ws: MockWs) => void;
+  onMessage?: (evt: { data: string }, ws: MockWs) => void;
 };
 let capturedFactory: WsHandlerFactory | null = null;
 
@@ -30,7 +32,7 @@ vi.mock('../env.js', () => ({
 }));
 
 vi.mock('../db/client.js', () => ({ prisma: {} }));
-vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid') }));
+vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-conn-id') }));
 vi.mock('../services/authService.js', () => ({
   initiateOAuth: vi.fn(),
   processOAuthCallback: vi.fn(),
@@ -46,7 +48,12 @@ vi.mock('../services/streamService.js', () => ({
   StreamService: vi.fn(),
 }));
 vi.mock('../services/wsHub.js', () => ({
-  wsHub: { broadcast: vi.fn(), addClient: vi.fn() },
+  wsHub: {
+    broadcast: vi.fn(),
+    addClient: vi.fn(),
+    broadcastExcept: vi.fn(),
+    getPresenceList: vi.fn(() => []),
+  },
 }));
 
 import { getSessionUser } from '../services/authService.js';
@@ -69,6 +76,10 @@ const mockUser = {
   lastSeenAt: null,
 };
 
+const mockContext = {
+  get: vi.fn((key: string) => (key === 'user' ? mockUser : undefined)),
+};
+
 const mockBannedUser = { ...mockUser, bannedAt: new Date() };
 const authHeaders = { headers: { cookie: 'session_id=valid-session' } };
 
@@ -88,34 +99,77 @@ describe('GET /ws — authentication guard (AC #1)', () => {
   });
 });
 
-describe('WS lifecycle — onOpen (AC #2)', () => {
+describe('WS lifecycle — onOpen (AC #2, #3)', () => {
   beforeEach(() => vi.clearAllMocks());
 
   it('registers client with wsHub on open', () => {
     vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
     const mockWs = { send: vi.fn() };
-    capturedFactory!(null).onOpen!(null, mockWs);
+    capturedFactory!(mockContext).onOpen!(null, mockWs);
     expect(wsHub.addClient).toHaveBeenCalledOnce();
   });
 
-  it('sends current stream state as the first outbound message', () => {
+  it('addClient receives connectionId, send fn, and userPresence', () => {
     vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
-    vi.mocked(streamService.getState).mockReturnValue({ state: 'explicit-offline' });
     const mockWs = { send: vi.fn() };
-    capturedFactory!(null).onOpen!(null, mockWs);
-    expect(mockWs.send).toHaveBeenCalledWith(
-      JSON.stringify({ type: 'stream:state', payload: { state: 'explicit-offline' } }),
+    capturedFactory!(mockContext).onOpen!(null, mockWs);
+    expect(wsHub.addClient).toHaveBeenCalledWith(
+      'test-conn-id',
+      expect.objectContaining({ send: expect.any(Function) }),
+      expect.objectContaining({ id: 'user-001', displayName: 'Test User', role: 'ViewerCompany' }),
     );
   });
 
-  it('addClient receives a send fn that forwards to ws.send (AC #3 — broadcast path)', () => {
+  it('broadcasts presence:join to other clients via broadcastExcept', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = { send: vi.fn() };
+    capturedFactory!(mockContext).onOpen!(null, mockWs);
+    expect(wsHub.broadcastExcept).toHaveBeenCalledWith(
+      'test-conn-id',
+      expect.objectContaining({
+        type: 'presence:join',
+        payload: expect.objectContaining({ id: 'user-001' }),
+      }),
+    );
+  });
+
+  it('sends presence:seed to new client', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    vi.mocked(wsHub.getPresenceList).mockReturnValue([
+      {
+        id: 'user-001',
+        displayName: 'Test User',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTag: null,
+      },
+    ]);
+    const mockWs = { send: vi.fn() };
+    capturedFactory!(mockContext).onOpen!(null, mockWs);
+    const calls = mockWs.send.mock.calls.map((c) => JSON.parse(c[0]));
+    const seed = calls.find((m) => m.type === 'presence:seed');
+    expect(seed).toBeDefined();
+    expect(seed.payload).toHaveLength(1);
+  });
+
+  it('sends current stream state as an outbound message', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    vi.mocked(streamService.getState).mockReturnValue({ state: 'explicit-offline' });
+    const mockWs = { send: vi.fn() };
+    capturedFactory!(mockContext).onOpen!(null, mockWs);
+    const calls = mockWs.send.mock.calls.map((c) => JSON.parse(c[0]));
+    const state = calls.find((m) => m.type === 'stream:state');
+    expect(state).toEqual({ type: 'stream:state', payload: { state: 'explicit-offline' } });
+  });
+
+  it('addClient receives a send fn that forwards to ws.send', () => {
     let registeredClient: { send: (data: string) => void } | null = null;
-    vi.mocked(wsHub.addClient).mockImplementation((client) => {
+    vi.mocked(wsHub.addClient).mockImplementation((_id, client) => {
       registeredClient = client;
       return vi.fn();
     });
     const mockWs = { send: vi.fn() };
-    capturedFactory!(null).onOpen!(null, mockWs);
+    capturedFactory!(mockContext).onOpen!(null, mockWs);
 
     expect(registeredClient).not.toBeNull();
     registeredClient!.send('hello from broadcast');
@@ -130,15 +184,79 @@ describe('WS lifecycle — onClose (AC #4)', () => {
     const dispose = vi.fn();
     vi.mocked(wsHub.addClient).mockReturnValue(dispose);
     const mockWs = { send: vi.fn() };
-    const handlers = capturedFactory!(null);
+    const handlers = capturedFactory!(mockContext);
     handlers.onOpen!(null, mockWs);
     handlers.onClose!(null, mockWs);
     expect(dispose).toHaveBeenCalledOnce();
   });
 
+  it('broadcasts presence:leave with correct userId on close', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    vi.clearAllMocks();
+    handlers.onClose!(null, mockWs);
+    expect(wsHub.broadcast).toHaveBeenCalledWith({
+      type: 'presence:leave',
+      payload: { userId: 'user-001' },
+    });
+  });
+
   it('does not throw if onClose fires without a prior onOpen (no-op)', () => {
     const mockWs = { send: vi.fn() };
-    const handlers = capturedFactory!(null);
+    const handlers = capturedFactory!(mockContext);
     expect(() => handlers.onClose!(null, mockWs)).not.toThrow();
+  });
+});
+
+describe('WS onMessage — typing relay (AC #5)', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('typing:start → broadcastExcept called with userId and displayName', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    vi.clearAllMocks();
+
+    handlers.onMessage!({ data: JSON.stringify({ type: 'typing:start' }) }, mockWs);
+    expect(wsHub.broadcastExcept).toHaveBeenCalledWith('test-conn-id', {
+      type: 'typing:start',
+      payload: { userId: 'user-001', displayName: 'Test User' },
+    });
+  });
+
+  it('typing:stop → broadcastExcept called with userId', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    vi.clearAllMocks();
+
+    handlers.onMessage!({ data: JSON.stringify({ type: 'typing:stop' }) }, mockWs);
+    expect(wsHub.broadcastExcept).toHaveBeenCalledWith('test-conn-id', {
+      type: 'typing:stop',
+      payload: { userId: 'user-001' },
+    });
+  });
+
+  it('unknown type → broadcastExcept NOT called', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    vi.clearAllMocks();
+
+    handlers.onMessage!({ data: JSON.stringify({ type: 'chat:message' }) }, mockWs);
+    expect(wsHub.broadcastExcept).not.toHaveBeenCalled();
+  });
+
+  it('malformed JSON → does not throw', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    expect(() => handlers.onMessage!({ data: 'not-json{{{' }, mockWs)).not.toThrow();
   });
 });

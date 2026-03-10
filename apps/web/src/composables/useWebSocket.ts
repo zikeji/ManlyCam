@@ -1,12 +1,22 @@
 import { ref, inject, type InjectionKey, type Ref } from 'vue';
 import { useStream } from './useStream';
 import { useChat, handleUserUpdate, handleChatEdit, handleChatDelete } from './useChat';
+import {
+  handlePresenceSeed,
+  handlePresenceJoin,
+  handlePresenceLeave,
+  handleTypingStart,
+  handleTypingStop,
+  handlePresenceUserUpdate,
+} from './usePresence';
 import type { WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
   connect: () => void;
   disconnect: () => void;
   isConnected: Readonly<Ref<boolean>>;
+  sendTypingStart: () => void;
+  sendTypingStop: () => void;
 }
 
 export const WS_INJECTION_KEY: InjectionKey<WsInterface> = Symbol('useWebSocket');
@@ -40,6 +50,22 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'user:update') {
         handleUserUpdate(msg.payload);
+        handlePresenceUserUpdate(msg.payload);
+      }
+      if (msg.type === 'presence:seed') {
+        handlePresenceSeed(msg.payload);
+      }
+      if (msg.type === 'presence:join') {
+        handlePresenceJoin(msg.payload);
+      }
+      if (msg.type === 'presence:leave') {
+        handlePresenceLeave(msg.payload);
+      }
+      if (msg.type === 'typing:start') {
+        handleTypingStart(msg.payload);
+      }
+      if (msg.type === 'typing:stop') {
+        handleTypingStop(msg.payload);
       }
     } catch {
       // Ignore malformed messages
@@ -79,5 +105,17 @@ export function useWebSocket(): WsInterface {
     isConnected.value = false;
   }
 
-  return { connect, disconnect, isConnected };
+  function sendTypingStart() {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'typing:start' }));
+    }
+  }
+
+  function sendTypingStop() {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: 'typing:stop' }));
+    }
+  }
+
+  return { connect, disconnect, isConnected, sendTypingStart, sendTypingStop };
 }

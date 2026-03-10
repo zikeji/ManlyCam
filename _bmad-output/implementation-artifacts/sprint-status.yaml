@@ -77,7 +77,7 @@ development_status:
   4-4-unread-badge-sidebar-collapse-expand-and-state-persistence: done  # code-review findings #3 fixed: badge pulse animation timeout cleanup, 3 new tests for pulse behavior, documented enhancement. 243 tests passing
   4-4b-bug-fixes-camera-control-toggles-and-mobile-landscape: done  # code-review findings #2-3 fixed: test isolation (afterEach unmount), AC #7 toggle behavior (keep overlay visible on repeated taps), added repeated-tap test. 285 tests passing
   4-5-own-message-edit-and-delete: done  # code-review findings documented: Shift+click delete bypass (AC #6 power-user), up-arrow last-message edit (AC #8), file list completed, test count corrected
-  4-6-viewer-presence-list-and-typing-indicator: backlog
+  4-6-viewer-presence-list-and-typing-indicator: review
   epic-4-retrospective: optional
 
   epic-5: backlog

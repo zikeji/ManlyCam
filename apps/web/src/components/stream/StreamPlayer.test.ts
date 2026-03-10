@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach, afterAll } from 'vitest';
-import { mount, flushPromises } from '@vue/test-utils';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { defineComponent } from 'vue';
 import StreamPlayer from './StreamPlayer.vue';
 
@@ -32,7 +32,7 @@ vi.mock('./SidebarCollapseButton.vue', () => ({
 }));
 
 describe('StreamPlayer', () => {
-  let wrapper: any;
+  let wrapper: VueWrapper | null;
 
   beforeEach(() => {
     import.meta.env.VITE_PET_NAME = 'Buddy';
@@ -241,7 +241,7 @@ describe('StreamPlayer', () => {
       await container.trigger('click', { pointerType: 'touch' });
       await wrapper.vm.$nextTick();
       // Unmount before 3 seconds — should not throw
-      expect(() => wrapper.unmount()).not.toThrow();
+      expect(() => wrapper!.unmount()).not.toThrow();
       wrapper = null;
       vi.useRealTimers();
     });

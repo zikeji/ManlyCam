@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
-import { ref } from 'vue';
+import { ref, defineComponent } from 'vue';
 import ChatPanel from './ChatPanel.vue';
 import type { ChatMessage } from '@manlycam/types';
 
@@ -51,6 +51,44 @@ vi.mock('@/composables/useAdminStream', () => ({
   }),
 }));
 
+const mockSendTypingStart = vi.fn();
+const mockSendTypingStop = vi.fn();
+
+vi.mock('@/composables/useWebSocket', () => ({
+  useWebSocket: vi.fn(() => ({
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    isConnected: ref(false),
+    sendTypingStart: mockSendTypingStart,
+    sendTypingStop: mockSendTypingStop,
+  })),
+  WS_INJECTION_KEY: Symbol('test'),
+}));
+
+const mockViewers = ref([]);
+const mockTypingUsers = ref([]);
+
+vi.mock('@/composables/usePresence', () => ({
+  usePresence: vi.fn(() => ({
+    viewers: mockViewers,
+    typingUsers: mockTypingUsers,
+  })),
+}));
+
+vi.mock('./PresenceList.vue', () => ({
+  default: defineComponent({
+    props: ['viewers'],
+    template: '<div data-testid="presence-list" />',
+  }),
+}));
+
+vi.mock('./TypingIndicator.vue', () => ({
+  default: defineComponent({
+    props: ['typingUsers'],
+    template: '<div data-testid="typing-indicator" />',
+  }),
+}));
+
 // Mock IntersectionObserver (not available in jsdom)
 const mockObserve = vi.fn();
 const mockDisconnect = vi.fn();
@@ -85,6 +123,8 @@ describe('ChatPanel.vue', () => {
     mockMessages.value = [];
     mockHasMore.value = true;
     mockIsLoadingHistory.value = false;
+    mockViewers.value = [];
+    mockTypingUsers.value = [];
     mockInitHistory.mockResolvedValue(undefined);
     mockLoadMoreHistory.mockResolvedValue(undefined);
     mockEditMessage.mockResolvedValue(undefined);
@@ -246,6 +286,52 @@ describe('ChatPanel.vue', () => {
     wrapper = mount(ChatPanel);
     await flushPromises();
     expect(wrapper.text()).not.toContain('Be the first to say something');
+  });
+
+  describe('presence and typing wiring (Story 4.6)', () => {
+    it('renders <TypingIndicator> in chat tab with typingUsers from usePresence()', async () => {
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+      const indicator = wrapper.find('[data-testid="typing-indicator"]');
+      expect(indicator.exists()).toBe(true);
+    });
+
+    it('switches to Viewers tab and renders <PresenceList> with viewers from usePresence()', async () => {
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+      // Emit update:model-value directly on the Tabs component (Reka-UI/jsdom doesn't fire click events reliably)
+      const { Tabs } = await import('@/components/ui/tabs');
+      const tabsComponent = wrapper.findComponent(Tabs);
+      await tabsComponent.vm.$emit('update:modelValue', 'viewers');
+      await flushPromises();
+      const list = wrapper.find('[data-testid="presence-list"]');
+      expect(list.exists()).toBe(true);
+    });
+
+    it('typingStart event from desktop ChatInput triggers sendTypingStart', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+      const textarea = wrapper.find('.hidden.lg\\:block textarea');
+      await textarea.setValue('h');
+      await textarea.trigger('input');
+      vi.advanceTimersByTime(400);
+      expect(mockSendTypingStart).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it('typingStop event from desktop ChatInput triggers sendTypingStop', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+      const textarea = wrapper.find('.hidden.lg\\:block textarea');
+      await textarea.setValue('h');
+      await textarea.trigger('input');
+      vi.advanceTimersByTime(400); // typingStart
+      vi.advanceTimersByTime(2000); // typingStop
+      expect(mockSendTypingStop).toHaveBeenCalled();
+      vi.useRealTimers();
+    });
   });
 
   describe('message grouping (isContinuation)', () => {
