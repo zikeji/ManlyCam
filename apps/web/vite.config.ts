@@ -7,6 +7,7 @@ export const config = defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      '@manlycam/types': fileURLToPath(new URL('../../packages/types/src/index.ts', import.meta.url)),
     },
   },
   server: {

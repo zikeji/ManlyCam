@@ -45,6 +45,7 @@ import { getSessionUser } from '../services/authService.js';
 import { createMessage, getHistory, editMessage, deleteMessage } from '../services/chatService.js';
 import { AppError } from '../lib/errors.js';
 import { createApp } from '../app.js';
+import { ulid } from '../lib/ulid.js';
 
 const mockUser = {
   id: 'user-001',
@@ -514,6 +515,7 @@ describe('DELETE /api/chat/messages/:messageId', () => {
     vi.mocked(deleteMessage).mockImplementation(async () => {
       await prisma.auditLog.create({
         data: {
+          id: ulid(),
           action: 'message_delete',
           actorId: mockModerator.id,
           targetId: 'msg-001',
