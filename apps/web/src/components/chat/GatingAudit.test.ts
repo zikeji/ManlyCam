@@ -18,15 +18,24 @@ const mockIntersectionObserver = vi.fn(() => ({
 vi.stubGlobal('IntersectionObserver', mockIntersectionObserver);
 
 const { mockUseAuth, mockUseChat, mockUsePresence, IconProxy } = vi.hoisted(() => {
-  const Icon = {
-    props: ['aria-label'],
-    template: '<svg :aria-label="$props[\'aria-label\']" />',
+  const GenericIcon = {
+    template: '<svg />',
+  };
+  const MicOffIcon = {
+    template: '<svg aria-label="Muted" />',
   };
   return {
     mockUseAuth: vi.fn(),
     mockUseChat: vi.fn(),
     mockUsePresence: vi.fn(),
-    IconProxy: new Proxy({}, { get: () => Icon }),
+    IconProxy: new Proxy(
+      {
+        MicOff: MicOffIcon,
+      },
+      {
+        get: (target, prop) => target[prop as keyof typeof target] || GenericIcon,
+      },
+    ),
   };
 });
 
@@ -224,8 +233,8 @@ describe('Gating Audit (UI)', () => {
     });
   });
 
-  describe('PresenceList as ViewerGuest', () => {
-    it('AC 1: hides MicOff icon for others even if muted', async () => {
+  describe('PresenceList', () => {
+    it('AC 1: hides MicOff icon for others even if muted (as ViewerGuest)', async () => {
       const viewers = [
         {
           id: 'other',
@@ -246,6 +255,29 @@ describe('Gating Audit (UI)', () => {
       });
 
       expect(wrapper.find('svg[aria-label="Muted"]').exists()).toBe(false);
+    });
+
+    it('AC 1: shows MicOff icon for others if muted (as Moderator)', async () => {
+      const viewers = [
+        {
+          id: 'other',
+          displayName: 'Other',
+          role: Role.ViewerCompany,
+          isMuted: true,
+          userTag: null,
+          avatarUrl: null,
+        },
+      ];
+
+      const wrapper = mount(PresenceList, {
+        props: {
+          viewers,
+          currentUserId: 'user-001',
+          currentUserRole: Role.Moderator,
+        },
+      });
+
+      expect(wrapper.find('svg[aria-label="Muted"]').exists()).toBe(true);
     });
   });
 
@@ -268,10 +300,32 @@ describe('Gating Audit (UI)', () => {
     });
   });
 
-  describe('ProfileAnchor as Moderator', () => {
-    it('AC 2: hides Start/Stop Stream and Camera Controls', async () => {
+  describe('ProfileAnchor', () => {
+    it('AC 2: hides Start/Stop Stream and Camera Controls (as Moderator)', async () => {
       mockUseAuth.mockReturnValue({
         user: ref(mockUser(Role.Moderator)),
+        logout: vi.fn(),
+      });
+
+      const wrapper = mount(ProfileAnchor, {
+        props: { isDesktop: false },
+      });
+
+      const trigger = wrapper.find('.popover-trigger');
+      await trigger.trigger('click');
+      await nextTick();
+
+      const popoverContent = wrapper.find('.popover-content');
+      expect(popoverContent.exists()).toBe(true);
+
+      expect(popoverContent.text()).not.toContain('Start Stream');
+      expect(popoverContent.text()).not.toContain('Stop Stream');
+      expect(popoverContent.text()).not.toContain('Camera Controls');
+    });
+
+    it('AC 2: hides Start/Stop Stream and Camera Controls (as ViewerGuest)', async () => {
+      mockUseAuth.mockReturnValue({
+        user: ref(mockUser(Role.ViewerGuest)),
         logout: vi.fn(),
       });
 
