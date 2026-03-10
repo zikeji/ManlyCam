@@ -21,9 +21,10 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  openCameraControls: []
-  toggleAdminPanel: []
-  toggleChatSidebar: []
+  openCameraControls: [];
+  openUserManager: [];
+  toggleAdminPanel: [];
+  toggleChatSidebar: [];
 }>();
 
 const petName = import.meta.env.VITE_PET_NAME as string;
@@ -170,6 +171,7 @@ onUnmounted(() => {
         v-model:popover-open="profilePopoverOpen"
         :isDesktop="isDesktop"
         @open-camera-controls="emit('openCameraControls')"
+        @open-user-manager="emit('openUserManager')"
       />
     </div>
   </div>

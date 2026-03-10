@@ -5,6 +5,7 @@ import { useStream } from '@/composables/useStream';
 import { Role } from '@manlycam/types';
 import StreamPlayer from '@/components/stream/StreamPlayer.vue';
 import AdminPanel from '@/components/admin/AdminPanel.vue';
+import UserManagerDialog from '@/components/admin/UserManagerDialog.vue';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { messages, unreadCount, resetUnread, incrementUnread, isLoadingHistory } from '@/composables/useChat';
@@ -18,6 +19,7 @@ const isMobilePortrait = ref(false);
 const chatSidebarOpen = ref(true);
 
 const adminPanelOpen = ref(false);
+const userManagerOpen = ref(false);
 
 // mobileSheetOpen is only true when on mobile and panel is open
 const mobileSheetOpen = computed({
@@ -110,6 +112,7 @@ onMounted(() => {
         @open-camera-controls="handleOpenCameraControls"
         @toggle-admin-panel="handleToggleAdminPanel"
         @toggle-chat-sidebar="handleToggleChatSidebar"
+        @open-user-manager="userManagerOpen = true"
       />
     </main>
 
@@ -119,6 +122,7 @@ onMounted(() => {
       data-chat-panel
       class="flex-1 flex flex-col bg-[hsl(var(--sidebar))]"
       @open-camera-controls="handleOpenCameraControls"
+      @open-user-manager="userManagerOpen = true"
     />
 
     <!-- Desktop + tablet + mobile landscape: collapsible right sidebar -->
@@ -128,6 +132,7 @@ onMounted(() => {
         data-chat-panel
         class="lg:flex-none lg:w-[320px] landscape:w-[280px] landscape:shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))]"
         @open-camera-controls="handleOpenCameraControls"
+        @open-user-manager="userManagerOpen = true"
       />
     </Transition>
 
@@ -138,6 +143,8 @@ onMounted(() => {
         <AdminPanel :show-close="false" @close="adminPanelOpen = false" />
       </SheetContent>
     </Sheet>
+
+    <UserManagerDialog v-if="isAdmin" v-model:open="userManagerOpen" />
   </div>
 </template>
 

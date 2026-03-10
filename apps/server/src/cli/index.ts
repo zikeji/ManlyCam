@@ -3,12 +3,14 @@ import 'dotenv/config';
 import { runAllowlistCommand } from './commands/allowlist.js';
 import { runUsersCommand } from './commands/users.js';
 
-const [, , subcommand, action, arg] = process.argv;
+const subcommand = process.argv[2];
+const action = process.argv[3];
+const args = process.argv.slice(4);
 
 function showHelp() {
   console.error(`ManlyCam Admin CLI
 
-Usage: manlycam-admin <subcommand> <action> <value>
+Usage: manlycam-admin <subcommand> <action> [args]
 
 Subcommands:
   allowlist     Manage domain and email allowlist
@@ -20,23 +22,32 @@ Subcommands:
   users         Manage user accounts
     ban <email>                 Ban a user (revokes all active sessions)
     unban <email>               Unban a previously banned user
+    grant-admin --email=<email> Grant Admin role to a user
+    set-role --email=<email> --role=<role> Set role for a user
+
+Roles: Admin, Moderator, ViewerCompany, ViewerGuest
 
 Examples:
   manlycam-admin allowlist add-domain example.com
-  manlycam-admin allowlist add-email guest@gmail.com
-  manlycam-admin users ban user@company.com`);
+  manlycam-admin users grant-admin --email=admin@example.com
+  manlycam-admin users set-role --email=user@example.com --role=Moderator`);
 }
 
 async function main() {
-  if (!subcommand || !action || !arg) {
+  if (!subcommand || !action) {
     showHelp();
     process.exit(1);
   }
 
   if (subcommand === 'allowlist') {
+    const arg = args[0];
+    if (!arg) {
+      showHelp();
+      process.exit(1);
+    }
     await runAllowlistCommand(action, arg);
   } else if (subcommand === 'users') {
-    await runUsersCommand(action, arg);
+    await runUsersCommand(action, args);
   } else {
     console.error(`Unknown subcommand: ${subcommand}`);
     showHelp();

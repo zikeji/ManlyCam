@@ -2,6 +2,7 @@ import { ref, inject, type InjectionKey, type Ref } from 'vue';
 import { router } from '@/router';
 import { useStream } from './useStream';
 import { useChat, handleUserUpdate, handleChatEdit, handleChatDelete } from './useChat';
+import { handleAdminUserUpdate } from './useAdminUsers';
 import {
   handlePresenceSeed,
   handlePresenceJoin,
@@ -54,6 +55,7 @@ export function useWebSocket(): WsInterface {
       if (msg.type === 'user:update') {
         handleUserUpdate(msg.payload);
         handlePresenceUserUpdate(msg.payload);
+        handleAdminUserUpdate(msg.payload);
       }
       if (msg.type === 'presence:seed') {
         handlePresenceSeed(msg.payload);

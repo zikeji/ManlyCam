@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { logger } from '../lib/logger.js';
+import { wsHub } from './wsHub.js';
+import type { Role } from '@manlycam/types';
 
 export async function banUser(email: string): Promise<{ sessionCount: number }> {
   const normalized = email.toLowerCase();
@@ -38,4 +40,65 @@ export async function unbanUser(email: string): Promise<void> {
     data: { bannedAt: null },
   });
   logger.info({ userId: user.id, email: normalized }, 'user_unbanned');
+}
+
+export async function updateUserRole(email: string, role: Role): Promise<void> {
+  const normalized = email.toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email: normalized } });
+  if (!user) throw new Error(`User not found: ${email}`);
+
+  const updated = await prisma.user.update({
+    where: { id: user.id },
+    data: { role },
+  });
+
+  wsHub.broadcast({
+    type: 'user:update',
+    payload: {
+      id: updated.id,
+      displayName: updated.displayName,
+      role: updated.role as Role,
+      avatarUrl: updated.avatarUrl,
+      isMuted: updated.mutedAt !== null,
+      userTag:
+        updated.userTagText && updated.userTagColor
+          ? { text: updated.userTagText, color: updated.userTagColor }
+          : null,
+    },
+  });
+
+  logger.info({ userId: user.id, email: normalized, role }, 'user_role_updated');
+}
+
+export async function updateUserRoleById(userId: string, role: Role): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error(`User not found: ${userId}`);
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { role },
+  });
+
+  wsHub.broadcast({
+    type: 'user:update',
+    payload: {
+      id: updated.id,
+      displayName: updated.displayName,
+      role: updated.role as Role,
+      avatarUrl: updated.avatarUrl,
+      isMuted: updated.mutedAt !== null,
+      userTag:
+        updated.userTagText && updated.userTagColor
+          ? { text: updated.userTagText, color: updated.userTagColor }
+          : null,
+    },
+  });
+
+  logger.info({ userId, role }, 'user_role_updated_by_id');
+}
+
+export async function getAllUsers() {
+  return prisma.user.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
 }

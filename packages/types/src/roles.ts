@@ -12,3 +12,11 @@ export const ROLE_RANK: Record<Role, number> = {
   ViewerCompany: 1,
   ViewerGuest: 0,
 };
+
+/**
+ * Returns true if the user has at least the minimum required role.
+ */
+export function hasRole(user: { role: Role } | null | undefined, minRole: Role): boolean {
+  if (!user) return false;
+  return ROLE_RANK[user.role] >= ROLE_RANK[minRole];
+}

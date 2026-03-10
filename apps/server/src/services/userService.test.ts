@@ -21,8 +21,15 @@ vi.mock('../lib/logger.js', () => ({
   },
 }));
 
+vi.mock('./wsHub.js', () => ({
+  wsHub: {
+    broadcast: vi.fn(),
+  },
+}));
+
 import { prisma } from '../db/client.js';
-import { banUser, unbanUser } from './userService.js';
+import { wsHub } from './wsHub.js';
+import { banUser, unbanUser, updateUserRole } from './userService.js';
 
 describe('userService', () => {
   beforeEach(() => {
@@ -174,6 +181,48 @@ describe('userService', () => {
         where: { id: 'user-1' },
         data: { bannedAt: null },
       });
+    });
+  });
+
+  describe('updateUserRole', () => {
+    it('updates user role and broadcasts user:update', async () => {
+      const mockUser: User = {
+        id: 'user-1',
+        googleSub: 'google-1',
+        email: 'user@example.com',
+        displayName: 'Test User',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTagText: null,
+        userTagColor: null,
+        mutedAt: null,
+        bannedAt: null,
+        createdAt: new Date(),
+        lastSeenAt: null,
+      };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
+      vi.mocked(prisma.user.update).mockResolvedValue({ ...mockUser, role: 'Moderator' });
+
+      await updateUserRole('user@example.com', 'Moderator');
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { role: 'Moderator' },
+      });
+      expect(wsHub.broadcast).toHaveBeenCalledWith({
+        type: 'user:update',
+        payload: expect.objectContaining({
+          id: 'user-1',
+          role: 'Moderator',
+        }),
+      });
+    });
+
+    it('throws if user not found', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      await expect(updateUserRole('nobody@example.com', 'Admin')).rejects.toThrow(
+        'User not found: nobody@example.com',
+      );
     });
   });
 });

@@ -1,12 +1,27 @@
 import { describe, it, expect } from 'vitest';
 import { canModerateOver } from './roleUtils.js';
-import { ROLE_RANK } from '@manlycam/types';
+import { ROLE_RANK, hasRole, Role } from '@manlycam/types';
 
 describe('ROLE_RANK', () => {
   it('Admin has rank 3', () => expect(ROLE_RANK['Admin']).toBe(3));
   it('Moderator has rank 2', () => expect(ROLE_RANK['Moderator']).toBe(2));
   it('ViewerCompany has rank 1', () => expect(ROLE_RANK['ViewerCompany']).toBe(1));
   it('ViewerGuest has rank 0', () => expect(ROLE_RANK['ViewerGuest']).toBe(0));
+});
+
+describe('hasRole', () => {
+  const user = (role: Role) => ({ role });
+
+  it('Admin has Moderator role', () => expect(hasRole(user('Admin'), 'Moderator')).toBe(true));
+  it('Admin has Admin role', () => expect(hasRole(user('Admin'), 'Admin')).toBe(true));
+  it('Moderator has Moderator role', () =>
+    expect(hasRole(user('Moderator'), 'Moderator')).toBe(true));
+  it('Moderator does NOT have Admin role', () =>
+    expect(hasRole(user('Moderator'), 'Admin')).toBe(false));
+  it('ViewerCompany has ViewerGuest role', () =>
+    expect(hasRole(user('ViewerCompany'), 'ViewerGuest')).toBe(true));
+  it('ViewerGuest does NOT have ViewerCompany role', () =>
+    expect(hasRole(user('ViewerGuest'), 'ViewerCompany')).toBe(false));
 });
 
 describe('canModerateOver', () => {

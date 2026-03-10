@@ -93,36 +93,31 @@ streamRouter.on(['PATCH', 'DELETE'], '/api/stream/whep/:session', requireAuth, a
   return new Response(null, { status: res.status, headers: forwardedHeaders });
 });
 
-streamRouter.post('/api/stream/stop', requireAuth, requireRole([Role.Admin]), async (c) => {
+streamRouter.post('/api/stream/stop', requireAuth, requireRole(Role.Admin), async (c) => {
   await streamService.setAdminToggle('offline');
   return c.json({ ok: true });
 });
 
-streamRouter.post('/api/stream/start', requireAuth, requireRole([Role.Admin]), async (c) => {
+streamRouter.post('/api/stream/start', requireAuth, requireRole(Role.Admin), async (c) => {
   await streamService.setAdminToggle('live');
   return c.json({ ok: true });
 });
 
 // GET /api/stream/camera-settings
-streamRouter.get(
-  '/api/stream/camera-settings',
-  requireAuth,
-  requireRole([Role.Admin]),
-  async (c) => {
-    const rows = await prisma.cameraSettings.findMany();
-    const settings: Record<string, unknown> = {};
-    for (const row of rows) {
-      settings[row.key] = JSON.parse(row.value);
-    }
-    return c.json({ settings, piReachable: streamService.isPiReachable() });
-  },
-);
+streamRouter.get('/api/stream/camera-settings', requireAuth, requireRole(Role.Admin), async (c) => {
+  const rows = await prisma.cameraSettings.findMany();
+  const settings: Record<string, unknown> = {};
+  for (const row of rows) {
+    settings[row.key] = JSON.parse(row.value);
+  }
+  return c.json({ settings, piReachable: streamService.isPiReachable() });
+});
 
 // PATCH /api/stream/camera-settings
 streamRouter.patch(
   '/api/stream/camera-settings',
   requireAuth,
-  requireRole([Role.Admin]),
+  requireRole(Role.Admin),
   async (c) => {
     let body: Record<string, unknown>;
     try {

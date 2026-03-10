@@ -15,40 +15,41 @@ import { authMiddleware } from './auth.js';
 import { requireAuth } from './requireAuth.js';
 import { requireRole } from './requireRole.js';
 import type { AppEnv } from '../lib/types.js';
+import { Role } from '@manlycam/types';
 
 describe('requireRole', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  const makeApp = (roles: string[]) => {
+  const makeApp = (role: string) => {
     const app = new Hono<AppEnv>();
     app.use('*', authMiddleware);
     app.use('*', requireAuth);
-    app.use('*', requireRole(roles as never));
+    app.use('*', requireRole(role as Role));
     app.get('/admin', (c) => c.json({ ok: true }));
     return app;
   };
 
-  it('passes when user role is in the allowed list', async () => {
+  it('passes when user role is at least the min role', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u1',
       role: 'Admin',
       bannedAt: null,
     } as never);
-    const res = await makeApp(['Admin']).request('/admin', {
+    const res = await makeApp('Admin').request('/admin', {
       headers: { cookie: 'session_id=s1' },
     });
     expect(res.status).toBe(200);
   });
 
-  it('returns 403 FORBIDDEN when user role is not in allowed list', async () => {
+  it('returns 403 FORBIDDEN when user role is below the min role', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u1',
       role: 'ViewerCompany',
       bannedAt: null,
     } as never);
-    const res = await makeApp(['Admin']).request('/admin', {
+    const res = await makeApp('Admin').request('/admin', {
       headers: { cookie: 'session_id=s1' },
     });
     expect(res.status).toBe(403);
@@ -57,13 +58,13 @@ describe('requireRole', () => {
     expect(body.error.message).toBeDefined();
   });
 
-  it('returns 403 FORBIDDEN for ViewerGuest accessing Moderator-or-Admin route', async () => {
+  it('returns 403 FORBIDDEN for ViewerGuest accessing Moderator route', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u1',
       role: 'ViewerGuest',
       bannedAt: null,
     } as never);
-    const res = await makeApp(['Admin', 'Moderator']).request('/admin', {
+    const res = await makeApp('Moderator').request('/admin', {
       headers: { cookie: 'session_id=s1' },
     });
     expect(res.status).toBe(403);
@@ -72,13 +73,13 @@ describe('requireRole', () => {
     expect(body.error.message).toBeDefined();
   });
 
-  it('passes for any role in a multi-role allowlist', async () => {
+  it('passes for Moderator role when min role is Moderator', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       id: 'u1',
       role: 'Moderator',
       bannedAt: null,
     } as never);
-    const res = await makeApp(['Admin', 'Moderator']).request('/admin', {
+    const res = await makeApp('Moderator').request('/admin', {
       headers: { cookie: 'session_id=s1' },
     });
     expect(res.status).toBe(200);

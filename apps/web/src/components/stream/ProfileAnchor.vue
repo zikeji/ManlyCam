@@ -13,7 +13,10 @@ withDefaults(defineProps<{
 }>(), { isDesktop: false });
 
 const isOpen = defineModel<boolean>('popoverOpen', { default: false });
-const emit = defineEmits<{ openCameraControls: [] }>();
+const emit = defineEmits<{
+  openCameraControls: [];
+  openUserManager: [];
+}>();
 
 const { user, logout } = useAuth();
 const { streamState } = useStream();
@@ -95,6 +98,13 @@ const handleLogout = async () => {
           @click="() => { isOpen = false; emit('openCameraControls'); }"
         >
           Camera Controls
+        </button>
+
+        <button
+          class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
+          @click="() => { isOpen = false; emit('openUserManager'); }"
+        >
+          Users
         </button>
 
         <div class="h-px bg-border my-1" />

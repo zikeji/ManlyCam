@@ -16,7 +16,10 @@ import TypingIndicator from './TypingIndicator.vue';
 import { Role, ROLE_RANK } from '@manlycam/types';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
-const emit = defineEmits<{ openCameraControls: [] }>();
+const emit = defineEmits<{
+  openCameraControls: [];
+  openUserManager: [];
+}>();
 
 const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory, editMessage, deleteMessage } =
   useChat();
@@ -338,6 +341,7 @@ async function handleSend(content: string) {
                 :isDesktop="false"
                 v-model:popover-open="profilePopoverOpen"
                 @open-camera-controls="emit('openCameraControls')"
+                @open-user-manager="emit('openUserManager')"
               />
               <ChatInput
                 class="flex-1"
