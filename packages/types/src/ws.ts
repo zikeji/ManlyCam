@@ -1,10 +1,4 @@
-export const Role = {
-  Admin: 'Admin',
-  Moderator: 'Moderator',
-  ViewerCompany: 'ViewerCompany',
-  ViewerGuest: 'ViewerGuest',
-} as const
-export type Role = typeof Role[keyof typeof Role]
+import type { Role } from './roles.js';
 
 export const StreamStatus = {
   Live: 'live',

@@ -13,7 +13,7 @@ import ChatInput from './ChatInput.vue';
 import ProfileAnchor from '@/components/stream/ProfileAnchor.vue';
 import PresenceList from './PresenceList.vue';
 import TypingIndicator from './TypingIndicator.vue';
-import { Role } from '@manlycam/types';
+import { Role, ROLE_RANK } from '@manlycam/types';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 const emit = defineEmits<{ openCameraControls: [] }>();
@@ -52,13 +52,6 @@ function isNearBottom(): boolean {
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 const EDIT_WINDOW_MS = 5 * 60 * 1000;
 
-const ROLE_RANK: Record<string, number> = {
-  Admin: 3,
-  Moderator: 2,
-  ViewerCompany: 1,
-  ViewerGuest: 0,
-};
-
 const isPrivileged = computed(() =>
   user.value?.role === Role.Admin || user.value?.role === Role.Moderator,
 );
@@ -72,12 +65,6 @@ const isSelfMuted = computed(
 function canModerateDeleteMsg(msg: ChatMessageType): boolean {
   if (!user.value || !isPrivileged.value) return false;
   if (msg.userId === user.value.id) return false; // own messages handled by isOwn
-  return (ROLE_RANK[user.value.role] ?? 0) > (ROLE_RANK[msg.authorRole] ?? 0);
-}
-
-function canMuteAuthorMsg(msg: ChatMessageType): boolean {
-  if (!user.value || !isPrivileged.value) return false;
-  if (msg.userId === user.value.id) return false;
   return (ROLE_RANK[user.value.role] ?? 0) > (ROLE_RANK[msg.authorRole] ?? 0);
 }
 
@@ -334,7 +321,7 @@ async function handleSend(content: string) {
                     :is-own="user?.id === item.data.userId"
                     :can-moderate-delete="canModerateDeleteMsg(item.data)"
                     :is-author-muted="mutedUserIds.has(item.data.userId)"
-                    :can-mute-author="canMuteAuthorMsg(item.data)"
+                    :current-user-role="user?.role"
                     @request-edit="handleMessageEdit"
                     @request-delete="handleMessageDelete"
                     @mute-user="handleMuteUser"

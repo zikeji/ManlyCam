@@ -1,4 +1,4 @@
-import type { Role } from './ws.js';
+import type { Role } from './roles.js';
 
 export interface MeResponse {
   id: string;

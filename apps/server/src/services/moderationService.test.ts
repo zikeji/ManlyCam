@@ -1,15 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Prisma } from '@prisma/client';
 
 vi.mock('../db/client.js', () => ({
   prisma: {
     user: { findUnique: vi.fn(), update: vi.fn() },
     session: { deleteMany: vi.fn() },
     auditLog: { create: vi.fn() },
-    $transaction: vi.fn((cb) => cb({
-      user: { update: vi.fn() },
-      session: { deleteMany: vi.fn() },
-      auditLog: { create: vi.fn() },
-    })),
+    $transaction: vi.fn((cb) =>
+      cb({
+        user: { update: vi.fn() },
+        session: { deleteMany: vi.fn() },
+        auditLog: { create: vi.fn() },
+      }),
+    ),
   },
 }));
 
@@ -43,7 +46,11 @@ describe('banUser', () => {
       session: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
-    vi.mocked(prisma.$transaction).mockImplementation(async (cb: any) => cb(txMock));
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
 
     await banUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'target-001' });
 

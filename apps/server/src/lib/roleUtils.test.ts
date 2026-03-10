@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { ROLE_RANK, canModerateOver } from './roleUtils.js';
+import { canModerateOver } from './roleUtils.js';
+import { ROLE_RANK } from '@manlycam/types';
 
 describe('ROLE_RANK', () => {
   it('Admin has rank 3', () => expect(ROLE_RANK['Admin']).toBe(3));

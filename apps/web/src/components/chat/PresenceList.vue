@@ -20,6 +20,7 @@ import {
 import { MicOff } from 'lucide-vue-next';
 import { ref } from 'vue';
 import type { UserPresence, Role } from '@manlycam/types';
+import { ROLE_RANK } from '@manlycam/types';
 
 const props = defineProps<{
   viewers: UserPresence[];
@@ -27,18 +28,11 @@ const props = defineProps<{
   currentUserRole?: Role;
 }>();
 
-const ROLE_RANK: Record<string, number> = {
-  Admin: 3,
-  Moderator: 2,
-  ViewerCompany: 1,
-  ViewerGuest: 0,
-};
-
 const isPrivilegedUser = computed(
   () => props.currentUserRole === 'Admin' || props.currentUserRole === 'Moderator',
 );
 
-function canMuteViewer(viewerRole: string): boolean {
+function canModerate(viewerRole: Role): boolean {
   if (!props.currentUserRole || !isPrivilegedUser.value) return false;
   return (ROLE_RANK[props.currentUserRole] ?? 0) > (ROLE_RANK[viewerRole] ?? 0);
 }
@@ -89,7 +83,7 @@ function initials(name: string): string {
         :key="viewer.id"
         class="flex items-center gap-2"
       >
-        <ContextMenu v-if="canMuteViewer(viewer.role) && viewer.id !== props.currentUserId">
+        <ContextMenu v-if="canModerate(viewer.role) && viewer.id !== props.currentUserId">
           <ContextMenuTrigger as-child>
             <div class="flex items-center gap-2 min-w-0 flex-1 cursor-context-menu">
               <Avatar class="h-8 w-8 shrink-0 rounded-full">

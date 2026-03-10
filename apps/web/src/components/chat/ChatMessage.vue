@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, nextTick } from 'vue';
-import type { ChatMessage } from '@manlycam/types';
+import type { ChatMessage, Role } from '@manlycam/types';
+import { ROLE_RANK } from '@manlycam/types';
 import { MicOff } from 'lucide-vue-next';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { renderMarkdownLite } from '@/lib/markdown';
@@ -34,7 +35,7 @@ const props = defineProps<{
   isOwn?: boolean;
   canModerateDelete?: boolean;
   isAuthorMuted?: boolean;
-  canMuteAuthor?: boolean;
+  currentUserRole?: Role;
 }>();
 
 const emit = defineEmits<{
@@ -51,6 +52,15 @@ const renderedContent = computed(() => renderMarkdownLite(props.message.content)
 const editedLabel = computed(() =>
   props.message.updatedAt ? formatTime(props.message.updatedAt) : null,
 );
+
+const isPrivilegedUser = computed(
+  () => props.currentUserRole === 'Admin' || props.currentUserRole === 'Moderator',
+);
+
+const canModerate = computed(() => {
+  if (!props.currentUserRole || !isPrivilegedUser.value) return false;
+  return (ROLE_RANK[props.currentUserRole] ?? 0) > (ROLE_RANK[props.message.authorRole] ?? 0);
+});
 
 const isEditing = ref(false);
 const editContent = ref('');
@@ -115,7 +125,7 @@ function executeBan() {
 
 <template>
   <!-- Continuation row: only message body, indented to align with group header text -->
-  <ContextMenu v-if="isContinuation && (isOwn || canModerateDelete || canMuteAuthor) && !isEditing">
+  <ContextMenu v-if="isContinuation && (isOwn || canModerateDelete || canModerate) && !isEditing">
     <ContextMenuTrigger as-child>
       <div ref="rootRef" role="listitem" class="relative group px-3 py-0.5 pl-[52px] hover:bg-white/[.03]">
         <template v-if="!isEditing">
@@ -141,13 +151,13 @@ function executeBan() {
       <ContextMenuItem v-if="isOwn || canModerateDelete" @click="(e: MouseEvent) => confirmDelete(e)" class="text-red-400 focus:text-red-400">
         Delete
       </ContextMenuItem>
-      <ContextMenuItem v-if="canMuteAuthor && !isAuthorMuted" @click="emit('muteUser', props.message.userId)">
+      <ContextMenuItem v-if="canModerate && !isAuthorMuted" @click="emit('muteUser', props.message.userId)">
         Mute
       </ContextMenuItem>
-      <ContextMenuItem v-if="canMuteAuthor && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
+      <ContextMenuItem v-if="canModerate && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
         Unmute
       </ContextMenuItem>
-      <ContextMenuItem v-if="canMuteAuthor" @click="showBanDialog = true" class="text-red-400 focus:text-red-400">
+      <ContextMenuItem v-if="canModerate" @click="showBanDialog = true" class="text-red-400 focus:text-red-400">
         Ban
       </ContextMenuItem>
     </ContextMenuContent>
@@ -197,7 +207,7 @@ function executeBan() {
   </div>
 
   <!-- Group header row: avatar + name + tag + timestamp + message body -->
-  <ContextMenu v-else-if="(isOwn || canModerateDelete || canMuteAuthor) && !isEditing">
+  <ContextMenu v-else-if="(isOwn || canModerateDelete || canModerate) && !isEditing">
     <ContextMenuTrigger as-child>
       <div ref="rootRef" role="listitem" class="relative group flex items-start gap-2 px-3 py-1.5 hover:bg-white/[.03]">
         <Avatar class="h-8 w-8 shrink-0 mt-0.5">
@@ -214,7 +224,7 @@ function executeBan() {
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="text-sm font-semibold text-foreground truncate">{{ message.displayName }}</span>
             <MicOff
-              v-if="isAuthorMuted && canMuteAuthor"
+              v-if="isAuthorMuted && canModerate"
               class="h-3 w-3 shrink-0 text-muted-foreground"
               aria-label="Muted"
             />
@@ -272,13 +282,13 @@ function executeBan() {
       <ContextMenuItem v-if="isOwn || canModerateDelete" @click="(e: MouseEvent) => confirmDelete(e)" class="text-red-400 focus:text-red-400">
         Delete
       </ContextMenuItem>
-      <ContextMenuItem v-if="canMuteAuthor && !isAuthorMuted" @click="emit('muteUser', props.message.userId)">
+      <ContextMenuItem v-if="canModerate && !isAuthorMuted" @click="emit('muteUser', props.message.userId)">
         Mute
       </ContextMenuItem>
-      <ContextMenuItem v-if="canMuteAuthor && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
+      <ContextMenuItem v-if="canModerate && isAuthorMuted" @click="emit('unmuteUser', props.message.userId)">
         Unmute
       </ContextMenuItem>
-      <ContextMenuItem v-if="canMuteAuthor" @click="showBanDialog = true" class="text-red-400 focus:text-red-400">
+      <ContextMenuItem v-if="canModerate" @click="showBanDialog = true" class="text-red-400 focus:text-red-400">
         Ban
       </ContextMenuItem>
     </ContextMenuContent>

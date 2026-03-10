@@ -39,7 +39,9 @@ vi.mock('@/components/ui/alert-dialog', () => ({
     template: '<div v-if="open" class="alert-dialog-stub"><slot /></div>',
     emits: ['update:open'],
   }),
-  AlertDialogContent: defineComponent({ template: '<div class="alert-content-stub"><slot /></div>' }),
+  AlertDialogContent: defineComponent({
+    template: '<div class="alert-content-stub"><slot /></div>',
+  }),
   AlertDialogHeader: defineComponent({ template: '<div class="alert-header-stub"><slot /></div>' }),
   AlertDialogFooter: defineComponent({ template: '<div class="alert-footer-stub"><slot /></div>' }),
   AlertDialogTitle: defineComponent({ template: '<div class="alert-title-stub"><slot /></div>' }),
@@ -207,7 +209,10 @@ describe('PresenceList', () => {
 
     it('clicking Ban action in AlertDialog emits banUser and closes dialog', async () => {
       wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
-      await wrapper.findAll('.ctx-item-stub').find((el) => el.text() === 'Ban')!.trigger('click');
+      await wrapper
+        .findAll('.ctx-item-stub')
+        .find((el) => el.text() === 'Ban')!
+        .trigger('click');
 
       const actionBtn = wrapper.find('.alert-action-stub');
       await actionBtn.trigger('click');

@@ -2,8 +2,9 @@ import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
 import { AppError } from '../lib/errors.js';
-import { ROLE_RANK, canModerateOver } from '../lib/roleUtils.js';
+import { canModerateOver } from '../lib/roleUtils.js';
 import type { ChatMessage, ChatEdit, Role, UserTag, WsMessage } from '@manlycam/types';
+import { ROLE_RANK } from '@manlycam/types';
 import type { User } from '@prisma/client';
 
 type EditHistoryEntry = { content: string; editedAt: string };

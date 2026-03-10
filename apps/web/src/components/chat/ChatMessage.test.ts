@@ -309,7 +309,7 @@ describe('ChatMessage.vue', () => {
   describe('AlertDialog ban flow', () => {
     it('clicking Ban in context menu opens AlertDialog', async () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, canMuteAuthor: true },
+        props: { message: baseMessage, currentUserRole: 'Admin' },
       });
 
       const banItem = wrapper
@@ -324,7 +324,7 @@ describe('ChatMessage.vue', () => {
 
     it('clicking Ban action in AlertDialog emits banUser and closes dialog', async () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, canMuteAuthor: true },
+        props: { message: baseMessage, currentUserRole: 'Admin' },
       });
 
       const banItem = wrapper
@@ -333,7 +333,7 @@ describe('ChatMessage.vue', () => {
       await banItem!.trigger('click');
       await nextTick();
 
-      const actionBtn = wrapper.findAll('[data-alert-action]').find(b => b.text() === 'Ban User');
+      const actionBtn = wrapper.findAll('[data-alert-action]').find((b) => b.text() === 'Ban User');
       await actionBtn!.trigger('click');
       await nextTick();
 
@@ -519,28 +519,28 @@ describe('ChatMessage.vue', () => {
   describe('muted indicator and mute/unmute context menu', () => {
     it('shows MicOff indicator when isAuthorMuted=true and canMuteAuthor=true', () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isAuthorMuted: true, canMuteAuthor: true },
+        props: { message: baseMessage, isAuthorMuted: true, currentUserRole: 'Admin' },
       });
       expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(true);
     });
 
     it('does NOT show MicOff indicator when isAuthorMuted=true but canMuteAuthor=false', () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isAuthorMuted: true, canMuteAuthor: false },
+        props: { message: baseMessage, isAuthorMuted: true, currentUserRole: 'ViewerGuest' },
       });
       expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(false);
     });
 
     it('does NOT show MicOff indicator when isAuthorMuted=false', () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isAuthorMuted: false, canMuteAuthor: true },
+        props: { message: baseMessage, isAuthorMuted: false, currentUserRole: 'Admin' },
       });
       expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(false);
     });
 
     it('shows Mute item when canMuteAuthor=true and author is not muted', () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: false },
+        props: { message: baseMessage, currentUserRole: 'Admin', isAuthorMuted: false },
       });
       const items = wrapper.findAll('[data-context-menu-item]');
       const texts = items.map((i) => i.text().trim());
@@ -550,7 +550,7 @@ describe('ChatMessage.vue', () => {
 
     it('shows Unmute item when canMuteAuthor=true and author is muted', () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: true },
+        props: { message: baseMessage, currentUserRole: 'Admin', isAuthorMuted: true },
       });
       const items = wrapper.findAll('[data-context-menu-item]');
       const texts = items.map((i) => i.text().trim());
@@ -560,7 +560,7 @@ describe('ChatMessage.vue', () => {
 
     it('emits muteUser with userId when Mute is clicked', async () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: false },
+        props: { message: baseMessage, currentUserRole: 'Admin', isAuthorMuted: false },
       });
       const muteItem = wrapper
         .findAll('[data-context-menu-item]')
@@ -571,7 +571,7 @@ describe('ChatMessage.vue', () => {
 
     it('emits unmuteUser with userId when Unmute is clicked', async () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, canMuteAuthor: true, isAuthorMuted: true },
+        props: { message: baseMessage, currentUserRole: 'Admin', isAuthorMuted: true },
       });
       const unmuteItem = wrapper
         .findAll('[data-context-menu-item]')
@@ -582,7 +582,7 @@ describe('ChatMessage.vue', () => {
 
     it('does not show Mute/Unmute when canMuteAuthor=false', () => {
       wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isOwn: true, canMuteAuthor: false },
+        props: { message: baseMessage, isOwn: true, currentUserRole: 'ViewerGuest' },
       });
       const items = wrapper.findAll('[data-context-menu-item]');
       const texts = items.map((i) => i.text().trim());

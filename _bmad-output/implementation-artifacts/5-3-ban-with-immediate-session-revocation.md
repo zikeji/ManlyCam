@@ -1,6 +1,6 @@
 # Story 5.3: Ban with Immediate Session Revocation
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -114,6 +114,7 @@ so that banned users cannot continue to view or interact with the stream.
 
 ## File List
 
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
 - `apps/server/src/services/moderationService.ts`
 - `apps/server/src/services/moderationService.test.ts`
 - `apps/server/src/services/wsHub.ts`
@@ -128,6 +129,7 @@ so that banned users cannot continue to view or interact with the stream.
 - `apps/web/src/components/chat/PresenceList.test.ts`
 - `apps/web/src/components/chat/ChatMessage.vue`
 - `apps/web/src/components/chat/ChatMessage.test.ts`
+- `apps/web/src/views/BannedView.vue`
 
 ## Change Log
 

@@ -77,6 +77,7 @@ describe('WsHub', () => {
         send: vi.fn().mockImplementation(() => {
           throw new Error('socket gone');
         }),
+        close: vi.fn(),
       };
       const normal = makeClient();
       hub.addClient('conn-1', throwing, baseUser);
@@ -125,7 +126,10 @@ describe('WsHub', () => {
 
       hub.revokeUserSessions('user-001', 'banned');
 
-      const expectedMsg = JSON.stringify({ type: 'session:revoked', payload: { reason: 'banned' } });
+      const expectedMsg = JSON.stringify({
+        type: 'session:revoked',
+        payload: { reason: 'banned' },
+      });
 
       expect(clientA1.send).toHaveBeenCalledWith(expectedMsg);
       expect(clientA1.close).toHaveBeenCalled();
@@ -138,8 +142,12 @@ describe('WsHub', () => {
 
     it('does not throw if client.send or close throws', () => {
       const client = {
-        send: vi.fn().mockImplementation(() => { throw new Error('gone'); }),
-        close: vi.fn().mockImplementation(() => { throw new Error('gone'); }),
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('gone');
+        }),
+        close: vi.fn().mockImplementation(() => {
+          throw new Error('gone');
+        }),
       };
       hub.addClient('conn-1', client, baseUser);
       expect(() => hub.revokeUserSessions('user-001', 'banned')).not.toThrow();

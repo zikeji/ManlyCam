@@ -1,11 +1,5 @@
 import type { Role } from '@manlycam/types';
-
-export const ROLE_RANK: Record<Role, number> = {
-  Admin: 3,
-  Moderator: 2,
-  ViewerCompany: 1,
-  ViewerGuest: 0,
-};
+import { ROLE_RANK } from '@manlycam/types';
 
 /**
  * Returns true if callerRole can moderate (mute/ban/delete) a user/message with targetRole.

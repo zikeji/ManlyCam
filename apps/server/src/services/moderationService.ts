@@ -3,7 +3,8 @@ import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
 import { AppError } from '../lib/errors.js';
-import { canModerateOver, ROLE_RANK } from '../lib/roleUtils.js';
+import { canModerateOver } from '../lib/roleUtils.js';
+import { ROLE_RANK } from '@manlycam/types';
 
 interface MuteParams {
   actorId: string;
