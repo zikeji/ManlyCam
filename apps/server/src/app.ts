@@ -52,20 +52,7 @@ export function createApp() {
     app.get('/*', (c) => {
       const indexHtmlPath = join(distPath, 'index.html');
       const indexHtml = readFileSync(indexHtmlPath, 'utf-8');
-
-      // 1. Inject runtime env for the Vue app to consume via window.__env__
-      // 2. Replace title placeholder for SEO/browser title readability
-      const injectedHtml = indexHtml
-        .replace(
-          '<head>',
-          `<head>\n    <script>window.__env__ = ${JSON.stringify({
-            PET_NAME: env.PET_NAME,
-            SITE_NAME: env.SITE_NAME,
-          })};</script>`,
-        )
-        .replace(/__SITE_NAME__/g, env.SITE_NAME);
-
-      return c.html(injectedHtml);
+      return c.html(indexHtml);
     });
   }
 

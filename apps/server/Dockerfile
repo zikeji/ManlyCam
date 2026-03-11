@@ -1,5 +1,5 @@
 # Stage 1: Web Build
-FROM node:20-alpine AS web-builder
+FROM node:24-alpine AS web-builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -19,7 +19,7 @@ RUN pnpm --filter @manlycam/types build
 RUN pnpm --filter @manlycam/web build
 
 # Stage 2: Server Build
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -42,7 +42,7 @@ RUN pnpm --filter @manlycam/types build
 RUN pnpm --filter @manlycam/server exec tsc && chmod +x apps/server/dist/cli/index.js
 
 # Stage 3: Runtime
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 ENV NODE_ENV=production
 
@@ -72,7 +72,11 @@ RUN ln -s /repo/node_modules/.bin/manlycam-admin /usr/local/bin/manlycam-admin
 
 WORKDIR /repo/apps/server
 
+# Copy and prepare entrypoint script
+COPY docker-entrypoint.sh ./
+RUN chmod +x docker-entrypoint.sh
+
 EXPOSE 3000
 
-# Run migrations and then start the server
-CMD ["sh", "-c", "npx prisma migrate deploy --schema ./prisma/schema.prisma && node dist/index.js"]
+ENTRYPOINT ["/repo/apps/server/docker-entrypoint.sh"]
+CMD ["node", "dist/index.js"]
