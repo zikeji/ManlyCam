@@ -2,7 +2,7 @@
 set -e
 
 # Path to the SPA index.html
-INDEX_HTML="../../web/dist/index.html"
+INDEX_HTML="/repo/apps/web/dist/index.html"
 
 # If __SITE_NAME__ exists, we perform the one-time injection at startup
 if grep -q "__SITE_NAME__" "$INDEX_HTML"; then
