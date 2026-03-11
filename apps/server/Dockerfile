@@ -52,11 +52,14 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY packages/types/ ./packages/types/
 COPY apps/server/package.json ./apps/server/
 
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy compiled output and Prisma artifacts
+# Copy compiled output and Prisma artifacts before install
+# This ensures pnpm can link the 'manlycam-admin' bin to its target in dist/
 COPY --from=builder /repo/apps/server/dist ./apps/server/dist
 COPY --from=builder /repo/apps/server/prisma ./apps/server/prisma
+
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy node_modules from builder to ensure Prisma client is present
 COPY --from=builder /repo/node_modules/.pnpm ./node_modules/.pnpm
 
 # Copy web dist
