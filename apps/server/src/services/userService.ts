@@ -2,6 +2,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { logger } from '../lib/logger.js';
 import { wsHub } from './wsHub.js';
+import { computeUserTag } from '../lib/user-tag.js';
+import { AppError } from '../lib/errors.js';
 import type { Role } from '@manlycam/types';
 
 export async function banUser(email: string): Promise<{ sessionCount: number }> {
@@ -60,10 +62,7 @@ export async function updateUserRole(email: string, role: Role): Promise<void> {
       role: updated.role as Role,
       avatarUrl: updated.avatarUrl,
       isMuted: updated.mutedAt !== null,
-      userTag:
-        updated.userTagText && updated.userTagColor
-          ? { text: updated.userTagText, color: updated.userTagColor }
-          : null,
+      userTag: computeUserTag(updated),
     },
   });
 
@@ -87,14 +86,39 @@ export async function updateUserRoleById(userId: string, role: Role): Promise<vo
       role: updated.role as Role,
       avatarUrl: updated.avatarUrl,
       isMuted: updated.mutedAt !== null,
-      userTag:
-        updated.userTagText && updated.userTagColor
-          ? { text: updated.userTagText, color: updated.userTagColor }
-          : null,
+      userTag: computeUserTag(updated),
     },
   });
 
   logger.info({ userId, role }, 'user_role_updated_by_id');
+}
+
+export async function updateUserTagById(
+  userId: string,
+  userTagText: string | null,
+  userTagColor: string | null,
+): Promise<void> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError('User not found', 'NOT_FOUND', 404);
+
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { userTagText, userTagColor },
+  });
+
+  wsHub.broadcast({
+    type: 'user:update',
+    payload: {
+      id: updated.id,
+      displayName: updated.displayName,
+      role: updated.role as Role,
+      avatarUrl: updated.avatarUrl,
+      isMuted: updated.mutedAt !== null,
+      userTag: computeUserTag(updated),
+    },
+  });
+
+  logger.info({ userId, userTagText, userTagColor }, 'user_tag_updated');
 }
 
 export async function getAllUsers() {

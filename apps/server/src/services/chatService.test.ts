@@ -111,7 +111,7 @@ describe('chatService.createMessage', () => {
     } as never);
 
     const result = await createMessage({ userId: 'user-001', content: 'Hi' });
-    expect(result.userTag).toEqual({ text: 'Guest', color: '#9CA3AF' });
+    expect(result.userTag).toEqual({ text: 'Guest', color: '#a16207' });
   });
 
   it('computes custom userTag when userTagText is set', async () => {
@@ -131,7 +131,7 @@ describe('chatService.createMessage', () => {
     } as never);
 
     const result = await createMessage({ userId: 'user-001', content: 'Hi' });
-    expect(result.userTag).toEqual({ text: 'Pro', color: '#6B7280' });
+    expect(result.userTag).toEqual({ text: 'Pro', color: '#6b7280' });
   });
 });
 

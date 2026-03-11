@@ -68,6 +68,40 @@ describe('useAdminUsers', () => {
     expect(users.value[0].role).toBe(Role.Admin);
   });
 
+  it('derives userTagText/userTagColor from userTag field on WS update', () => {
+    usersRef.value = [
+      {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        userTagText: null,
+        userTagColor: null,
+      },
+    ] as unknown as AdminUser[];
+
+    handleAdminUserUpdate({ id: 'u1', userTag: { text: 'VIP', color: '#ef4444' } } as never);
+
+    expect(usersRef.value[0].userTagText).toBe('VIP');
+    expect(usersRef.value[0].userTagColor).toBe('#ef4444');
+  });
+
+  it('clears userTagText/userTagColor when userTag is null in WS update', () => {
+    usersRef.value = [
+      {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        userTagText: 'VIP',
+        userTagColor: '#ef4444',
+      },
+    ] as unknown as AdminUser[];
+
+    handleAdminUserUpdate({ id: 'u1', userTag: null } as never);
+
+    expect(usersRef.value[0].userTagText).toBeNull();
+    expect(usersRef.value[0].userTagColor).toBeNull();
+  });
+
   it('ignores user update from WS if user not in list', async () => {
     const mockUsers = [
       { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany },
@@ -92,5 +126,72 @@ describe('useAdminUsers', () => {
     const { updateRole } = useAdminUsers();
 
     await expect(updateRole('u1', Role.Moderator)).rejects.toThrow('Update failed');
+  });
+
+  describe('updateUserTag', () => {
+    it('calls PATCH user-tag endpoint and updates optimistically', async () => {
+      const mockUser = {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        userTagText: null,
+        userTagColor: null,
+      } as unknown as AdminUser;
+      usersRef.value = [mockUser];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, updateUserTag } = useAdminUsers();
+      await updateUserTag('u1', 'VIP', '#ef4444');
+
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/admin/users/u1/user-tag',
+        expect.objectContaining({ method: 'PATCH' }),
+      );
+      expect(users.value[0].userTagText).toBe('VIP');
+      expect(users.value[0].userTagColor).toBe('#ef4444');
+    });
+
+    it('throws error on updateUserTag failure', async () => {
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Tag update failed'));
+      const { updateUserTag } = useAdminUsers();
+
+      await expect(updateUserTag('u1', 'VIP', '#ef4444')).rejects.toThrow('Tag update failed');
+    });
+  });
+
+  describe('clearUserTag', () => {
+    it('calls PATCH user-tag with empty text and clears optimistically', async () => {
+      const mockUser = {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        userTagText: 'VIP',
+        userTagColor: '#ef4444',
+      } as unknown as AdminUser;
+      usersRef.value = [mockUser];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, clearUserTag } = useAdminUsers();
+      await clearUserTag('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith(
+        '/api/admin/users/u1/user-tag',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ userTagText: '' }),
+        }),
+      );
+      expect(users.value[0].userTagText).toBeNull();
+      expect(users.value[0].userTagColor).toBeNull();
+    });
+
+    it('throws error on clearUserTag failure', async () => {
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Clear failed'));
+      const { clearUserTag } = useAdminUsers();
+
+      await expect(clearUserTag('u1')).rejects.toThrow('Clear failed');
+    });
   });
 });

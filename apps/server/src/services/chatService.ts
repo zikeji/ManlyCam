@@ -3,21 +3,12 @@ import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
 import { AppError } from '../lib/errors.js';
 import { canModerateOver } from '../lib/roleUtils.js';
-import type { ChatMessage, ChatEdit, Role, UserTag, WsMessage } from '@manlycam/types';
+import { computeUserTag } from '../lib/user-tag.js';
+import type { ChatMessage, ChatEdit, Role, WsMessage } from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import type { User } from '@prisma/client';
 
 type EditHistoryEntry = { content: string; editedAt: string };
-
-function computeUserTag(user: User): UserTag | null {
-  if (user.userTagText) {
-    return { text: user.userTagText, color: user.userTagColor ?? '#6B7280' };
-  }
-  if (user.role === 'ViewerGuest') {
-    return { text: 'Guest', color: '#9CA3AF' };
-  }
-  return null;
-}
 
 type MessageRow = {
   id: string;

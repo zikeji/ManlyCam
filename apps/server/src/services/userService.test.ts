@@ -29,7 +29,7 @@ vi.mock('./wsHub.js', () => ({
 
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
-import { banUser, unbanUser, updateUserRole } from './userService.js';
+import { banUser, unbanUser, updateUserRole, updateUserTagById } from './userService.js';
 
 describe('userService', () => {
   beforeEach(() => {
@@ -223,6 +223,105 @@ describe('userService', () => {
       await expect(updateUserRole('nobody@example.com', 'Admin')).rejects.toThrow(
         'User not found: nobody@example.com',
       );
+    });
+  });
+
+  describe('updateUserTagById', () => {
+    const mockUser: User = {
+      id: 'user-1',
+      googleSub: 'google-1',
+      email: 'user@example.com',
+      displayName: 'Test User',
+      avatarUrl: null,
+      role: 'ViewerCompany',
+      userTagText: null,
+      userTagColor: null,
+      mutedAt: null,
+      bannedAt: null,
+      createdAt: new Date(),
+      lastSeenAt: null,
+    };
+
+    it('sets user tag and broadcasts user:update', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
+      vi.mocked(prisma.user.update).mockResolvedValue({
+        ...mockUser,
+        userTagText: 'VIP',
+        userTagColor: '#ef4444',
+      });
+
+      await updateUserTagById('user-1', 'VIP', '#ef4444');
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { userTagText: 'VIP', userTagColor: '#ef4444' },
+      });
+      expect(wsHub.broadcast).toHaveBeenCalledWith({
+        type: 'user:update',
+        payload: expect.objectContaining({
+          id: 'user-1',
+          userTag: { text: 'VIP', color: '#ef4444' },
+        }),
+      });
+    });
+
+    it('clears user tag (sets null) and broadcasts user:update', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        ...mockUser,
+        userTagText: 'VIP',
+        userTagColor: '#ef4444',
+      });
+      vi.mocked(prisma.user.update).mockResolvedValue({
+        ...mockUser,
+        userTagText: null,
+        userTagColor: null,
+      });
+
+      await updateUserTagById('user-1', null, null);
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { userTagText: null, userTagColor: null },
+      });
+      expect(wsHub.broadcast).toHaveBeenCalledWith({
+        type: 'user:update',
+        payload: expect.objectContaining({
+          id: 'user-1',
+          userTag: null,
+        }),
+      });
+    });
+
+    it('returns Guest tag for ViewerGuest when tag is cleared', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        ...mockUser,
+        role: 'ViewerGuest',
+        userTagText: 'Custom',
+        userTagColor: '#ef4444',
+      });
+      vi.mocked(prisma.user.update).mockResolvedValue({
+        ...mockUser,
+        role: 'ViewerGuest',
+        userTagText: null,
+        userTagColor: null,
+      });
+
+      await updateUserTagById('user-1', null, null);
+
+      expect(wsHub.broadcast).toHaveBeenCalledWith({
+        type: 'user:update',
+        payload: expect.objectContaining({
+          userTag: { text: 'Guest', color: '#a16207' },
+        }),
+      });
+    });
+
+    it('throws AppError 404 if user not found', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      await expect(updateUserTagById('nonexistent', 'VIP', '#ef4444')).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+        statusCode: 404,
+      });
     });
   });
 });

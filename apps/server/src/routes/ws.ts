@@ -4,8 +4,9 @@ import { wsHub } from '../services/wsHub.js';
 import { streamService } from '../services/streamService.js';
 import { logger } from '../lib/logger.js';
 import { ulid } from '../lib/ulid.js';
+import { computeUserTag } from '../lib/user-tag.js';
 import type { AppEnv } from '../lib/types.js';
-import type { Role, UserPresence, UserTag, WsMessage } from '@manlycam/types';
+import type { Role, UserPresence, WsMessage } from '@manlycam/types';
 import type { createNodeWebSocket } from '@hono/node-ws';
 
 type UpgradeWebSocket = ReturnType<typeof createNodeWebSocket>['upgradeWebSocket'];
@@ -15,16 +16,6 @@ const disposeMap = new WeakMap<
   object,
   { dispose: () => void; connectionId: string; userId: string }
 >();
-
-function computeUserTag(user: {
-  userTagText: string | null;
-  userTagColor: string | null;
-  role: string;
-}): UserTag | null {
-  if (user.userTagText) return { text: user.userTagText, color: user.userTagColor ?? '#6b7280' };
-  if (user.role === 'ViewerGuest') return { text: 'Guest', color: '#6b7280' };
-  return null;
-}
 
 export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
   const wsRouter = new Hono<AppEnv>();

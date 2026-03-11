@@ -13,6 +13,8 @@ export interface AdminUser {
   mutedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string | null;
+  userTagText: string | null;
+  userTagColor: string | null;
 }
 
 export const users = ref<AdminUser[]>([]);
@@ -20,9 +22,19 @@ export const users = ref<AdminUser[]>([]);
 export function handleAdminUserUpdate(updatedUser: Partial<UserProfile> & { id: string }) {
   const index = users.value.findIndex((u) => u.id === updatedUser.id);
   if (index !== -1) {
+    // Derive userTagText/userTagColor from userTag when the WS payload arrives
+    // (UserProfile carries userTag:{text,color} but AdminUser stores them as flat fields)
+    const tagFields =
+      'userTag' in updatedUser
+        ? {
+            userTagText: updatedUser.userTag?.text ?? null,
+            userTagColor: updatedUser.userTag?.color ?? null,
+          }
+        : {};
     users.value[index] = {
       ...users.value[index],
       ...(updatedUser as unknown as Partial<AdminUser>),
+      ...tagFields,
     };
   }
 }
@@ -61,6 +73,34 @@ export function useAdminUsers() {
     }
   };
 
+  const updateUserTag = async (userId: string, userTagText: string, userTagColor: string) => {
+    try {
+      await apiFetch(`/api/admin/users/${userId}/user-tag`, {
+        method: 'PATCH',
+        body: JSON.stringify({ userTagText, userTagColor }),
+      });
+      // Optimistic update
+      handleAdminUserUpdate({ id: userId, userTagText, userTagColor } as never);
+    } catch (err: unknown) {
+      console.error('Failed to update user tag:', err);
+      throw err;
+    }
+  };
+
+  const clearUserTag = async (userId: string) => {
+    try {
+      await apiFetch(`/api/admin/users/${userId}/user-tag`, {
+        method: 'PATCH',
+        body: JSON.stringify({ userTagText: '' }),
+      });
+      // Optimistic update
+      handleAdminUserUpdate({ id: userId, userTagText: null, userTagColor: null } as never);
+    } catch (err: unknown) {
+      console.error('Failed to clear user tag:', err);
+      throw err;
+    }
+  };
+
   onMounted(() => {
     if (users.value.length === 0) {
       fetchUsers();
@@ -73,5 +113,7 @@ export function useAdminUsers() {
     error,
     fetchUsers,
     updateRole,
+    updateUserTag,
+    clearUserTag,
   };
 }
