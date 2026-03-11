@@ -74,7 +74,7 @@ RUN ln -s /repo/apps/server/dist/cli/index.js /usr/local/bin/manlycam-admin
 WORKDIR /repo/apps/server
 
 # Copy and prepare entrypoint script
-COPY docker-entrypoint.sh ./
+COPY apps/server/docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
 EXPOSE 3000
