@@ -206,7 +206,7 @@ test_patterns: ['import.meta.env.VITE_* stubs still work via fallback — no tes
 - [x] Execution: Configure production Prisma migrations in Docker startup
 - [x] Execution: Fix 401 Unauthorized for SPA root by mounting adminRouter at /api/admin
 - [x] Execution: Ensure CLI bin symlink is correctly created in Docker runner stage
-- [x] Execution: Move runtime injection to docker-entrypoint.sh for startup-time injection
+- [x] Execution: Ensure CLI bin symlink is correctly created in Docker runner stage (fixed by linking directly)
 
 ### Debug Log
 - 2026-03-11: Initialized story implementation. Context loaded.
@@ -218,8 +218,9 @@ test_patterns: ['import.meta.env.VITE_* stubs still work via fallback — no tes
 - 2026-03-11: Created reference `nginx.conf`.
 - 2026-03-11: Moved `prisma` to `dependencies` and updated Dockerfile `CMD` to run `prisma migrate deploy` on startup to fix production DB initialization.
 - 2026-03-11: Fixed 401 Unauthorized on `/` by mounting `adminRouter` at `/api/admin` (fixing middleware scope bleed).
-- 2026-03-11: Updated Dockerfile to copy `apps/server/dist` before `pnpm install` in the runner stage, ensuring `pnpm` creates the `manlycam-admin` bin symlink.
+- 2026-03-11: Updated Dockerfile to link `manlycam-admin` directly to `/repo/apps/server/dist/cli/index.js` as workspace bin symlinks were missing in the minimalist runner stage.
 - 2026-03-11: Reverted per-request injection in `app.ts` and moved logic to `docker-entrypoint.sh` for one-time startup injection.
+
 
 ### Completion Notes
 - Monolithic deployment architecture achieved.

@@ -68,7 +68,8 @@ COPY --from=builder /repo/node_modules/.pnpm ./node_modules/.pnpm
 COPY --from=web-builder /repo/apps/web/dist ./apps/web/dist
 
 # Make the admin CLI available globally in the container
-RUN ln -s /repo/node_modules/.bin/manlycam-admin /usr/local/bin/manlycam-admin
+# We link directly to the compiled JS file since pnpm workspace symlinks can be tricky in minimalist Docker copies
+RUN ln -s /repo/apps/server/dist/cli/index.js /usr/local/bin/manlycam-admin
 
 WORKDIR /repo/apps/server
 
