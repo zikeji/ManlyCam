@@ -97,8 +97,9 @@ TypeScript full-stack web (upstream server + Vue SPA) + Pi configured via instal
 | `apps/web` (Vue SPA) | TypeScript + Vue 3 + Vite 6 | `pnpm create vite@latest apps/web -- --template vue-ts` |
 | `packages/types` (shared TS types) | TypeScript | Manual |
 | Pi setup | Bash install script + systemd units | `install.sh --endpoint <url>` |
+| Server mediamtx | mediamtx (Docker Compose service or systemd) | Ingests RTSP from Pi via frp tunnel → publishes WebRTC WHEP for browsers; HTTP API used by server for Pi reachability polling and camera settings forwarding |
 
-> **Note:** `apps/agent` (Go) has been removed from the monorepo. The Pi runs frpc and mediamtx as direct systemd services configured by the install script.
+> **Note:** `apps/agent` (Go) has been removed from the monorepo. The Pi runs frpc and mediamtx as direct systemd services configured by the install script. Server-side mediamtx runs as an independent Docker Compose service (or systemd) — it is no longer spawned as a subprocess by the Hono server (see Story 6-1).
 
 ### Monorepo Structure
 
@@ -219,7 +220,7 @@ Path-filtered GitHub Actions — each component releases independently on merge 
 
 | Workflow | Path filter | Steps |
 |---|---|---|
-| `server-ci.yml` | `apps/server/**` | lint (ESLint), typecheck (tsc --noEmit), test (Vitest), build Docker image (Node.js + mediamtx), push to registry, rolling deploy |
+| `server-ci.yml` | `apps/server/**` | lint (ESLint), typecheck (tsc --noEmit), test (Vitest), build Docker image (Node.js), push to registry, rolling deploy |
 | `web-ci.yml` | `apps/web/**` | lint, typecheck, test (Vitest), Vite build, build Docker image, push to registry, rolling deploy |
 | `types-ci.yml` | `packages/types/**` | typecheck only |
 
@@ -247,7 +248,7 @@ Path-filtered GitHub Actions — each component releases independently on merge 
 | ORM | Prisma 6 | TypeScript schema + migrations |
 | Database | PostgreSQL | Relational: users, roles, chat, audit log |
 | WS fan-out | In-process EventEmitter | Single instance; appropriate for 10–20 viewers; Redis seam documented |
-| Stream transcoding | mediamtx → WebRTC | Pi mediamtx RTSP → server mediamtx WHEP; no ffmpeg (see 3-2c pivot) |
+| Stream transcoding | mediamtx → WebRTC | Pi mediamtx RTSP → server mediamtx WHEP; no ffmpeg (see 3-2c pivot); server mediamtx is a standalone compose service, not a subprocess (see 6-1) |
 | Admin CLI | Node.js in `apps/server/src/cli/` | Shared Prisma client; no separate deploy |
 | Pi setup | Bash install script | frpc + mediamtx as systemd services; no custom binary |
 | Pi camera pipeline | mediamtx `rpiCamera` source → RTSP → frp | Camera always-on regardless of consumers; RTSP tunneled to server (see 3-2b pivot) |

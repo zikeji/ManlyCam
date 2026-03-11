@@ -1,6 +1,6 @@
 # Story 5.5: Four-Tier Role Hierarchy, CLI Admin Grant, Web UI Moderator Management
 
-Status: ready-for-review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

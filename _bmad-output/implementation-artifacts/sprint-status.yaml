@@ -87,10 +87,10 @@ development_status:
   5-4-non-privileged-ui-gating: done # Review complete, 3 findings fixed (test gaps). All ACs implemented. Done 2026-03-10
   5-5-four-tier-role-hierarchy-cli-admin-grant-web-ui-moderator-management: done
   5-6-usertag-assignment-and-server-computed-effective-usertag: done
-  epic-5-retrospective: optional
+  epic-5-retrospective: done  # Completed 2026-03-11
 
-  epic-6: backlog  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md
-  6-1-remove-go-agent-from-monorepo: backlog
+  epic-6: backlog  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md; story 6-1 and 6-3 scopes expanded 2026-03-11 via sprint-change-proposal-2026-03-11.md
+  6-1-remove-go-agent-extract-mediamtx-clean-dependencies: backlog
   6-2-pi-install-and-uninstall-script: backlog
   6-3-operator-documentation: backlog
   epic-6-retrospective: optional
