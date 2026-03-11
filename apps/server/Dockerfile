@@ -44,6 +44,8 @@ RUN pnpm --filter @manlycam/server exec tsc && chmod +x apps/server/dist/cli/ind
 # Stage 3: Runtime
 FROM node:20-alpine AS runner
 
+ENV NODE_ENV=production
+
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /repo
