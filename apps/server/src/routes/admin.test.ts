@@ -24,7 +24,7 @@ import type { User } from '@prisma/client';
 describe('admin routes', () => {
   const app = new Hono<AppEnv>();
   app.use('*', authMiddleware);
-  app.route('/', createAdminRouter());
+  app.route('/api/admin', createAdminRouter());
   app.onError((err, c) => {
     if (err instanceof AppError) {
       return c.json(

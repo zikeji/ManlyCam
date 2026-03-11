@@ -38,7 +38,7 @@ export function createApp() {
   app.route('/', streamRouter);
   app.route('/', createChatRouter());
   app.route('/', createModerationRouter());
-  app.route('/', createAdminRouter());
+  app.route('/api/admin', createAdminRouter());
 
   // WebSocket — createNodeWebSocket must receive the app instance before routes are added
   // so it can intercept upgrade requests through the full middleware pipeline.

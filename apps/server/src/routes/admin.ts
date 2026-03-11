@@ -14,7 +14,7 @@ export function createAdminRouter() {
   router.use('*', requireAuth);
   router.use('*', requireRole(Role.Admin));
 
-  router.get('/api/admin/users', async (c) => {
+  router.get('/users', async (c) => {
     const users = await getAllUsers();
     return c.json(
       users.map((u) => ({
@@ -33,7 +33,7 @@ export function createAdminRouter() {
     );
   });
 
-  router.patch('/api/admin/users/:userId/user-tag', async (c) => {
+  router.patch('/users/:userId/user-tag', async (c) => {
     const targetUserId = c.req.param('userId');
     let body: { userTagText?: unknown; userTagColor?: unknown };
     try {
@@ -65,7 +65,7 @@ export function createAdminRouter() {
     return c.body(null, 204);
   });
 
-  router.post('/api/admin/users/:userId/role', async (c) => {
+  router.post('/users/:userId/role', async (c) => {
     const targetUserId = c.req.param('userId');
     let body: { role?: unknown };
     try {
