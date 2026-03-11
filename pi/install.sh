@@ -220,6 +220,9 @@ apiAddress: "127.0.0.1:9997"
 paths:
   cam:
     source: rpiCamera
+    # Restore stability: limit bitrate and increase keyframe frequency
+    rpiCameraBitrate: 4000000
+    rpiCameraIDRPeriod: 30
 MTX_YML
 
 chown root:root "${CONFIG_DIR}/mediamtx.yml"

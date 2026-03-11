@@ -17,9 +17,23 @@ webrtcAddress: ":8888"  # WebRTC WHEP — Hono proxies this to authenticated bro
 api: yes
 apiAddress: ":9997"     # HTTP API — server polls for Pi reachability
 
+# Required for Docker: allow Hono container to poll API and read streams without authentication
+# (Since MediaMTX ports 8888/9997 are not exposed to the host, this is safe)
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: api
+      - action: metrics
+      - action: pprof
+      - action: read
+
 paths:
   cam:
     # Substitute FRP_HOST and FRP_RTSP_PORT with your actual values.
     # In Docker Compose: FRP_HOST=frps, FRP_RTSP_PORT=11935
     source: rtsp://FRP_HOST:FRP_RTSP_PORT/cam
-    sourceProtocol: tcp
+    rtspTransport: automatic
+    # Improve stability through tunnels
+    readTimeout: 10s
