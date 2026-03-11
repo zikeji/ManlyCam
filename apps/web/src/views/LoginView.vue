@@ -1,6 +1,8 @@
 <script setup lang="ts">
-const siteName = import.meta.env.VITE_SITE_NAME as string
-const petName = import.meta.env.VITE_PET_NAME as string
+import { getSiteName, getPetName } from '@/lib/env'
+
+const siteName = getSiteName()
+const petName = getPetName()
 </script>
 
 <template>

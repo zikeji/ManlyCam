@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { getPetName } from '@/lib/env';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 
 defineProps<{
   variant: 'unreachable' | 'explicit-offline';
 }>();
 
-const petName = import.meta.env.VITE_PET_NAME as string;
+const petName = getPetName();
 </script>
 
 <template>

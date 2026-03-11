@@ -34,7 +34,7 @@ services:
 
   server:
     # Image published to GHCR by CI — replace owner with your GitHub username/org
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-zikeji}/manlycam-server:latest
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-zikeji}/manlycam:latest
     restart: unless-stopped
     environment:
       PORT: "3000"

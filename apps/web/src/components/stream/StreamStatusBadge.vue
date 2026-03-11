@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { getPetName } from '@/lib/env';
 import type { ClientStreamState } from '@/composables/useStream';
 
 const props = defineProps<{
   state: ClientStreamState;
 }>();
 
-const petName = import.meta.env.VITE_PET_NAME as string;
+const petName = getPetName();
 
 const dotClass = (state: ClientStreamState): string => {
   switch (state) {

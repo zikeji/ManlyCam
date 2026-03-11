@@ -1,10 +1,11 @@
-name: Server CI
+name: CI
 
 on:
   push:
     branches: [main]
     paths:
       - 'apps/server/**'
+      - 'apps/web/**'
       - 'packages/types/**'
       - '.github/workflows/server-ci.yml'
 
@@ -27,27 +28,42 @@ jobs:
           cache: 'pnpm'
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @manlycam/server exec prisma generate
+
+      # Web CI steps
+      - run: pnpm --filter @manlycam/web lint
+      - run: pnpm --filter @manlycam/web typecheck
+      - run: pnpm --filter @manlycam/web exec vitest run --coverage
+      - name: Report web coverage
+        uses: davelosert/vitest-coverage-report-action@v2
+        with:
+          json-summary-path: apps/web/coverage/coverage-summary.json
+          json-final-path: apps/web/coverage/coverage-final.json
+          vite-config-path: apps/web/vite.config.ts
+      - run: pnpm --filter @manlycam/web build
+
+      # Server CI steps
       - run: pnpm --filter @manlycam/server lint
       - run: pnpm --filter @manlycam/server typecheck
       - run: pnpm --filter @manlycam/server exec vitest run --coverage
-      - name: Report coverage
+      - name: Report server coverage
         uses: davelosert/vitest-coverage-report-action@v2
         with:
           json-summary-path: apps/server/coverage/coverage-summary.json
           json-final-path: apps/server/coverage/coverage-final.json
           vite-config-path: apps/server/vitest.config.ts
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push server image
+      - name: Build and push monolithic image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: apps/server/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/manlycam-server:${{ github.sha }}
-            ghcr.io/${{ github.repository_owner }}/manlycam-server:latest
+            ghcr.io/${{ github.repository_owner }}/manlycam:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/manlycam:latest

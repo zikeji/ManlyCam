@@ -10,6 +10,8 @@ import StateOverlay from './StateOverlay.vue';
 import ProfileAnchor from './ProfileAnchor.vue';
 import SidebarCollapseButton from './SidebarCollapseButton.vue';
 
+import { getPetName } from '@/lib/env';
+
 const props = defineProps<{
   streamState: ClientStreamState;
   isAdmin?: boolean;
@@ -27,7 +29,7 @@ const emit = defineEmits<{
   toggleChatSidebar: [];
 }>();
 
-const petName = import.meta.env.VITE_PET_NAME as string;
+const petName = getPetName();
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isHovered = ref(false);
 const tapOverlayVisible = ref(false);

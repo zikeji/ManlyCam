@@ -1,4 +1,24 @@
-# Stage 1: Build
+# Stage 1: Web Build
+FROM node:20-alpine AS web-builder
+
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /repo
+
+# Copy web app and shared types
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/types/ ./packages/types/
+COPY apps/web/ ./apps/web/
+
+RUN pnpm install --frozen-lockfile
+
+# Build shared types package first
+RUN pnpm --filter @manlycam/types build
+
+# Build Vue app
+RUN pnpm --filter @manlycam/web build
+
+# Stage 2: Server Build
 FROM node:20-alpine AS builder
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
@@ -15,17 +35,14 @@ RUN pnpm install --frozen-lockfile
 # Generate Prisma client (must run before build so TS can resolve generated types)
 RUN pnpm --filter @manlycam/server exec prisma generate
 
-# Build shared types package first (server tsc paths resolve to dist/*.d.ts)
+# Build shared types package first
 RUN pnpm --filter @manlycam/types build
 
 # Compile TypeScript
 RUN pnpm --filter @manlycam/server exec tsc && chmod +x apps/server/dist/cli/index.js
 
-# Stage 2: Runtime
+# Stage 3: Runtime
 FROM node:20-alpine AS runner
-
-# ffmpeg is required for HLS stream transcoding
-RUN apk add --no-cache ffmpeg
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -41,6 +58,9 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /repo/apps/server/dist ./apps/server/dist
 COPY --from=builder /repo/apps/server/prisma ./apps/server/prisma
 COPY --from=builder /repo/node_modules/.pnpm ./node_modules/.pnpm
+
+# Copy web dist
+COPY --from=web-builder /repo/apps/web/dist ./apps/web/dist
 
 # Make the admin CLI available globally in the container
 RUN ln -s /repo/node_modules/.bin/manlycam-admin /usr/local/bin/manlycam-admin
