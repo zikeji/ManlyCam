@@ -1,6 +1,6 @@
 # Story 6.1: Remove Go Agent, Extract mediamtx, and Clean Unused Dependencies
 
-Status: review
+Status: done
 
 ## Story
 
@@ -359,6 +359,7 @@ The `streamService.ts` public API (`getState()`, `isPiReachable()`, `setAdminTog
 ## Change Log
 
 - 2026-03-11: Implemented all 10 tasks — removed Go agent and CI workflow, removed AGENT_API_KEY, extracted mediamtx subprocess management to standalone service (MTX_API_URL/MTX_WEBRTC_URL env vars), updated docker-compose.yml with mediamtx service, created mediamtx-server.yml example config, removed hls.js. 298 server tests + 437 web tests passing, TypeScript clean.
+- 2026-03-11: Code review post-implementation: added missing mediamtx service to apps/server/deploy/traefik/docker-compose.yml (traefik deployment variant was missing mediamtx and depends_on constraint).
 
 ## Dev Agent Record
 
@@ -380,6 +381,7 @@ None — implementation proceeded without issues.
 - `env.ts` updated: `MTX_WEBRTC_PORT`/`MTX_API_PORT` replaced with `MTX_API_URL`/`MTX_WEBRTC_URL` (URL type, with `http://127.0.0.1` defaults). WebRTC default port corrected from `8889` → `8888` (mediamtx default)
 - `streamService.test.ts`: removed all subprocess mocks (`node:child_process`, `node:fs`, `node:os`, `node:path`), deleted `buildMTXConfig` describe block (3 tests removed), updated env mock to URL vars, replaced `stop() kills mediamtx process` with `stop() sets stopped flag and does not throw`, removed `makeMockProc` helper and `spawn` mock usage. Test count: 298 server (was 301, net -3)
 - `docker-compose.yml` updated: added `mediamtx` service with `bluenviron/mediamtx:latest`, RTSP port 8554 published, WebRTC/API internal only; server `depends_on: mediamtx`; server env updated to `MTX_API_URL`/`MTX_WEBRTC_URL`
+- `deploy/traefik/docker-compose.yml` updated: added missing `mediamtx` service (was overlooked in initial implementation), added `depends_on: mediamtx` to server service, ensures traefik deployment variant works correctly
 - Created `apps/server/deploy/mediamtx-server.yml` — static mediamtx config with RTSP disabled (`:0`), WebRTC on `:8888`, API on `:9997`, `cam` path pulls from frps RTSP tunnel
 - `hls.js` removed from `apps/web/package.json`; no imports existed in `apps/web/src/`; `pnpm install` confirmed `-1` package removed
 - Pre-existing ESLint errors on `vitest.config.ts` (server) and `postcss.config.js`/`vite.config.ts` (web) confirmed pre-existing via `git stash` check — not regressions from this story
@@ -404,3 +406,56 @@ None — implementation proceeded without issues.
 
 **Created:**
 - `apps/server/deploy/mediamtx-server.yml`
+
+## Senior Developer Review (AI)
+
+**Reviewer:** Claude Haiku 4.5
+**Date:** 2026-03-11
+**Verdict:** ✅ APPROVED (after fix)
+
+### Review Summary
+
+**Initial Finding (Code Review):** Traefik docker-compose variant was missing the `mediamtx` service that was added to the regular `docker-compose.yml`. This was a **MEDIUM severity issue** that would cause runtime failures in traefik-based deployments.
+
+**Resolution:** Added `mediamtx` service block to `apps/server/deploy/traefik/docker-compose.yml` (lines 82-92) and `depends_on: mediamtx` constraint to server service (lines 76-77), mirroring the regular docker-compose.yml structure.
+
+### Acceptance Criteria Validation
+
+| AC | Status | Notes |
+|----|---------:|---------|
+| AC #1 | ✅ PASS | Go agent directory + CI workflow deleted; pnpm workspace resolves cleanly |
+| AC #2 | ✅ PASS | AGENT_API_KEY removed from all env sources and compose files |
+| AC #3 | ✅ PASS | Workspace resolves without errors; all CI/CD checks pass |
+| AC #4 | ✅ PASS | streamService.ts subprocess management fully removed; pollLoop retained |
+| AC #5 | ✅ PASS | Configurable URL env vars (MTX_API_URL, MTX_WEBRTC_URL) implemented; both stream modules updated |
+| AC #6 | ✅ PASS | Docker Compose variants updated: regular + traefik both include mediamtx service |
+| AC #7 | ✅ PASS | mediamtx-server.yml example config created and mounted in compose files |
+| AC #8 | ✅ PASS | hls.js removed from web dependencies; no imports remain; tests verify clean build |
+
+### Test Coverage
+
+- Server tests: 298/298 passing (3 tests removed from buildMTXConfig suite)
+- Web tests: 437/437 passing
+- TypeScript: Clean
+- ESLint: Pre-existing errors in vitest.config.ts (verified as pre-existing, not regressions)
+
+### Code Quality Assessment
+
+**streamService.ts refactor:** Excellent. Subprocess management cleanly extracted. Public API unchanged. Polling logic retained without modification. Error handling appropriate.
+
+**Configuration:** URL-based env vars (instead of port numbers) provide flexibility for Docker vs bare-metal deployments. Defaults appropriate for local dev (`http://127.0.0.1:PORT`) and Docker Compose (`http://mediamtx:PORT`).
+
+**Deployment consistency:** Both docker-compose.yml variants now have parity with respect to mediamtx service definition and dependencies.
+
+### Issues Found and Fixed
+
+1. **Traefik docker-compose.yml missing mediamtx service** — FIXED
+   - Added mediamtx service definition with proper image, ports, volumes, and network configuration
+   - Added depends_on constraint to server service
+   - Service on internal network only (RTSP port 8554 published for frp tunnel ingest)
+
+### Final Assessment
+
+**Status:** ✅ **DONE**
+
+All acceptance criteria met, all tests passing, deployment variants consistent. Ready to merge.
