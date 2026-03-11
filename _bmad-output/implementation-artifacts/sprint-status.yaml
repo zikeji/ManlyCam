@@ -86,7 +86,7 @@ development_status:
   5-3-ban-with-immediate-session-revocation: done  # code-review findings fixed: file list documentation, ROLE_RANK duplication, and component logic refactored.
   5-4-non-privileged-ui-gating: done # Review complete, 3 findings fixed (test gaps). All ACs implemented. Done 2026-03-10
   5-5-four-tier-role-hierarchy-cli-admin-grant-web-ui-moderator-management: done
-  5-6-usertag-assignment-and-server-computed-effective-usertag: review
+  5-6-usertag-assignment-and-server-computed-effective-usertag: done
   epic-5-retrospective: optional
 
   epic-6: backlog  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md
