@@ -78,6 +78,12 @@ if [ "$(id -u)" -ne 0 ]; then
   error "This script must be run as root (use: sudo $0 $*)"
 fi
 
+# Architecture check: Ensure we are on a 64-bit OS
+ARCH=$(uname -m)
+if [ "$ARCH" != "aarch64" ] && [ "$ARCH" != "arm64" ]; then
+  error "This script requires a 64-bit OS (aarch64/arm64). Detected: $ARCH. Please flash a 64-bit version of Raspberry Pi OS."
+fi
+
 for cmd in curl tar; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     error "'$cmd' is required but not installed. Run: sudo apt-get install -y $cmd"
@@ -85,6 +91,7 @@ for cmd in curl tar; do
 done
 
 info "Installing ManlyCam Pi services"
+info "  Architecture:     ${ARCH}"
 info "  frps endpoint:    ${FRP_SERVER_ADDR}:${FRP_SERVER_PORT}"
 info "  frpc version:     ${FRPC_VERSION}"
 info "  mediamtx version: ${MTX_VERSION}"
@@ -152,6 +159,11 @@ mkdir -p "$CONFIG_DIR"
 # ── Write frpc.toml ───────────────────────────────────────────────────────────────
 
 info "Writing ${CONFIG_DIR}/frpc.toml..."
+# Create file with restricted permissions BEFORE writing sensitive token
+touch "${CONFIG_DIR}/frpc.toml"
+chown root:root "${CONFIG_DIR}/frpc.toml"
+chmod 600 "${CONFIG_DIR}/frpc.toml"
+
 cat > "${CONFIG_DIR}/frpc.toml" <<FRPC_TOML
 # /etc/manlycam/frpc.toml — managed by ManlyCam install.sh
 # WARNING: Re-running install.sh regenerates this file from script arguments.
@@ -177,7 +189,7 @@ localPort  = 9997
 remotePort = 11936
 FRPC_TOML
 
-chown root:root "${CONFIG_DIR}/frpc.toml"
+# Finalize permissions to allow group-read if needed, though 600 is safest for token
 chmod 640 "${CONFIG_DIR}/frpc.toml"
 
 # ── Write mediamtx.yml ────────────────────────────────────────────────────────────
@@ -250,6 +262,14 @@ FRPC_SERVICE_UNIT
 info "Reloading systemd and enabling services..."
 systemctl daemon-reload
 systemctl enable --now mediamtx frpc
+
+# Verify startup
+sleep 2 # Give them a moment to settle
+for svc in mediamtx frpc; do
+  if ! systemctl is-active --quiet "$svc"; then
+    warn "Service $svc is not active. Check logs: journalctl -u $svc -n 50"
+  fi
+done
 
 info ""
 info "✓ ManlyCam Pi installation complete!"

@@ -44,8 +44,20 @@ systemctl daemon-reload
 # ── Remove config directory ───────────────────────────────────────────────────────
 
 if [ -d /etc/manlycam ]; then
-  rm -rf /etc/manlycam
-  info "Removed /etc/manlycam"
+  REMOVE_CONFIG="n"
+  if [ -t 0 ]; then
+    echo -n "[uninstall] Remove configuration directory /etc/manlycam? (y/N): "
+    read -r REMOVE_CONFIG
+  else
+    info "Non-interactive shell detected — keeping /etc/manlycam (use --purge to force removal)"
+  fi
+
+  if [[ "$REMOVE_CONFIG" =~ ^[Yy]$ ]]; then
+    rm -rf /etc/manlycam
+    info "Removed /etc/manlycam"
+  else
+    info "Kept /etc/manlycam"
+  fi
 fi
 
 # ── Remove binaries ───────────────────────────────────────────────────────────────

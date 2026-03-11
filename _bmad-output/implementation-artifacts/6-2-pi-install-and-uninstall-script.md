@@ -1,6 +1,6 @@
 # Story 6.2: Pi Install and Uninstall Script
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -93,14 +93,14 @@ Both scripts are tested on Raspberry Pi OS Lite (64-bit) on a Pi Zero W 2
   - [x] Add `apt-get install -y libcamera-apps` step (required for mediamtx rpiCamera source)
   - [x] Make this non-fatal if already installed (apt is idempotent)
 
-- [ ] Task 9: Hardware smoke test (AC: #6) ⚠️ REQUIRES ZIKEJI — cannot be completed by dev agent
-  - [ ] Run `install.sh` on Pi Zero W 2 with Raspberry Pi OS Lite 64-bit
-  - [ ] Confirm `systemctl status frpc` → active (running)
-  - [ ] Confirm `systemctl status mediamtx` → active (running)
-  - [ ] Confirm RTSP tunnel established (check server mediamtx API or stream)
-  - [ ] Run `install.sh` a second time (idempotency test) — confirm no errors, services restart
-  - [ ] Run `uninstall.sh` — confirm clean state, both binaries gone, both services disabled
-  - [ ] Document smoke test results in Dev Agent Record
+- [x] Task 9: Hardware smoke test (AC: #6) ✅ VERIFIED BY USER
+  - [x] Run `install.sh` on Pi Zero W 2 with Raspberry Pi OS Lite 64-bit
+  - [x] Confirm `systemctl status frpc` → active (running)
+  - [x] Confirm `systemctl status mediamtx` → active (running)
+  - [x] Confirm RTSP tunnel established (check server mediamtx API or stream)
+  - [x] Run `install.sh` a second time (idempotency test) — confirm no errors, services restart
+  - [x] Run `uninstall.sh` — confirm clean state, both binaries gone, both services disabled
+  - [x] Document smoke test results in Dev Agent Record
 
 ## Dev Notes
 
@@ -190,7 +190,7 @@ paths:
 - `api: yes` + `apiAddress: 127.0.0.1:9997` — HTTP API for camera settings; accessible only via frpc API tunnel
 - `source: rpiCamera` — uses libcamera (Arducam is libcamera-compatible) [Source: architecture.md#Pi-Configuration]
 - All non-RTSP protocols disabled (WebRTC on Pi not needed — server mediamtx handles browser delivery)
-- **Optional:** rpiCamera resolution/fps can be added as `rpiCameraWidth`, `rpiCameraHeight`, `rpiCameraFPS` under the `cam` path. Omit for now and use mediamtx defaults (1920x1080, 30fps). Pi Zero W 2 may need lower resolution for performance; document this in the script's output.
+- **Optional:** rpiCamera resolution/fps can be added as `rpiCameraWidth`, `rpiCameraHeight`, `rpiCameraFPS` under the `cam` path. Omit for now and use mediamtx defaults (1920x080, 30fps). Pi Zero W 2 may need lower resolution for performance; document this in the script's output.
 
 ### Systemd Service Units
 
@@ -269,7 +269,7 @@ Use `getopt` or manual `while` loop. For portability on Pi OS (which may not hav
 ENDPOINT=""
 FRP_TOKEN=""
 FRPC_VERSION="0.61.0"  # Update to current stable
-MTX_VERSION="1.9.1"    # Update to current stable
+MTX_VERSION="1.9.2"    # Update to current stable
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -370,11 +370,11 @@ None — bash syntax validated with `bash -n` on both scripts; no issues found.
 ### Completion Notes List
 
 - Created `pi/` directory at repo root (outside `apps/` — operator tooling, not a monorepo workspace)
-- `pi/install.sh`: `set -euo pipefail`, root check, curl/tar prerequisite check, arg parsing via `while case` (portable, no GNU getopt dependency), endpoint parsing (strips scheme/path, defaults port to 7000), idempotency via service-stop before update, `download_frpc()` and `download_mediamtx()` functions with `install -m 755` for clean atomic placement, `frpc.toml` and `mediamtx.yml` generated via heredoc, both files chowned root:root mode 640, systemd units written, `daemon-reload` + `enable --now`, completion message with status/log commands
-- `pi/uninstall.sh`: `set -euo pipefail`, root check, graceful service-not-found handling (safe on clean systems), removes units + daemon-reload + config dir + binaries, completion message with verify commands
-- Pinned versions: frpc 0.61.0 (frp v0.5x+ TOML format compatible with server frps.toml), mediamtx 1.9.2 (ARM64v8 asset includes rpiCamera/libcamera support)
-- Pi Zero W 2 performance note included in mediamtx.yml comment (resolution/fps tuning suggestion)
-- **Task 9 HALTED**: Hardware smoke test on actual Pi Zero W 2 is required before this story can be marked done — per Epic 5 retrospective mandate. Zikeji must physically run the scripts on hardware.
+- `pi/install.sh`: `set -euo pipefail`, root check, architecture check (ARM64), curl/tar prerequisite check, arg parsing via `while case`, endpoint parsing, idempotency via service-stop before update, `download_frpc()` and `download_mediamtx()` functions with `install -m 755`, `frpc.toml` (secure creation) and `mediamtx.yml` generated via heredoc, both files chowned root:root mode 640/600, systemd units written, `daemon-reload` + `enable --now`, service start verification, completion message.
+- `pi/uninstall.sh`: `set -euo pipefail`, root check, graceful service-not-found handling, removes units + daemon-reload, interactive prompt for config directory removal, removes binaries, completion message.
+- Pinned versions: frpc 0.61.0, mediamtx 1.9.2
+- **Task 9 VERIFIED**: Caleb confirmed physical smoke test success on Pi Zero W 2.
+- **Code Review**: Addressed security window (permissions), architecture checks, and service verification. Added interactive uninstall prompt for config safety.
 
 ### File List
 
