@@ -8,8 +8,8 @@ import { streamService } from './services/streamService.js';
 const { app, injectWebSocket } = createApp();
 const port = parseInt(env.PORT, 10);
 
-const server = serve({ fetch: app.fetch, port }, (info) => {
-  logger.info(`Server running on http://localhost:${info.port}`);
+const server = serve({ fetch: app.fetch, port, hostname: '0.0.0.0' }, (info) => {
+  logger.info(`Server running on http://0.0.0.0:${info.port}`);
   streamService.start().catch((err) => {
     logger.error({ err }, 'streamService.start() failed');
   });
