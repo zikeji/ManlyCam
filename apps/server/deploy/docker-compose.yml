@@ -7,14 +7,14 @@
 #   1. cp apps/server/.env.example .env
 #   2. Edit .env with your values (POSTGRES_PASSWORD, BASE_URL, Google OAuth credentials, etc.)
 #   3. Edit frps.toml and set [auth] token to a secure random secret
-#      (must match Pi agent's [frp] auth_token in config.example.toml)
+#      (must match auth.token in /etc/manlycam/frpc.toml on the Pi)
 #   4. Copy mediamtx-server.yml to the deploy directory and substitute FRP_HOST/FRP_RTSP_PORT
 #   5. docker compose --env-file .env up -d
 
 services:
   server:
     # Image published to GHCR by CI — replace owner with your GitHub username/org
-    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-your-github-username}/manlycam-server:latest
+    image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-zikeji}/manlycam-server:latest
     restart: unless-stopped
     ports:
       - "3000:3000"
@@ -62,7 +62,7 @@ services:
     image: snowdreamtech/frps:latest
     restart: unless-stopped
     ports:
-      - "7000:7000"    # frpc client connections — Pi agent connects here to establish tunnels
+      - "7000:7000"    # frpc client connections — Pi connects here to establish tunnels
       # 11935 and 11936 are not published — the server container reaches frps directly
       # over the Docker network using the service name (frps:11935, frps:11936)
     volumes:

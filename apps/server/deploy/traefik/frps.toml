@@ -2,12 +2,12 @@
 # frp server (frps) configuration — frp v0.5x+ TOML format
 # Mount this file into the frps container (see docker-compose.yml in this directory)
 #
-# Fill in the token to match the Pi agent's config.toml [frp] auth_token
+# Fill in the token to match auth.token in /etc/manlycam/frpc.toml on the Pi
 
-# Port frpc clients (Pi agent) connect to establish tunnels
+# Port frpc clients (Pi) connect to for tunnel establishment
 bindPort = 7000
 
 [auth]
 method = "token"
-# Must match auth_token in the Pi agent's config.toml [frp] section
+# Must match auth.token in /etc/manlycam/frpc.toml on the Pi
 token = "change-me-to-a-random-secret"

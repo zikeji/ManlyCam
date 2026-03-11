@@ -91,6 +91,6 @@ development_status:
 
   epic-6: in-progress  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md; story 6-1 and 6-3 scopes expanded 2026-03-11 via sprint-change-proposal-2026-03-11.md
   6-1-remove-go-agent-extract-mediamtx-clean-dependencies: done  # code-review findings fixed (traefik docker-compose mediamtx service added); all ACs implemented. Done 2026-03-11
-  6-2-pi-install-and-uninstall-script: backlog
+  6-2-pi-install-and-uninstall-script: review
   6-3-operator-documentation: backlog
   epic-6-retrospective: optional

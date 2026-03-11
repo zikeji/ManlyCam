@@ -2,21 +2,21 @@
 # frp server (frps) configuration — frp v0.5x+ TOML format
 # This is the server-side config; it defines the frps listening port and authentication.
 # Tunnel definitions (which remote ports map to which local services) are configured
-# on the client side (Pi agent's config.toml).
+# on the client side (Pi's frpc.toml).
 #
 # Mount this file into the frps container (see docker-compose.yml)
 #
 # Setup instructions:
 #   1. Edit this file and replace the token with a secure random secret
-#   2. Copy the same token value to Pi agent's config.toml [frp] auth_token
-#   3. Restart frps and the agent for changes to take effect
+#   2. Copy the same token value to /etc/manlycam/frpc.toml on the Pi (auth.token)
+#   3. Restart frps and the Pi services for changes to take effect
 
-# Port frpc clients (Pi agent) connect to for tunnel establishment
+# Port frpc clients (Pi) connect to for tunnel establishment
 # Must be accessible from the Pi on your network
 bindPort = 7000
 
 [auth]
 method = "token"
-# ⚠️ IMPORTANT: Must match auth_token in the Pi agent's config.toml [frp] section
+# ⚠️ IMPORTANT: Must match auth.token in /etc/manlycam/frpc.toml on the Pi
 # Generate a random secret: openssl rand -hex 32
 token = "change-me-to-a-random-secret"
