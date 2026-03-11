@@ -203,6 +203,7 @@ test_patterns: ['import.meta.env.VITE_* stubs still work via fallback — no tes
 - [x] Execution: Implement Task 9 (update server CI)
 - [x] Execution: Implement Task 10 (move deploy docs)
 - [x] Execution: Implement Task 11 (nginx.conf)
+- [x] Execution: Configure production Prisma migrations in Docker startup
 
 ### Debug Log
 - 2026-03-11: Initialized story implementation. Context loaded.
@@ -213,6 +214,7 @@ test_patterns: ['import.meta.env.VITE_* stubs still work via fallback — no tes
 - 2026-03-11: Consolidated Dockerfile and CI workflows.
 - 2026-03-11: Migrated deploy configs to `docs/deploy/`.
 - 2026-03-11: Created reference `nginx.conf`.
+- 2026-03-11: Moved `prisma` to `dependencies` and updated Dockerfile `CMD` to run `prisma migrate deploy` on startup to fix production DB initialization.
 
 ### Completion Notes
 - Monolithic deployment architecture achieved.

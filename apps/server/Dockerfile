@@ -69,4 +69,5 @@ WORKDIR /repo/apps/server
 
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+# Run migrations and then start the server
+CMD ["sh", "-c", "npx prisma migrate deploy --schema ./prisma/schema.prisma && node dist/index.js"]
