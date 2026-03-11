@@ -10,10 +10,9 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   FRP_HOST: z.string().min(1).default('localhost'),
   FRP_RTSP_PORT: z.string().min(1),
-  MTX_WEBRTC_PORT: z.string().min(1).default('8889'),
-  MTX_API_PORT: z.string().min(1).default('9997'),
+  MTX_API_URL: z.string().url().default('http://127.0.0.1:9997'),
+  MTX_WEBRTC_URL: z.string().url().default('http://127.0.0.1:8888'),
   FRP_API_PORT: z.string().min(1),
-  AGENT_API_KEY: z.string().min(1),
   PET_NAME: z.string().min(1),
   SITE_NAME: z.string().min(1),
 });

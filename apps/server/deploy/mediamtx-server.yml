@@ -1,0 +1,25 @@
+# ManlyCam server-side mediamtx configuration
+# Role: ingest RTSP from the Pi (via frp tunnel) → publish as WebRTC WHEP for browsers.
+# All protocols except WebRTC and API are disabled to minimise attack surface.
+#
+# Setup:
+#   1. Copy this file to the deploy directory as mediamtx-server.yml
+#   2. Replace FRP_HOST and FRP_RTSP_PORT with your actual frps host and port
+#      (FRP_HOST is typically "frps" in Docker Compose; FRP_RTSP_PORT defaults to 11935)
+#   3. The compose file mounts this as /mediamtx.yml inside the mediamtx container
+
+rtspAddress: ":0"       # disabled — mediamtx pulls RTSP from frps as a client, not a listener
+rtmpAddress: ":0"       # disabled
+hlsAddress: ":0"        # disabled
+srtAddress: ":0"        # disabled
+webrtcAddress: ":8888"  # WebRTC WHEP — Hono proxies this to authenticated browsers
+
+api: yes
+apiAddress: ":9997"     # HTTP API — server polls for Pi reachability
+
+paths:
+  cam:
+    # Substitute FRP_HOST and FRP_RTSP_PORT with your actual values.
+    # In Docker Compose: FRP_HOST=frps, FRP_RTSP_PORT=11935
+    source: rtsp://FRP_HOST:FRP_RTSP_PORT/cam
+    sourceProtocol: tcp

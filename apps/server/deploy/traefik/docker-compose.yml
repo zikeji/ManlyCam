@@ -54,11 +54,9 @@ services:
       FRP_HOST: frps
       FRP_RTSP_PORT: "${FRP_RTSP_PORT:-11935}"
       FRP_API_PORT: "${FRP_API_PORT:-11936}"
-      # mediamtx ports (process spawned by server; not externally exposed — Hono proxies WHEP)
-      MTX_WEBRTC_PORT: "${MTX_WEBRTC_PORT:-8889}"
-      MTX_API_PORT: "${MTX_API_PORT:-9997}"
-      # Secret API key the Pi agent uses to authenticate with the server
-      AGENT_API_KEY: "${AGENT_API_KEY}"
+      # mediamtx base URLs — server reaches mediamtx over Docker bridge DNS
+      MTX_API_URL: "http://mediamtx:9997"
+      MTX_WEBRTC_URL: "http://mediamtx:8888"
       # Configurable instance identity (FR55)
       PET_NAME: "${PET_NAME:-Manly}"
       SITE_NAME: "${SITE_NAME:-ManlyCam}"

@@ -1,5 +1,5 @@
 # apps/server/deploy/docker-compose.yml
-# Simple deployment: Hono server + PostgreSQL
+# Simple deployment: Hono server + mediamtx + PostgreSQL
 # TLS is handled externally (host-level Caddy/nginx) or by Traefik variant.
 # See traefik/ subdirectory for a fully Docker-native TLS option.
 #
@@ -8,7 +8,8 @@
 #   2. Edit .env with your values (POSTGRES_PASSWORD, BASE_URL, Google OAuth credentials, etc.)
 #   3. Edit frps.toml and set [auth] token to a secure random secret
 #      (must match Pi agent's [frp] auth_token in config.example.toml)
-#   4. docker compose --env-file .env up -d
+#   4. Copy mediamtx-server.yml to the deploy directory and substitute FRP_HOST/FRP_RTSP_PORT
+#   5. docker compose --env-file .env up -d
 
 services:
   server:
@@ -34,17 +35,28 @@ services:
       FRP_HOST: frps
       FRP_RTSP_PORT: "${FRP_RTSP_PORT:-11935}"
       FRP_API_PORT: "${FRP_API_PORT:-11936}"
-      # mediamtx ports (process spawned by server; not externally exposed — Hono proxies WHEP)
-      MTX_WEBRTC_PORT: "${MTX_WEBRTC_PORT:-8889}"
-      MTX_API_PORT: "${MTX_API_PORT:-9997}"
-      # Secret API key the Pi agent uses to authenticate with the server
-      AGENT_API_KEY: "${AGENT_API_KEY}"
+      # mediamtx base URLs — server reaches mediamtx over Docker bridge DNS
+      # WebRTC (8888) and API (9997) are internal-only; Hono proxies WHEP signaling
+      MTX_API_URL: "http://mediamtx:9997"
+      MTX_WEBRTC_URL: "http://mediamtx:8888"
       # Configurable instance identity (FR55)
       PET_NAME: "${PET_NAME:-Manly}"
       SITE_NAME: "${SITE_NAME:-ManlyCam}"
     depends_on:
       postgres:
         condition: service_healthy
+      mediamtx:
+        condition: service_started
+
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    restart: unless-stopped
+    ports:
+      - "8554:8554"   # RTSP — frpc on Pi pushes stream here via frps tunnel
+      # 8888 (WebRTC) and 9997 (API) are internal-only — server reaches via Docker bridge
+    volumes:
+      # Copy mediamtx-server.yml alongside this compose file and substitute FRP_HOST/FRP_RTSP_PORT
+      - ./mediamtx-server.yml:/mediamtx.yml:ro
 
   frps:
     image: snowdreamtech/frps:latest

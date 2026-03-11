@@ -25,7 +25,7 @@ streamRouter.get('/api/stream/state', requireAuth, (c) => {
 // PATCH  /api/stream/whep/:session — trickle ICE candidate exchange
 // DELETE /api/stream/whep/:session — close session
 
-const mtxWhepBase = () => `http://127.0.0.1:${env.MTX_WEBRTC_PORT}/cam/whep`;
+const mtxWhepBase = () => `${env.MTX_WEBRTC_URL}/cam/whep`;
 
 streamRouter.post('/api/stream/whep', requireAuth, async (c) => {
   const res = await fetch(mtxWhepBase(), {

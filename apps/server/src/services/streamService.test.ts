@@ -1,14 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventEmitter } from 'node:events';
 
-vi.mock('node:child_process');
-vi.mock('node:fs', () => ({
-  mkdtempSync: vi.fn().mockReturnValue('/tmp/test-mtx-dir'),
-  writeFileSync: vi.fn(),
-  rmSync: vi.fn(),
-}));
-vi.mock('node:os', () => ({ tmpdir: vi.fn().mockReturnValue('/tmp') }));
-vi.mock('node:path', () => ({ join: vi.fn((...parts: string[]) => parts.join('/')) }));
 vi.mock('./wsHub.js', () => ({
   wsHub: { broadcast: vi.fn() },
 }));
@@ -17,8 +8,8 @@ vi.mock('../env.js', () => ({
     FRP_HOST: 'frps',
     FRP_RTSP_PORT: '11935',
     FRP_API_PORT: '7400',
-    MTX_WEBRTC_PORT: '8889',
-    MTX_API_PORT: '9997',
+    MTX_API_URL: 'http://127.0.0.1:9997',
+    MTX_WEBRTC_URL: 'http://127.0.0.1:8888',
   },
 }));
 vi.mock('../db/client.js', () => ({
@@ -32,45 +23,15 @@ vi.mock('../db/client.js', () => ({
   },
 }));
 
-import { spawn } from 'node:child_process';
 import { wsHub } from './wsHub.js';
 import { prisma } from '../db/client.js';
-import { StreamService, buildMTXConfig } from './streamService.js';
-
-function makeMockProc() {
-  const proc = new EventEmitter() as EventEmitter & { kill: ReturnType<typeof vi.fn> };
-  proc.kill = vi.fn();
-  return proc;
-}
-
-describe('buildMTXConfig', () => {
-  it('includes RTSP source from env', () => {
-    const cfg = buildMTXConfig();
-    expect(cfg).toContain('source: rtsp://frps:11935/cam');
-    expect(cfg).toContain('sourceProtocol: tcp');
-  });
-
-  it('configures WebRTC and API ports', () => {
-    const cfg = buildMTXConfig();
-    expect(cfg).toContain('webrtcAddress: ":8889"');
-    expect(cfg).toContain('apiAddress: "127.0.0.1:9997"');
-  });
-
-  it('disables unused protocols', () => {
-    const cfg = buildMTXConfig();
-    expect(cfg).toContain('rtspAddress: ":0"');
-    expect(cfg).toContain('hlsAddress: ":0"');
-  });
-});
+import { StreamService } from './streamService.js';
 
 describe('StreamService state machine', () => {
   let service: StreamService;
-  let mockProc: ReturnType<typeof makeMockProc>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockProc = makeMockProc();
-    vi.mocked(spawn).mockReturnValue(mockProc as never);
     service = new StreamService();
   });
 
@@ -144,10 +105,9 @@ describe('StreamService state machine', () => {
     vi.unstubAllGlobals();
   });
 
-  it('stop() kills the mediamtx process', async () => {
+  it('stop() sets stopped flag and does not throw', async () => {
     await service.start();
-    service.stop();
-    expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(() => service.stop()).not.toThrow();
   });
 
   it('isPiReachable returns piReachable state', async () => {
@@ -164,12 +124,9 @@ describe('StreamService state machine', () => {
 
 describe('StreamService camera reapply', () => {
   let service: StreamService;
-  let mockProc: ReturnType<typeof makeMockProc>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockProc = makeMockProc();
-    vi.mocked(spawn).mockReturnValue(mockProc as never);
     service = new StreamService();
   });
 
