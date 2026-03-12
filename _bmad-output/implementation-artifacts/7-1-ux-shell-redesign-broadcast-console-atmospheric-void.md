@@ -12,9 +12,9 @@ so that stream controls are always accessible without hovering, and the interfac
 
 ## Acceptance Criteria
 
-1. **Given** a desktop user is on the watch page, **When** the page loads, **Then** the layout is a top-aligned stream (aspect-video, shrink-0) followed directly by the `<BroadcastConsole>` strip, followed by `<AtmosphericVoid>` filling the remaining vertical height — all inside the center flex column alongside the left admin sidebar (if open) and right chat sidebar (unchanged).
+1. **Given** a desktop user is on the watch page, **When** the page loads, **Then** the center flex column layout is: a content area (flex-1) containing `<AtmosphericVoid>` as an absolute-positioned background with `<StreamPlayer>` vertically centered on top of it, followed by the `<BroadcastConsole>` strip pinned at the bottom (shrink-0). The left admin sidebar and right chat sidebar are unchanged.
 
-2. **Given** the stream is live on desktop, **When** the `<AtmosphericVoid>` is visible, **Then** it shows a blurred, darkened mirror of the live stream (`filter: blur(40px) brightness(0.6)`) filling the vertical space below the console; when the stream is not live (no `srcObject`) the void renders a dark placeholder (`bg-[hsl(var(--surface))]`) rather than collapsing, to preserve layout stability.
+2. **Given** the stream is live on desktop, **When** the `<AtmosphericVoid>` is visible, **Then** it fills the entire content area (absolute inset-0) with a blurred, darkened mirror of the live stream (`filter: blur(40px) brightness(0.6)`), creating an ambient glow above and below the stream. The stream is `w-full aspect-video` centered vertically — the void naturally frames it above and below in the space the aspect ratio doesn't occupy. When the stream is not live (no `srcObject`), the void renders a dark placeholder (`bg-[hsl(var(--surface))]`) rather than collapsing.
 
 3. **Given** the `<BroadcastConsole>` is rendered, **When** viewed by any authenticated user, **Then** it shows three flanks:
    - **Left** (admin-only, hidden for non-admins): Camera Controls toggle button and Stream Start/Stop toggle button; a commented stub `<!-- 7-4: BatteryIndicator -->` in the leftmost position.
@@ -47,7 +47,7 @@ so that stream controls are always accessible without hovering, and the interfac
 
 | # | Issue | Resolution |
 |---|---|---|
-| ~~1~~ | Mobile landscape — ChatPanel header slot not possible | **Resolved:** Paired right-column unit (ChatPanel + BroadcastConsole stacked) + stream tap-to-reveal toggle. No ChatPanel modification needed. |
+| ~~1~~ | Mobile landscape — ChatPanel header slot not possible | **Resolved:** Paired right-column unit (ChatPanel + BroadcastConsole stacked) + stream tap-to-reveal toggle. No ChatPanel modification needed. Console always at bottom of its container in all layouts. |
 | 2 | AtmosphericVoid offline state | **Resolved:** Dark `bg-[hsl(var(--surface))]` fallback. Captured in AC #2. |
 | 3 | Start/Stop button duplication in profile popover | **Resolved:** Removed from profile popover entirely. Console left flank is always visible to admins in all layouts. |
 | 4 | StreamStatusBadge + static title redundancy | **Left to dev/UAT:** Both rendered side-by-side in center. Dev agent may adjust during implementation based on visual testing. Note it in completion notes. |
@@ -87,19 +87,21 @@ so that stream controls are always accessible without hovering, and the interfac
   - [ ] Internal `voidVideoRef` ref for mirrored `<video>` element
   - [ ] `watch(() => props.videoRef, ...)` + `loadeddata` event listener pattern (see Dev Notes)
   - [ ] `<video>`: `w-full h-full object-cover pointer-events-none select-none`, inline style `filter: blur(40px) brightness(0.6)`, `autoplay muted playsinline`
-  - [ ] Container: `relative overflow-hidden bg-[hsl(var(--surface))]` + `aria-hidden="true"`
+  - [ ] Container: **`absolute inset-0 overflow-hidden bg-[hsl(var(--surface))]`** + `aria-hidden="true"` — fills parent via absolute positioning; parent must be `relative`
   - [ ] `onUnmounted` cleanup of event listener
 
 - [ ] Task 4: Restructure `WatchView.vue` (AC: #1, #8, #11)
   - [ ] Add `isMobileLandscape` ref + matchMedia detection: `(max-width: 1023px) and (orientation: landscape)` — add listener in `onMounted`, same pattern as existing `isMobilePortrait`
   - [ ] Add `streamPlayerRef = ref<InstanceType<typeof StreamPlayer> | null>(null)` + `streamVideoRef = computed(() => streamPlayerRef.value?.videoRef ?? null)`
   - [ ] Import `BroadcastConsole`, `AtmosphericVoid`
-  - [ ] Restructure `<main>` for desktop/portrait: `flex flex-col bg-black overflow-hidden` (remove `items-center justify-center`)
-    - [ ] `<StreamPlayer ref="streamPlayerRef" class="w-full shrink-0" :streamState="streamState" :chatSidebarOpen="chatSidebarOpen" :unreadCount="unreadCount" :showLandscapeTapToggle="false" @toggle-chat-sidebar="handleToggleChatSidebar" />`
-    - [ ] `<BroadcastConsole ...all props... />` (below stream, desktop+portrait only — `v-if="!isMobileLandscape"`)
-    - [ ] `<AtmosphericVoid v-if="!isMobilePortrait && !isMobileLandscape" class="flex-1 min-h-0" :video-ref="streamVideoRef" />`
+  - [ ] Restructure `<main>` to `flex flex-col bg-black overflow-hidden` (remove `items-center justify-center`):
+    - [ ] **Content area div** (desktop/non-portrait): `class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden"` with `v-if="!isMobilePortrait"` — hosts AtmosphericVoid (absolute bg) + centered StreamPlayer (relative z-10)
+      - [ ] Inside: `<AtmosphericVoid v-if="!isMobileLandscape" class="absolute inset-0" :video-ref="streamVideoRef" />`
+      - [ ] Inside: `<StreamPlayer ref="streamPlayerRef" class="relative z-10 w-full" :streamState="streamState" :chatSidebarOpen="chatSidebarOpen" :unreadCount="unreadCount" :showLandscapeTapToggle="isMobileLandscape && !chatSidebarOpen" @toggle-chat-sidebar="handleToggleChatSidebar" />`
+    - [ ] **Portrait content area**: `v-if="isMobilePortrait"` — `class="shrink-0"` — contains StreamPlayer only (no void, no centering flex)
+      - [ ] Inside: `<StreamPlayer ref="streamPlayerRef" class="w-full" :streamState="streamState" :chatSidebarOpen="chatSidebarOpen" :unreadCount="unreadCount" :showLandscapeTapToggle="false" @toggle-chat-sidebar="handleToggleChatSidebar" />`
+    - [ ] `<BroadcastConsole v-if="!isMobileLandscape" ...all props... />` (shrink-0, pinned at bottom of main)
     - [ ] `<ChatPanel v-if="isMobilePortrait" class="flex-1 min-h-0 flex flex-col bg-[hsl(var(--sidebar))]" ... />`
-  - [ ] For landscape: pass `:showLandscapeTapToggle="isMobileLandscape && !chatSidebarOpen"` to StreamPlayer
   - [ ] Landscape right column (sibling of `<main>`, replaces right sidebar for landscape):
     ```
     <Transition v-if="isMobileLandscape" name="sidebar-right">
@@ -131,9 +133,10 @@ so that stream controls are always accessible without hovering, and the interfac
 
 - [ ] Task 7: Update `WatchView.test.ts` (AC: #10)
   - [ ] Update layout assertions to match new center-column structure
-  - [ ] Assert `<BroadcastConsole>` renders below stream (non-landscape)
-  - [ ] Assert `<AtmosphericVoid>` renders on desktop; not rendered on mobile portrait; not rendered on mobile landscape
-  - [ ] Assert mobile portrait: ChatPanel inside main column, no right sidebar
+  - [ ] Assert content area div is `relative flex items-center justify-center` (non-portrait)
+  - [ ] Assert `<AtmosphericVoid>` is `absolute inset-0` inside content area on desktop; not rendered on mobile portrait; not rendered on mobile landscape
+  - [ ] Assert `<BroadcastConsole>` is below content area in main (non-landscape); inside right column (landscape)
+  - [ ] Assert mobile portrait: stream is `shrink-0` with no centering wrapper; ChatPanel below console; no void
   - [ ] Assert mobile landscape: right column contains ChatPanel + BroadcastConsole stacked; BroadcastConsole NOT in main column
   - [ ] Assert StreamPlayer gets `showLandscapeTapToggle=true` when `isMobileLandscape && !chatSidebarOpen`
   - [ ] Verify `afterEach` cleanup
@@ -166,9 +169,16 @@ WatchView now has three distinct layouts driven by JS-level breakpoint state:
 
 | Mode | Condition | Layout |
 |---|---|---|
-| **Desktop** | `isDesktop` (`≥ 1024px`) | Left admin sidebar ↔ center column (stream → console → void) ↔ right chat sidebar |
-| **Mobile portrait** | `isMobilePortrait` | Single column: stream → console → chat (no void, no right sidebar) |
-| **Mobile landscape** | `isMobileLandscape` | Stream (flex-1, full left) ↔ right column (ChatPanel top + BroadcastConsole bottom, paired) |
+| **Desktop** | `isDesktop` (`≥ 1024px`) | Left admin sidebar ↔ center column (void+stream centered in flex-1, console at bottom) ↔ right chat sidebar |
+| **Mobile portrait** | `isMobilePortrait` | Single column: stream (shrink-0, top) → console → chat (flex-1, no void) |
+| **Mobile landscape** | `isMobileLandscape` | Stream fills left (void+stream centered, no console in main) ↔ right column (ChatPanel top + BroadcastConsole bottom, paired) |
+
+**The key structural change:** AtmosphericVoid is now an `absolute inset-0` background inside the content area div (which is `relative`). StreamPlayer sits on top of it (`relative z-10 w-full`). The content area is `flex items-center justify-center flex-1` so the stream is vertically centered — void fills the full height, stream's `aspect-video` ratio means void bleeds above and below it naturally.
+
+```
+Before: flex-col → [stream shrink-0 at top] → [console] → [void flex-1 below]
+After:  flex-col → [content area flex-1: void absolute bg + stream centered on top] → [console shrink-0 at bottom]
+```
 
 Add to `WatchView.vue` `onMounted`:
 ```typescript
