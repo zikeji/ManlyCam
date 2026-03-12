@@ -96,3 +96,10 @@ development_status:
   6-3-operator-documentation: done  # code-review findings fixed (2026-03-11): sprint-status.yaml added to file list, bare-metal frps section expanded with explicit commands and systemd unit
   6-4-implement-root-readme-with-architectural-overview: done
   epic-6-retrospective: done
+
+  epic-7: backlog
+  7-1-ux-shell-redesign-broadcast-console-atmospheric-void: backlog
+  7-2-editable-stream-title-admin-mod-live-broadcast: backlog
+  7-3-camera-snapshot-button-client-side-frame-capture: backlog
+  7-4-pisugar-battery-monitor-server-tcp-poller-admin-ui: backlog
+  7-5-resizable-chat-sidebar-reka-ui-splitter: backlog

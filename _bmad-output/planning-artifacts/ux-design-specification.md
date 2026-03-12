@@ -433,37 +433,32 @@ Seven design directions were produced as an interactive HTML showcase (`ux-desig
 
 ### Chosen Direction
 
-**Desktop — No-Topbar Hover-Overlay Three-Column**
+**Desktop — Top-Aligned Stream with Broadcast Console & Atmospheric Void**
 
 | Element | Behaviour |
 |---|---|
-| Layout | Left sidebar (camera controls, admin only) + Stream (fills remaining space) + Right sidebar (chat + viewers) |
-| Topbar | None — stream fills edge-to-edge, full viewport height |
-| Hover overlay | Gradient fades in over stream on cursor hover; hidden at rest |
-| Top-right overlay | `|→` collapses right sidebar; when right is collapsed, replaced by `←|` with unread badge (badge persists through non-hover state) |
-| Profile button | Avatar icon anchored bottom-left of stream; hidden at rest (appears on hover); click opens a popover menu: username / Camera Controls (admin) / Settings / Log out |
-| Camera controls access | Via profile popover menu (admin-only item) — no persistent cog in the stream overlay |
-| Sidebar collapse | Each sidebar collapses independently; no persistent strip remains — sidebar simply disappears; stream expands to fill |
-| Branding footer | Configurable via config at build time — no hardcoded company name in codebase |
+| Layout | Top-aligned stream + Broadcast Console below + Atmospheric Void filling remaining height. Right sidebar (chat) runs full height alongside. |
+| Topbar | None — stream is anchored near the top (e.g., `5vh` padding to let it breathe). |
+| Broadcast Console | Sleek, semi-transparent horizontal strip directly below the video. Left: Admin toggles (Camera Controls). Center: Live indicator & Viewer count. Right: Profile avatar & Chat toggle. |
+| Atmospheric Void | Remaining vertical space below the console is filled with a blurred, mirrored version of the live stream (`filter: blur(40px) brightness(0.6)`), grounding the player in a pool of light. |
+| Sidebar collapse | Right chat sidebar is full-height; collapsing it expands the stream and void horizontally. |
+| Profile & Admin access | Consolidated into the Broadcast Console, removing the need for hover-revealed overlay buttons on the stream itself. |
 
-**Mobile — Stream + Persistent Bottom Chat Bar + Overlay Drawers**
+**Mobile — Stream + Chat Sidebar / Drawers**
 
 | Element | Behaviour |
 |---|---|
-| Portrait layout | 16:9 stream anchored at top; persistent bottom chat bar below (messages scroll up inside it) |
-| Landscape layout | Stream fills left side; chat panel on right (collapsible via `|→` in chat panel header) |
-| Admin cog | Always visible in stream top bar on mobile (not hover-gated) |
-| Secondary UI | Viewers list and Camera Controls surface as bottom drawers sliding over the layout; dark scrim behind; tap scrim or handle to dismiss |
-| Non-admin view | Live badge + viewer count in stream top bar strip; no ⚙️ cog |
+| Portrait layout | 16:9 stream anchored at top; Broadcast Console immediately below; chat panel takes up the remaining vertical height (no void). |
+| Landscape layout | Immersive mode. Stream fills the screen. Chat panel slides in over the right side; Broadcast Console elements (Live status, Viewer count, toggles) are integrated directly into the top of this chat sidebar. |
+| Admin cog | Located in the Broadcast Console (portrait) or chat sidebar header (landscape). |
+| Secondary UI | Viewers list and Camera Controls surface as bottom drawers sliding over the layout. |
 
 ### Design Rationale
 
-- **No persistent topbar** maximises stream real estate and keeps the experience dog-first
-- **Hover-reveal overlay** eliminates chrome clutter during passive viewing; controls appear exactly when needed (cursor movement signals intent)
-- **Profile popover for camera controls** consolidates identity and privileged actions into a single access point, reducing visual noise for non-admin viewers
-- **Unread badge persists through non-hover state** so users never miss chat activity even when the overlay is hidden — the badge is the presence signal, not the overlay itself
-- **Bottom chat on mobile** preserves stream visibility at all times in portrait; overlay drawers preserve the same on-demand reveal philosophy as the desktop hover model
-- **Landscape chat panel** mirrors desktop three-column mental model, maintaining consistency across orientations
+- **Broadcast Console** anchors the stream and creates a professional "Command Center" feel, giving the content room to breathe without floating awkwardly in the vertical center.
+- **Atmospheric Void** uses a mirrored blur of the live stream to fill empty space, creating an ambient glow that turns the interface into a cohesive environment.
+- **Consolidated Controls** in the Console eliminate the need for hover-overlays over the stream itself, keeping the video completely "sacred" and unburdened by UI.
+- **Mobile Landscape Command Center** moves the Broadcast Console elements into the chat sidebar header, preserving the edge-to-edge immersive stream in landscape mode.
 
 ---
 
@@ -486,13 +481,13 @@ flowchart TD
     G -- Yes --> J[Session created]
     J --> C
     C --> K{Stream state?}
-    K -- Live --> L[Stream plays immediately\nLive badge visible]
+    K -- Live --> L[Stream plays top-aligned\nBroadcast Console below]
     K -- Connecting --> M[Connecting indicator\nauto-retries silently]
     M --> N{Connected within timeout?}
     N -- Yes --> L
     N -- No --> O[Temporary Downtime state\namber spinner overlay]
     K -- Explicit Offline --> P['Manly needs his Zzzs'\nno retry]
-    L --> Q([User watching])
+    L --> Q([User watching\nAtmospheric Void active])
     O --> Q
     P --> Q
 ```
@@ -502,11 +497,9 @@ flowchart TD
 ```mermaid
 flowchart TD
     A([User is watching]) --> B{Right sidebar open?}
-    B -- No, unread badge visible --> C[Click ←| in overlay]
-    B -- No, no unread --> D[Hover stream → overlay appears → click ←|]
+    B -- No --> C[Click chat toggle in Broadcast Console]
     B -- Yes --> E[Chat visible]
     C --> E
-    D --> E
     E --> F[Read messages]
     F --> G{Want to reply?}
     G -- No --> H([Continue watching])
@@ -517,7 +510,7 @@ flowchart TD
     L --> M{More to say?}
     M -- Yes --> I
     M -- No --> N{Collapse chat?}
-    N -- Yes --> O[Click |→ in overlay\nbadge persists if new msgs arrive]
+    N -- Yes --> O[Click toggle in Console\nbadge persists if new msgs arrive]
     N -- No --> H
     O --> H
 ```
@@ -526,18 +519,15 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A([Caleb opens stream as admin]) --> B[Stream playing\nno persistent cog]
+    A([Caleb opens stream as admin]) --> B[Stream playing\nBroadcast Console visible]
     B --> C{Need to adjust camera?}
     C -- No --> D([Passive watch / chat])
-    C -- Yes --> E[Hover stream\nprofile avatar appears bottom-left]
-    E --> F[Click profile avatar]
-    F --> G[Profile popover: Caleb | Camera Controls | Settings | Log out]
-    G --> H[Click 'Camera Controls']
-    H --> I[Left sidebar opens with camera sliders]
+    C -- Yes --> E[Click Admin toggle in left flank of Console]
+    E --> I[Left sidebar opens with camera sliders]
     I --> J[Adjust brightness / contrast / saturation / sharpness / AWB]
     J --> K{Satisfied?}
     K -- Adjust more --> J
-    K -- Done --> L[Close sidebar via ←| in overlay]
+    K -- Done --> L[Close sidebar via toggle in Console]
     L --> D
     B --> M{Need to stop stream?}
     M -- Yes --> N[CLI: stop stream command]
@@ -570,18 +560,18 @@ stateDiagram-v2
 
 | Pattern | Description |
 |---|---|
-| **Hover-to-reveal controls** | All persistent chrome hidden; hovering the stream reveals overlay (desktop); tap reveals on mobile |
-| **Badge-as-presence signal** | Unread badge on `←|` persists through non-hover state — badge alone communicates without the full overlay |
-| **Profile popover as admin gateway** | Single entry point for all privileged actions; non-admin sees same popover minus Camera Controls |
-| **Graceful state degradation** | Every stream state has a calm fallback; chat remains functional in all states |
-| **Zero-step return** | Returning users with valid session skip auth — URL open → stream plays |
+| **Console anchoring** | The Broadcast Console provides a persistent home for controls below the stream, preventing overlay UI from obscuring the content. |
+| **Badge-as-presence signal** | Unread badge on the chat toggle in the Console persists at all times — badge alone communicates without opening the sidebar. |
+| **Profile popover as admin gateway** | Secondary entry point for account actions located in the right flank of the Console. |
+| **Graceful state degradation** | Every stream state has a calm fallback; chat remains functional in all states. |
+| **Zero-step return** | Returning users with valid session skip auth — URL open → stream plays. |
 
 ### Flow Optimization Principles
 
-- **Minimise steps to Manly:** Auth is the only mandatory gate; stream loads the instant session is confirmed — no onboarding, no tutorial
-- **Ambient indication over intrusion:** Typing indicators, unread badges, and the live pulse inform without demanding attention
-- **Error paths are calm:** Both offline states use warm, low-anxiety copy and never blame the user or demand action
-- **Admin actions are opt-in chrome:** Camera controls require hover + click — invisible to casual viewers until wanted
+- **Minimise steps to Manly:** Auth is the only mandatory gate; stream loads the instant session is confirmed — no onboarding, no tutorial.
+- **Ambient indication over intrusion:** Typing indicators, unread badges, and the live pulse inform without demanding attention.
+- **Error paths are calm:** Both offline states use warm, low-anxiety copy and never blame the user or demand action.
+- **Admin actions are contextual:** Camera controls toggle is only visible in the Console for users with the Admin role.
 
 ---
 
@@ -608,35 +598,32 @@ stateDiagram-v2
 ### Custom Components
 
 #### `<StreamPlayer />`
-**Purpose:** Core video element — HLS/MJPEG stream renderer with state overlay management.
+**Purpose:** Core video element — HLS/MJPEG/WebRTC stream renderer with state overlay management.
 
 | Aspect | Detail |
 |---|---|
 | **States** | `connecting` · `live` · `temporary-downtime` · `explicit-offline` |
-| **Anatomy** | `<video>` / `<img>` base · `<LiveBadge>` (centered, absolute) · `<HoverOverlay>` (top gradient) · `<ProfileAnchor>` (bottom-left) · state overlays |
+| **Anatomy** | `<video>` / `<img>` base · `<StreamStatusBadge>` (centered, absolute) · state overlays |
 | **Props** | `streamUrl`, `state: StreamState`, `isAdmin` |
 | **Accessibility** | `role="img"` · `aria-label="Live stream of Manly"` · state changes via `aria-live="polite"` |
-| **Interaction** | Hover → fade in overlay; mouse leave → fade out (CSS `opacity` transition) |
+| **Layout** | Top-aligned with `padding-top` to separate it from the browser edge. |
 
-#### `<HoverOverlay />`
-**Purpose:** Gradient top strip that fades in/out over the stream on hover.
-
-| Aspect | Detail |
-|---|---|
-| **Contents** | `<SidebarCollapseButton>` (collapse or expand + badge) |
-| **Visibility rule** | Hidden at rest; visible on stream hover. **Exception:** if `unreadCount > 0`, collapse button remains visible regardless of hover state |
-| **States** | `idle` (opacity 0) · `hovered` (opacity 1) · `badge-persist` (button visible, gradient hidden) |
-| **Transition** | `opacity` 150ms ease |
-
-#### `<ProfileAnchor />`
-**Purpose:** Avatar button anchored bottom-left of stream; opens profile/action popover.
+#### `<BroadcastConsole />`
+**Purpose:** The central control strip located directly beneath the stream.
 
 | Aspect | Detail |
 |---|---|
-| **Visibility rule** | Hidden at rest (same as `HoverOverlay`); no badge exception |
-| **Anatomy** | `<Avatar>` · `<Popover>` with menu items |
-| **Menu items** | Username (header) · Camera Controls (admin only) · Settings… · Log out |
-| **Accessibility** | `aria-label="Account menu"` · focus trap inside popover · Escape closes |
+| **Layout Flanks** | Left (Admin Toggles), Center (Live Pulse & Viewer Count), Right (Profile Avatar & Chat Toggle). |
+| **Visibility** | Always visible beneath the stream on desktop/portrait. Moves to the chat sidebar header in mobile landscape. |
+| **Role Awareness** | Left flank components only render if `role === Admin`. |
+
+#### `<AtmosphericVoid />`
+**Purpose:** Fills the remaining vertical space below the Broadcast Console with a blurred "glow" of the stream.
+
+| Aspect | Detail |
+|---|---|
+| **Technique** | Background element tied to the same stream source with heavy CSS filters: `filter: blur(40px) brightness(0.6)`. |
+| **Responsiveness** | Stretches to fill available vertical space. Hidden in mobile portrait where chat fills the height. |
 
 #### `<ChatMessage />`
 **Purpose:** A single message group (avatar + sender name + one or more message lines).
@@ -659,7 +646,7 @@ stateDiagram-v2
 | **Accessibility** | `aria-live="polite"` — announces once when new typer detected, not on every tick |
 
 #### `<StreamStatusBadge />`
-**Purpose:** Live/connecting/offline pill overlaid on stream, horizontally centered.
+**Purpose:** Live/connecting/offline pill, typically rendered within the Broadcast Console (or centered on the stream during connecting states).
 
 | Variant | Dot | Copy |
 |---|---|---|
@@ -676,31 +663,21 @@ stateDiagram-v2
 | `temporary-downtime` | Dark frosted overlay · amber spinner · "Trying to reconnect…" / "Oops, looks like the camera went offline. Hang tight." |
 | `explicit-offline` | Centered 😴 · "Manly needs his Zzzs" · "The stream is offline for now. Check back later." · no spinner |
 
-#### `<SidebarCollapseButton />`
-**Purpose:** The `|→` / `←|` icon button in the hover overlay.
-
-| Aspect | Detail |
-|---|---|
-| **Variants** | `collapse` (`|→`) · `expand` (`←|`) |
-| **Badge** | `unreadCount` prop → `<Badge>` top-right corner; badge causes button to persist through non-hover state |
-| **Accessibility** | `aria-label="Collapse chat sidebar"` / `"Expand chat sidebar (3 unread)"` |
-
 ### Component Implementation Strategy
 
-- All custom components built on top of ShadCN primitives (e.g. `<ProfileAnchor>` uses `<Popover>`, `<Sheet>` handles mobile drawers)
+- All custom components built on top of ShadCN primitives (e.g. `<Sheet>` handles mobile drawers)
 - CSS custom properties drive all colours — components reference `--primary`, `--live`, `--reconnect` etc.; dark/light mode is a single class swap on `<html>`
-- **Compound component pattern** for `<StreamPlayer>` — owns stream state, passes context to child overlays via Vue `provide/inject`
 - Overlays use `pointer-events: none` when not active to prevent blocking the video element
 
 ### Implementation Roadmap
 
 | Phase | Components | Unlocks |
 |---|---|---|
-| **1 — Core shell** | `StreamPlayer`, `StreamStatusBadge`, `StateOverlay`, `HoverOverlay` | Stream visible in all 4 states |
-| **2 — Chat** | `ChatMessage`, `TypingIndicator`, `ScrollArea`, chat `Textarea` | Full viewer chat flow |
-| **3 — Identity + Nav** | `ProfileAnchor`, `SidebarCollapseButton`, `Avatar` | Profile menu, sidebar collapse |
-| **4 — Admin** | Camera control sidebar (`Slider`, `Switch`, layout) | Admin camera controls |
-| **5 — Mobile** | `Sheet` drawers, landscape layout CSS | Mobile overlay drawers |
+| **1 — Core shell** | `StreamPlayer`, `StreamStatusBadge`, `StateOverlay` | Stream visible in all 4 states |
+| **2 — Broadcast Console** | `BroadcastConsole`, `AtmosphericVoid` | Top-aligned layout, status grounding |
+| **3 — Chat** | `ChatMessage`, `TypingIndicator`, `ScrollArea`, chat `Textarea` | Full viewer chat flow |
+| **4 — Identity + Admin** | Profile menu, Camera control sidebar (`Slider`, `Switch`) | Identity verification, Admin camera controls |
+| **5 — Mobile** | `Sheet` drawers, landscape layout CSS | Mobile overlay drawers and Console migration |
 
 ---
 
@@ -712,7 +689,7 @@ stateDiagram-v2
 |---|---|---|
 | **Primary** | Filled `--primary` bg, `--primary-foreground` text | Single CTA per screen — Sign in with Google, Send message |
 | **Secondary** | Outlined `--border` stroke, `--foreground` text | Confirm actions with a secondary option present |
-| **Ghost** | No border/fill, `--muted` text, hover shows `--surface` bg | Icon buttons and overlay controls (collapse toggles, profile avatar) |
+| **Ghost** | No border/fill, `--muted` text, hover shows `--surface` bg | Icon buttons in the Broadcast Console |
 | **Destructive** | `hsl(0,65%,60%)` text/fill | Log out (profile menu), future ban/remove admin actions |
 
 All buttons: minimum touch target `44×44px` on mobile regardless of visual size.
@@ -721,7 +698,7 @@ All buttons: minimum touch target `44×44px` on mobile regardless of visual size
 
 | Situation | Pattern |
 |---|---|
-| Stream is live | Green pulse dot + "Manly is live" badge — persistent, ambient |
+| Stream is live | Green pulse dot + "Manly is live" badge in Console |
 | Connecting | Amber static dot + "Connecting…" — no spinner, calm |
 | Reconnecting | Amber spinner overlay + warm copy — `aria-live="polite"` announced once |
 | Explicit offline | Centered illustration area + warm copy — no spinner, no urgency |
@@ -750,18 +727,17 @@ ManlyCam is a single-page app with no traditional navigation. "Navigation" is si
 
 | Action | Pattern |
 |---|---|
-| Collapse sidebar | Click `|→` in hover overlay → sidebar disappears, stream expands, button becomes `←|` |
-| Expand sidebar | Click `←|` in hover overlay (always visible when unread badge present) |
+| Collapse/Expand sidebar | Click toggle in Broadcast Console → sidebar transitions, stream expands/contracts |
 | Sidebar state persistence | Saved to `localStorage` per user — survives page refresh |
-| Mobile drawer open | Tap viewers count (viewers drawer) or tap ⚙️ (admin camera controls) |
+| Mobile drawer open | Tap viewers count (viewers drawer) or tap ⚙️ (admin camera controls) in Console |
 | Mobile drawer close | Tap scrim · swipe down · tap handle |
-| Sign-out | Profile popover → Log out → clears session → redirect to sign-in landing |
+| Sign-out | Profile popover (from Console) → Log out → clears session → redirect to sign-in landing |
 
 ### Overlay & Modal Patterns
 
 | Trigger | Surface | Dismiss |
 |---|---|---|
-| Click profile avatar (desktop) | `<Popover>` — inline, no scrim | Click outside · Escape |
+| Click profile avatar in Console | `<Popover>` — inline, no scrim | Click outside · Escape |
 | Tap viewers / admin controls (mobile) | `<Sheet>` bottom drawer + scrim | Tap scrim · swipe down |
 
 **Rule:** No full-screen modals. All secondary surfaces are non-blocking (popovers or sheets), keeping the stream visible at all times.
@@ -772,15 +748,14 @@ ManlyCam is a single-page app with no traditional navigation. "Navigation" is si
 |---|---|
 | Chat — no messages yet | Subtle centred text: "Be the first to say something 👋" |
 | Viewers — only you | "Just you for now 👀" |
-| Stream connecting | `<Skeleton>` at 16:9 ratio + `<StreamStatusBadge variant="connecting">` |
+| Stream connecting | `<Skeleton>` at 16:9 ratio |
 | Camera controls loading | Skeleton sliders inside sidebar |
 
 ### Hover & Focus Patterns
 
 | Element | Hover | Focus |
 |---|---|---|
-| Stream area | Fade in `<HoverOverlay>` (150ms) | N/A |
-| Icon buttons in overlay | `rgba(255,255,255,.12)` background | `outline: 2px solid --primary` |
+| Console buttons | `rgba(255,255,255,.12)` background | `outline: 2px solid --primary` |
 | Profile avatar | Border-color brightens | `outline: 2px solid --primary` |
 | Chat messages | `rgba(255,255,255,.03)` row highlight | N/A |
 | Profile menu items | `hsl(20,6%,20%)` background | Same as hover + outline |

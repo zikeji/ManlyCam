@@ -151,18 +151,20 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - Prometheus metrics via `prom-client` (server) exposed at `GET /metrics`
 - Grafana Cloud: Loki for logs, Prometheus for metrics (via agent scrape)
 
-**UX — Responsive Layout**
+**UX — Responsive Layout** *(updated Epic 7 — sprint-change-proposal-2026-03-12.md)*
 - Mobile-first CSS: base styles for `< 768px`, layer `md:` / `lg:` upward
-- Desktop (`≥ 1024px`): three-column layout — left sidebar (admin camera controls) + stream (fills remaining) + right sidebar (chat + viewers)
-- Mobile portrait (`< 768px`): stream full-width + persistent bottom chat bar; sidebars as bottom Sheet drawers
-- Mobile landscape: stream fills left side; chat panel on right (collapsible)
+- Desktop (`≥ 1024px`): stream top-aligned (approx. 5vh top padding), `<BroadcastConsole>` strip directly below, `<AtmosphericVoid>` fills remaining height; right sidebar (chat + viewers) runs full height alongside; left sidebar (admin camera controls) opened via Console left flank toggle; right sidebar is drag-resizable between a min and max width
+- Mobile portrait (`< 768px`): stream full-width at top, `<BroadcastConsole>` directly below, chat panel fills remaining height; admin controls and viewers as bottom Sheet drawers
+- Mobile landscape: immersive — stream fills full screen; chat panel slides in from right as overlay; `<BroadcastConsole>` elements (live status, viewer count, toggles) integrated into chat sidebar header
 - Sidebar collapse state persisted to `localStorage`; re-hydrated before first paint to prevent flash
 
-**UX — Hover-Reveal Overlay (Desktop)**
-- No persistent topbar — stream fills edge-to-edge, full viewport height
-- Gradient overlay fades in (150ms) on cursor hover over stream; hidden at rest
-- Top-right overlay: `|→` collapses right sidebar; `←|` expands it (with unread badge persisting through non-hover state)
-- Bottom-left overlay: avatar profile button hidden at rest (appears on hover); click opens popover: username / Camera Controls (admin only) / Settings / Log out
+**UX — Broadcast Console** *(new — Epic 7; replaces Hover-Reveal Overlay)*
+- Persistent semi-transparent horizontal strip directly below the stream on desktop and mobile portrait
+- Left flank (admin-only): Camera Controls toggle, Stream Start/Stop toggle, Battery Indicator (if PiSugar configured via `FRP_PISUGAR_PORT`)
+- Center: Stream title / flavor text (editable by Admin/Mod via inline popover; changes broadcast via WS); Live status badge; Viewer count
+- Right flank (all users): Snapshot button (camera icon, "Take Snapshot" tooltip); Profile avatar popover; Chat sidebar toggle with unread badge
+- No hover-gated controls on the stream itself — the video element is unobstructed at all times
+- Mobile landscape: Console elements move into chat sidebar header; stream is edge-to-edge immersive
 
 **UX — Accessibility**
 - WCAG 2.1 AA throughout; AAA for stream status elements
@@ -239,6 +241,10 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 | FR53 | Epic 3 | Graceful Pi tunnel-drop handling (no server crash, state broadcast) |
 | FR54 | Epic 1 | GitHub Actions CI/CD: server + web Docker images; agent CI removed |
 | FR55 | Epic 1 | Deploy-time config: pet name, site name, OAuth creds, DB URL |
+| FR56 | Epic 7 | Editable stream title in Broadcast Console (Admin/Mod); changes broadcast via WS |
+| FR57 | Epic 7 | Snapshot button in Broadcast Console; client-side JPEG frame capture + download |
+| FR58 | Epic 7 | PiSugar battery monitor: server TCP poller + admin-only WS broadcast + UI indicator |
+| FR59 | Epic 7 | Resizable chat sidebar (desktop drag handle); width persisted to localStorage |
 
 ## Epic List
 
@@ -289,6 +295,22 @@ Moderators can maintain a healthy chat environment by muting, banning, and delet
 Any operator can bootstrap a Raspberry Pi Zero W 2 as a ManlyCam camera node from scratch using a single install script. The script installs frpc and mediamtx, configures each with correct defaults for ManlyCam, and registers both as systemd services. WiFi configuration is handled by the operator's tool of choice (wifi-connect is one option, documented as optional). Complete documentation covers initial setup, service management, troubleshooting, and clean uninstall.
 
 **FRs covered:** FR45, FR46, FR47, FR48, FR50, FR51
+
+---
+
+### Epic 7: Post-MVP UX Redesign & Feature Additions
+
+The web UI shell is redesigned from the hover-overlay model to the Broadcast Console + Atmospheric Void layout approved by the UX designer. All existing functionality (admin toggle, stream start/stop, chat toggle, profile menu) is preserved but relocated into the persistent Broadcast Console strip. Five post-MVP features are delivered alongside: an editable stream title, a client-side snapshot button, an optional PiSugar battery monitor for admin users, and a resizable chat sidebar using Reka-UI Splitter.
+
+**FRs covered:** FR56, FR57, FR58, FR59
+**Approved via:** sprint-change-proposal-2026-03-12.md
+
+**Stories:**
+- 7-1: UX Shell Redesign — Broadcast Console + Atmospheric Void *(must be first; all others depend on BroadcastConsole existing)*
+- 7-2: Editable Stream Title (Admin/Mod, Live Broadcast)
+- 7-3: Camera Snapshot Button (Client-Side Frame Capture)
+- 7-4: PiSugar Battery Monitor (Server TCP Poller + Admin UI)
+- 7-5: Resizable Chat Sidebar via Reka-UI Splitter
 
 ---
 

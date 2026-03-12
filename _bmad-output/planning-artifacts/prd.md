@@ -430,6 +430,19 @@ The upstream server is the **primary application host** — it handles all viewe
 - **FR54:** GitHub Actions CI/CD pipelines build and publish Docker images for the server and web app; the Go agent workspace and its CI pipeline have been removed from the monorepo; no Pi binary artifact is published from this repository
 - **FR55:** The application is configurable with an instance-specific pet name (e.g. "Manly") and site name (e.g. "ManlyCam"); these values are set at upstream server deploy time alongside other server-side configuration (OAuth credentials, database credentials, `site_url`, etc.) and are used throughout the UI, landing page, and any branding surfaces — no hardcoded references to either value exist in the codebase
 
+### Stream Title & Snapshot
+
+- **FR56:** The Broadcast Console displays a configurable stream title (flavor text) in the center; the title has a default value and can be updated at runtime by Admin and Moderator users via an inline edit popover; title changes are persisted in server memory and broadcast immediately to all connected viewers via WebSocket so all clients reflect the change without reload
+- **FR57:** All authenticated users can capture the current stream frame as a still image via a snapshot button (camera icon) in the Broadcast Console right flank; the capture is performed client-side using a canvas element and the resulting JPEG downloads to the user's device
+
+### PiSugar Battery Monitor
+
+- **FR58:** When `FRP_PISUGAR_PORT` is set in the server environment, the server maintains a persistent TCP socket connection to the PiSugar power manager (proxied via frpc from the Pi) and polls for battery state on a 30-second interval; the polled data — battery level (%), plug state, charging state, and charging range — is broadcast exclusively to connected Admin users via a dedicated WebSocket message type; the Broadcast Console left flank (admin-only) displays a battery icon reflecting current status with a detail popover; when the TCP connection cannot be established or maintained, the icon reflects an "unknown" state
+
+### Resizable Chat Sidebar
+
+- **FR59:** On desktop (≥ 1024px), the right chat sidebar is resizable by dragging a handle between the stream column and the chat sidebar; the sidebar width is constrained to a min/max range; the width is persisted to `localStorage` and restored on next visit; the sidebar can be fully collapsed via the Broadcast Console chat toggle and re-expanded to its last saved width
+
 ---
 
 ## Non-Functional Requirements

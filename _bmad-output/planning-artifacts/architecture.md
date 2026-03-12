@@ -438,6 +438,7 @@ type WsMessage =
   | { type: 'chat:edit';           payload: ChatEdit }
   | { type: 'chat:delete';         payload: { messageId: string } }
   | { type: 'stream:state';        payload: StreamState }
+  | { type: 'stream:title_update'; payload: { title: string } }          // Epic 7-2: broadcast to all on admin/mod title edit
   | { type: 'presence:join';       payload: UserPresence }
   | { type: 'presence:leave';      payload: { userId: string } }
   | { type: 'typing:start';        payload: { userId: string; displayName: string } }
@@ -445,8 +446,25 @@ type WsMessage =
   | { type: 'session:revoked';     payload: { reason: 'banned' | 'removed' } }
   | { type: 'moderation:muted';    payload: { userId: string } }
   | { type: 'moderation:unmuted';  payload: { userId: string } }
-  | { type: 'user:update';         payload: UserProfile }  -- profile change: name, avatar, label, tag color, role
+  | { type: 'user:update';         payload: UserProfile }                 // profile change: name, avatar, label, tag color, role
+  | { type: 'pisugar:status';      payload: PiSugarStatus }              // Epic 7-4: admin-only; only sent when FRP_PISUGAR_PORT set
+
+// PiSugarStatus union (packages/types/src/ws.ts):
+// type PiSugarStatus =
+//   | { connected: false }
+//   | { connected: true; level: number; plugged: boolean; charging: boolean; chargingRange: [number, number] | null }
 ```
+
+**PiSugar Battery Monitor Service (Epic 7-4 — Optional):**
+- Activation: only when `FRP_PISUGAR_PORT` env var is set (optional `z.coerce.number().optional()`)
+- Transport: persistent TCP socket to `localhost:FRP_PISUGAR_PORT`
+  - frpc on the Pi must have a TCP tunnel proxying Pi's PiSugar manager port (default 8423) to server's `FRP_PISUGAR_PORT`
+  - Pi frpc.toml addition: `[[proxies]] name="pisugar" type="tcp" localIP="127.0.0.1" localPort=8423 remotePort=<FRP_PISUGAR_PORT>`
+- Protocol: plain-text newline-delimited — send `get battery\n`, `get battery_power_plugged\n`, `get battery_charging\n`, `get battery_charging_range\n`; responses are plain-text values
+- Poll interval: 30 seconds; reconnect with exponential backoff (cap 60s) on failure
+- Fan-out: status cached in `pisugar.ts`; emitted via in-process EventEmitter → WS hub filters to admin-role connections only before broadcasting `pisugar:status`
+- WS init: latest cached `PiSugarStatus` included in admin connection init payload (admin sees status immediately on join)
+- Implementation: `apps/server/src/lib/pisugar.ts`
 
 **Camera Control API Chain (updated — see 3-6 architecture notes):**
 - Web UI → `PATCH /api/stream/camera-settings { rpiCameraBrightness: ..., ... }`
