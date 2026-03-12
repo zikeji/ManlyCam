@@ -3,7 +3,6 @@ import { mount } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
 import ChatPanel from './ChatPanel.vue';
 import StreamPlayer from '../stream/StreamPlayer.vue';
-import ProfileAnchor from '../stream/ProfileAnchor.vue';
 import PresenceList from './PresenceList.vue';
 import { Role } from '@manlycam/types';
 
@@ -300,49 +299,4 @@ describe('Gating Audit (UI)', () => {
     });
   });
 
-  describe('ProfileAnchor', () => {
-    it('AC 2: hides Start/Stop Stream and Camera Controls (as Moderator)', async () => {
-      mockUseAuth.mockReturnValue({
-        user: ref(mockUser(Role.Moderator)),
-        logout: vi.fn(),
-      });
-
-      const wrapper = mount(ProfileAnchor, {
-        props: { isDesktop: false },
-      });
-
-      const trigger = wrapper.find('.popover-trigger');
-      await trigger.trigger('click');
-      await nextTick();
-
-      const popoverContent = wrapper.find('.popover-content');
-      expect(popoverContent.exists()).toBe(true);
-
-      expect(popoverContent.text()).not.toContain('Start Stream');
-      expect(popoverContent.text()).not.toContain('Stop Stream');
-      expect(popoverContent.text()).not.toContain('Camera Controls');
-    });
-
-    it('AC 2: hides Start/Stop Stream and Camera Controls (as ViewerGuest)', async () => {
-      mockUseAuth.mockReturnValue({
-        user: ref(mockUser(Role.ViewerGuest)),
-        logout: vi.fn(),
-      });
-
-      const wrapper = mount(ProfileAnchor, {
-        props: { isDesktop: false },
-      });
-
-      const trigger = wrapper.find('.popover-trigger');
-      await trigger.trigger('click');
-      await nextTick();
-
-      const popoverContent = wrapper.find('.popover-content');
-      expect(popoverContent.exists()).toBe(true);
-
-      expect(popoverContent.text()).not.toContain('Start Stream');
-      expect(popoverContent.text()).not.toContain('Stop Stream');
-      expect(popoverContent.text()).not.toContain('Camera Controls');
-    });
-  });
 });

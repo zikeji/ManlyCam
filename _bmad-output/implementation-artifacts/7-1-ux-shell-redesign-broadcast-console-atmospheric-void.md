@@ -1,6 +1,6 @@
 # Story 7.1: UX Shell Redesign — Broadcast Console + Atmospheric Void
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -57,52 +57,52 @@ so that stream controls are always accessible without hovering, and the interfac
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Refactor `StreamPlayer.vue` — remove hover-overlay shell, retain landscape tap (AC: #7, #11)
-  - [ ] Remove imports: `ProfileAnchor`, `SidebarCollapseButton`
-  - [ ] Remove props: `adminPanelOpen`, `isDesktop`, `showChatSidebarToggle` — **keep** `chatSidebarOpen`, `unreadCount` (needed for landscape tap toggle)
-  - [ ] Remove emits: `openCameraControls`, `openUserManager`, `toggleAdminPanel` — **keep** `toggleChatSidebar` (landscape tap)
-  - [ ] Remove state: `isHovered`, `profilePopoverOpen` — **keep** `tapOverlayVisible`, `tapTimer`
-  - [ ] Remove `@mouseenter`/`@mouseleave` from container div — **keep** `@click="handleTap"` (touch-only tap logic unchanged)
-  - [ ] Remove template: hover gradient div, badge container div, admin toggle div, profile anchor div
-  - [ ] Remove `ChevronLeft`/`ChevronRight` import (was used for admin toggle) — **keep** if needed for landscape tap chevron
-  - [ ] Add landscape tap overlay to template (see Dev Notes): `v-if="showLandscapeTapToggle"`, positioned at stream's right edge, shows chat toggle + unread badge, fades in/out via `tapOverlayVisible`
-  - [ ] Add prop `showLandscapeTapToggle?: boolean` (passed from WatchView when `isMobileLandscape && !chatSidebarOpen`)
-  - [ ] Add `defineExpose({ videoRef })`
-  - [ ] Keep: `videoRef`, WHEP lifecycle watch, `onUnmounted` stopWhep+clearTimer, connecting skeleton, `<StateOverlay>`, `<video>` element
+- [x] Task 1: Refactor `StreamPlayer.vue` — remove hover-overlay shell, retain landscape tap (AC: #7, #11)
+  - [x] Remove imports: `ProfileAnchor`, `SidebarCollapseButton`
+  - [x] Remove props: `adminPanelOpen`, `isDesktop`, `showChatSidebarToggle` — **keep** `chatSidebarOpen`, `unreadCount` (needed for landscape tap toggle)
+  - [x] Remove emits: `openCameraControls`, `openUserManager`, `toggleAdminPanel` — **keep** `toggleChatSidebar` (landscape tap)
+  - [x] Remove state: `isHovered`, `profilePopoverOpen` — **keep** `tapOverlayVisible`, `tapTimer`
+  - [x] Remove `@mouseenter`/`@mouseleave` from container div — **keep** `@click="handleTap"` (touch-only tap logic unchanged)
+  - [x] Remove template: hover gradient div, badge container div, admin toggle div, profile anchor div
+  - [x] Remove `ChevronLeft`/`ChevronRight` import (was used for admin toggle) — **keep** if needed for landscape tap chevron
+  - [x] Add landscape tap overlay to template (see Dev Notes): `v-if="showLandscapeTapToggle"`, positioned at stream's right edge, shows chat toggle + unread badge, fades in/out via `tapOverlayVisible`
+  - [x] Add prop `showLandscapeTapToggle?: boolean` (passed from WatchView when `isMobileLandscape && !chatSidebarOpen`)
+  - [x] Add `defineExpose({ videoRef })`
+  - [x] Keep: `videoRef`, WHEP lifecycle watch, `onUnmounted` stopWhep+clearTimer, connecting skeleton, `<StateOverlay>`, `<video>` element
 
-- [ ] Task 2: Create `BroadcastConsole.vue` (AC: #3, #4, #5, #6)
-  - [ ] Scaffold component with three-flank layout (`flex items-center justify-between`)
-  - [ ] Left flank (`v-if="isAdmin"`): Camera Controls toggle button, Stream Start/Stop toggle button, stub `<!-- 7-4: BatteryIndicator -->`
-  - [ ] Center: `<StreamStatusBadge :state="streamState" />`, viewer count, static title + `<!-- 7-2: editable title -->`
-  - [ ] Right flank: disabled snapshot stub + `<!-- 7-3: snapshot -->`, profile avatar popover, chat toggle with unread badge + pulse animation
-  - [ ] Profile popover content: username, Camera Controls (admin + `!isDesktop` only), Users manager (admin only), Logout. **No Start/Stop button.**
-  - [ ] Props: `streamState`, `isAdmin`, `adminPanelOpen`, `chatSidebarOpen`, `unreadCount`, `isDesktop`
-  - [ ] Emits: `toggleAdminPanel`, `toggleChatSidebar`, `openUserManager`
-  - [ ] Styling: `h-14 bg-black/40 backdrop-blur-sm border-t border-white/10 flex items-center justify-between px-3`
-  - [ ] All buttons: `w-11 h-11` minimum (44px touch target, WCAG 2.5.5)
-  - [ ] Unread badge pulse: port `isPulsing`/`pulseTimer`/`onBeforeUnmount` pattern from `SidebarCollapseButton.vue`
+- [x] Task 2: Create `BroadcastConsole.vue` (AC: #3, #4, #5, #6)
+  - [x] Scaffold component with three-flank layout (`flex items-center justify-between`)
+  - [x] Left flank (`v-if="isAdmin"`): Camera Controls toggle button, Stream Start/Stop toggle button, stub `<!-- 7-4: BatteryIndicator -->`
+  - [x] Center: `<StreamStatusBadge :state="streamState" />`, viewer count, static title + `<!-- 7-2: editable title -->`
+  - [x] Right flank: disabled snapshot stub + `<!-- 7-3: snapshot -->`, profile avatar popover, chat toggle with unread badge + pulse animation
+  - [x] Profile popover content: username, Camera Controls (admin + `!isDesktop` only), Users manager (admin only), Logout. **No Start/Stop button.**
+  - [x] Props: `streamState`, `isAdmin`, `adminPanelOpen`, `chatSidebarOpen`, `unreadCount`, `isDesktop`
+  - [x] Emits: `toggleAdminPanel`, `toggleChatSidebar`, `openUserManager`
+  - [x] Styling: `h-14 bg-black/40 backdrop-blur-sm border-t border-white/10 flex items-center justify-between px-3`
+  - [x] All buttons: `w-11 h-11` minimum (44px touch target, WCAG 2.5.5)
+  - [x] Unread badge pulse: port `isPulsing`/`pulseTimer`/`onBeforeUnmount` pattern from `SidebarCollapseButton.vue`
 
-- [ ] Task 3: Create `AtmosphericVoid.vue` (AC: #2)
-  - [ ] Props: `videoRef: HTMLVideoElement | null`
-  - [ ] Internal `voidVideoRef` ref for mirrored `<video>` element
-  - [ ] `watch(() => props.videoRef, ...)` + `loadeddata` event listener pattern (see Dev Notes)
-  - [ ] `<video>`: `w-full h-full object-cover pointer-events-none select-none`, inline style `filter: blur(40px) brightness(0.6)`, `autoplay muted playsinline`
-  - [ ] Container: **`absolute inset-0 overflow-hidden bg-[hsl(var(--surface))]`** + `aria-hidden="true"` — fills parent via absolute positioning; parent must be `relative`
-  - [ ] `onUnmounted` cleanup of event listener
+- [x] Task 3: Create `AtmosphericVoid.vue` (AC: #2)
+  - [x] Props: `videoRef: HTMLVideoElement | null`
+  - [x] Internal `voidVideoRef` ref for mirrored `<video>` element
+  - [x] `watch(() => props.videoRef, ...)` + `loadeddata` event listener pattern (see Dev Notes)
+  - [x] `<video>`: `w-full h-full object-cover pointer-events-none select-none`, inline style `filter: blur(40px) brightness(0.6)`, `autoplay muted playsinline`
+  - [x] Container: **`absolute inset-0 overflow-hidden bg-[hsl(var(--surface))]`** + `aria-hidden="true"` — fills parent via absolute positioning; parent must be `relative`
+  - [x] `onUnmounted` cleanup of event listener
 
-- [ ] Task 4: Restructure `WatchView.vue` (AC: #1, #8, #11)
-  - [ ] Add `isMobileLandscape` ref + matchMedia detection: `(max-width: 1023px) and (orientation: landscape)` — add listener in `onMounted`, same pattern as existing `isMobilePortrait`
-  - [ ] Add `streamPlayerRef = ref<InstanceType<typeof StreamPlayer> | null>(null)` + `streamVideoRef = computed(() => streamPlayerRef.value?.videoRef ?? null)`
-  - [ ] Import `BroadcastConsole`, `AtmosphericVoid`
-  - [ ] Restructure `<main>` to `flex flex-col bg-black overflow-hidden` (remove `items-center justify-center`):
-    - [ ] **Content area div** (desktop/non-portrait): `class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden"` with `v-if="!isMobilePortrait"` — hosts AtmosphericVoid (absolute bg) + centered StreamPlayer (relative z-10)
-      - [ ] Inside: `<AtmosphericVoid v-if="!isMobileLandscape" class="absolute inset-0" :video-ref="streamVideoRef" />`
-      - [ ] Inside: `<StreamPlayer ref="streamPlayerRef" class="relative z-10 w-full" :streamState="streamState" :chatSidebarOpen="chatSidebarOpen" :unreadCount="unreadCount" :showLandscapeTapToggle="isMobileLandscape && !chatSidebarOpen" @toggle-chat-sidebar="handleToggleChatSidebar" />`
-    - [ ] **Portrait content area**: `v-if="isMobilePortrait"` — `class="shrink-0"` — contains StreamPlayer only (no void, no centering flex)
-      - [ ] Inside: `<StreamPlayer ref="streamPlayerRef" class="w-full" :streamState="streamState" :chatSidebarOpen="chatSidebarOpen" :unreadCount="unreadCount" :showLandscapeTapToggle="false" @toggle-chat-sidebar="handleToggleChatSidebar" />`
-    - [ ] `<BroadcastConsole v-if="!isMobileLandscape" ...all props... />` (shrink-0, pinned at bottom of main)
-    - [ ] `<ChatPanel v-if="isMobilePortrait" class="flex-1 min-h-0 flex flex-col bg-[hsl(var(--sidebar))]" ... />`
-  - [ ] Landscape right column (sibling of `<main>`, replaces right sidebar for landscape):
+- [x] Task 4: Restructure `WatchView.vue` (AC: #1, #8, #11)
+  - [x] Add `isMobileLandscape` ref + matchMedia detection: `(max-width: 1023px) and (orientation: landscape)` — add listener in `onMounted`, same pattern as existing `isMobilePortrait`
+  - [x] Add `streamPlayerRef = ref<InstanceType<typeof StreamPlayer> | null>(null)` + `streamVideoRef = computed(() => streamPlayerRef.value?.videoRef ?? null)`
+  - [x] Import `BroadcastConsole`, `AtmosphericVoid`
+  - [x] Restructure `<main>` to `flex flex-col bg-black overflow-hidden` (remove `items-center justify-center`):
+    - [x] **Content area div** (desktop/non-portrait): `class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden"` with `v-if="!isMobilePortrait"` — hosts AtmosphericVoid (absolute bg) + centered StreamPlayer (relative z-10)
+      - [x] Inside: `<AtmosphericVoid v-if="!isMobileLandscape" class="absolute inset-0" :video-ref="streamVideoRef" />`
+      - [x] Inside: `<StreamPlayer ref="streamPlayerRef" class="relative z-10 w-full" :streamState="streamState" :chatSidebarOpen="chatSidebarOpen" :unreadCount="unreadCount" :showLandscapeTapToggle="isMobileLandscape && !chatSidebarOpen" @toggle-chat-sidebar="handleToggleChatSidebar" />`
+    - [x] **Portrait content area**: `v-if="isMobilePortrait"` — `class="shrink-0"` — contains StreamPlayer only (no void, no centering flex)
+      - [x] Inside: `<StreamPlayer ref="streamPlayerRef" class="w-full" :streamState="streamState" :chatSidebarOpen="chatSidebarOpen" :unreadCount="unreadCount" :showLandscapeTapToggle="false" @toggle-chat-sidebar="handleToggleChatSidebar" />`
+    - [x] `<BroadcastConsole v-if="!isMobileLandscape" ...all props... />` (shrink-0, pinned at bottom of main)
+    - [x] `<ChatPanel v-if="isMobilePortrait" class="flex-1 min-h-0 flex flex-col bg-[hsl(var(--sidebar))]" ... />`
+  - [x] Landscape right column (sibling of `<main>`, replaces right sidebar for landscape):
     ```
     <Transition v-if="isMobileLandscape" name="sidebar-right">
       <div v-if="chatSidebarOpen" class="w-[280px] shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))]">
@@ -111,53 +111,53 @@ so that stream controls are always accessible without hovering, and the interfac
       </div>
     </Transition>
     ```
-  - [ ] Desktop right sidebar (`v-if="!isMobilePortrait && !isMobileLandscape"`): existing ChatPanel sibling, unchanged structure
-  - [ ] Remove old StreamPlayer props: `adminPanelOpen`, `isDesktop`, `showChatSidebarToggle`
-  - [ ] Remove old StreamPlayer events: `@open-camera-controls`, `@toggle-admin-panel`, `@open-user-manager`
-  - [ ] Preserve localStorage persistence for `adminPanelOpen` and `chatSidebarOpen`
-  - [ ] Preserve mobile Sheet drawer for admin (`v-if="isAdmin && !isDesktop"`)
+  - [x] Desktop right sidebar (`v-if="!isMobilePortrait && !isMobileLandscape"`): existing ChatPanel sibling, unchanged structure
+  - [x] Remove old StreamPlayer props: `adminPanelOpen`, `isDesktop`, `showChatSidebarToggle`
+  - [x] Remove old StreamPlayer events: `@open-camera-controls`, `@toggle-admin-panel`, `@open-user-manager`
+  - [x] Preserve localStorage persistence for `adminPanelOpen` and `chatSidebarOpen`
+  - [x] Preserve mobile Sheet drawer for admin (`v-if="isAdmin && !isDesktop"`)
 
-- [ ] Task 5: Delete obsolete files (AC: #9)
-  - [ ] Delete `apps/web/src/components/stream/ProfileAnchor.vue`
-  - [ ] Delete `apps/web/src/components/stream/ProfileAnchor.test.ts`
-  - [ ] Delete `apps/web/src/components/stream/SidebarCollapseButton.vue`
-  - [ ] Delete `apps/web/src/components/stream/SidebarCollapseButton.test.ts`
+- [x] Task 5: Delete obsolete files (AC: #9)
+  - [x] Delete `apps/web/src/components/stream/ProfileAnchor.vue`
+  - [x] Delete `apps/web/src/components/stream/ProfileAnchor.test.ts`
+  - [x] Delete `apps/web/src/components/stream/SidebarCollapseButton.vue`
+  - [x] Delete `apps/web/src/components/stream/SidebarCollapseButton.test.ts`
 
-- [ ] Task 6: Update `StreamPlayer.test.ts` (AC: #10)
-  - [ ] Remove tests: hover overlay, admin toggle, profile anchor, chat sidebar toggle (non-landscape)
-  - [ ] Keep tests: WHEP lifecycle, state overlays, connecting skeleton
-  - [ ] Add test: `defineExpose` exposes `videoRef`
-  - [ ] Add test: landscape tap overlay visible after touch tap when `showLandscapeTapToggle=true`; hidden when `showLandscapeTapToggle=false`
-  - [ ] Add test: landscape chat toggle emits `toggleChatSidebar`
-  - [ ] Verify `afterEach(() => { wrapper?.unmount(); wrapper = null; })`
+- [x] Task 6: Update `StreamPlayer.test.ts` (AC: #10)
+  - [x] Remove tests: hover overlay, admin toggle, profile anchor, chat sidebar toggle (non-landscape)
+  - [x] Keep tests: WHEP lifecycle, state overlays, connecting skeleton
+  - [x] Add test: `defineExpose` exposes `videoRef`
+  - [x] Add test: landscape tap overlay visible after touch tap when `showLandscapeTapToggle=true`; hidden when `showLandscapeTapToggle=false`
+  - [x] Add test: landscape chat toggle emits `toggleChatSidebar`
+  - [x] Verify `afterEach(() => { wrapper?.unmount(); wrapper = null; })`
 
-- [ ] Task 7: Update `WatchView.test.ts` (AC: #10)
-  - [ ] Update layout assertions to match new center-column structure
-  - [ ] Assert content area div is `relative flex items-center justify-center` (non-portrait)
-  - [ ] Assert `<AtmosphericVoid>` is `absolute inset-0` inside content area on desktop; not rendered on mobile portrait; not rendered on mobile landscape
-  - [ ] Assert `<BroadcastConsole>` is below content area in main (non-landscape); inside right column (landscape)
-  - [ ] Assert mobile portrait: stream is `shrink-0` with no centering wrapper; ChatPanel below console; no void
-  - [ ] Assert mobile landscape: right column contains ChatPanel + BroadcastConsole stacked; BroadcastConsole NOT in main column
-  - [ ] Assert StreamPlayer gets `showLandscapeTapToggle=true` when `isMobileLandscape && !chatSidebarOpen`
-  - [ ] Verify `afterEach` cleanup
+- [x] Task 7: Update `WatchView.test.ts` (AC: #10)
+  - [x] Update layout assertions to match new center-column structure
+  - [x] Assert content area div is `relative flex items-center justify-center` (non-portrait)
+  - [x] Assert `<AtmosphericVoid>` is `absolute inset-0` inside content area on desktop; not rendered on mobile portrait; not rendered on mobile landscape
+  - [x] Assert `<BroadcastConsole>` is below content area in main (non-landscape); inside right column (landscape)
+  - [x] Assert mobile portrait: stream is `shrink-0` with no centering wrapper; ChatPanel below console; no void
+  - [x] Assert mobile landscape: right column contains ChatPanel + BroadcastConsole stacked; BroadcastConsole NOT in main column
+  - [x] Assert StreamPlayer gets `showLandscapeTapToggle=true` when `isMobileLandscape && !chatSidebarOpen`
+  - [x] Verify `afterEach` cleanup
 
-- [ ] Task 8: Create `BroadcastConsole.test.ts` (AC: #10)
-  - [ ] Left flank hidden for non-admin; visible for admin
-  - [ ] Camera Controls button emits `toggleAdminPanel`
-  - [ ] Stream Start/Stop calls `useAdminStream` (mock it)
-  - [ ] Center renders `<StreamStatusBadge>` with correct state prop
-  - [ ] Center viewer count matches mocked `viewers` length
-  - [ ] Right chat toggle emits `toggleChatSidebar`
-  - [ ] Right unread badge visible when `!chatSidebarOpen && unreadCount > 0`
-  - [ ] Profile popover: no Start/Stop button in any scenario
-  - [ ] Profile popover: Camera Controls hidden when `isDesktop=true`
-  - [ ] `afterEach` cleanup
+- [x] Task 8: Create `BroadcastConsole.test.ts` (AC: #10)
+  - [x] Left flank hidden for non-admin; visible for admin
+  - [x] Camera Controls button emits `toggleAdminPanel`
+  - [x] Stream Start/Stop calls `useAdminStream` (mock it)
+  - [x] Center renders `<StreamStatusBadge>` with correct state prop
+  - [x] Center viewer count matches mocked `viewers` length
+  - [x] Right chat toggle emits `toggleChatSidebar`
+  - [x] Right unread badge visible when `!chatSidebarOpen && unreadCount > 0`
+  - [x] Profile popover: no Start/Stop button in any scenario
+  - [x] Profile popover: Camera Controls hidden when `isDesktop=true`
+  - [x] `afterEach` cleanup
 
-- [ ] Task 9: Create `AtmosphericVoid.test.ts` (AC: #10)
-  - [ ] Renders dark fallback container when `videoRef` is null
-  - [ ] Container has `aria-hidden="true"`
-  - [ ] Copies `srcObject` to internal video on `loadeddata` event
-  - [ ] Cleans up event listener on unmount
+- [x] Task 9: Create `AtmosphericVoid.test.ts` (AC: #10)
+  - [x] Renders dark fallback container when `videoRef` is null
+  - [x] Container has `aria-hidden="true"`
+  - [x] Copies `srcObject` to internal video on `loadeddata` event
+  - [x] Cleans up event listener on unmount
 
 ---
 
@@ -420,7 +420,24 @@ afterEach(() => { viewers.value = []; });
 claude-sonnet-4-6
 
 ### Debug Log References
+- Addressed user feedback to use the global theme background rather than dark styling for BroadcastConsole
 
 ### Completion Notes List
+- Completed refactor of WatchView shell adding three responsive states (Desktop, Mobile Portrait, Mobile Landscape).
+- BroadcastConsole uses standard layout backgrounds based on user instruction.
+- Both StreamStatusBadge and static text retained side-by-side in center as UAT issue #4 noted.
+- All acceptance criteria verified and tasks checked.
 
 ### File List
+- `apps/web/src/views/WatchView.vue`
+- `apps/web/src/views/WatchView.test.ts`
+- `apps/web/src/components/stream/StreamPlayer.vue`
+- `apps/web/src/components/stream/StreamPlayer.test.ts`
+- `apps/web/src/components/stream/BroadcastConsole.vue` (new)
+- `apps/web/src/components/stream/BroadcastConsole.test.ts` (new)
+- `apps/web/src/components/stream/AtmosphericVoid.vue` (new)
+- `apps/web/src/components/stream/AtmosphericVoid.test.ts` (new)
+- `apps/web/src/components/stream/ProfileAnchor.vue` (deleted)
+- `apps/web/src/components/stream/ProfileAnchor.test.ts` (deleted)
+- `apps/web/src/components/stream/SidebarCollapseButton.vue` (deleted)
+- `apps/web/src/components/stream/SidebarCollapseButton.test.ts` (deleted)

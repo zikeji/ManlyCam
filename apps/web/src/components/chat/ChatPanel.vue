@@ -10,7 +10,6 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TabsIndicator } from 'reka-ui';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
-import ProfileAnchor from '@/components/stream/ProfileAnchor.vue';
 import PresenceList from './PresenceList.vue';
 import TypingIndicator from './TypingIndicator.vue';
 import { Role, ROLE_RANK } from '@manlycam/types';
@@ -29,7 +28,6 @@ const { sendTypingStart, sendTypingStop } = useWebSocket();
 
 const scrollRef = ref<HTMLElement | null>(null);
 const sentinelRef = ref<HTMLElement | null>(null);
-const profilePopoverOpen = ref(false);
 
 const TAB_ORDER = ['chat', 'viewers'] as const;
 type Tab = (typeof TAB_ORDER)[number];
@@ -335,26 +333,7 @@ async function handleSend(content: string) {
               </div>
             </div>
 
-            <!-- Mobile input bar: avatar + input -->
-            <div class="flex items-center gap-2 p-2 pb-0 pt-4 border-t border-[hsl(var(--border))] lg:hidden">
-              <ProfileAnchor
-                :isDesktop="false"
-                v-model:popover-open="profilePopoverOpen"
-                @open-camera-controls="emit('openCameraControls')"
-                @open-user-manager="emit('openUserManager')"
-              />
-              <ChatInput
-                class="flex-1"
-                :muted="isSelfMuted"
-                @send="handleSend"
-                @edit-last="handleEditLast"
-                @typing-start="sendTypingStart"
-                @typing-stop="sendTypingStop"
-              />
-            </div>
-
-            <!-- Desktop input: standalone -->
-            <div class="p-2 pb-0 pt-4 border-t border-[hsl(var(--border))] hidden lg:block">
+            <div class="p-2 pb-0 pt-4 border-t border-[hsl(var(--border))]">
               <ChatInput
                 :muted="isSelfMuted"
                 @send="handleSend"

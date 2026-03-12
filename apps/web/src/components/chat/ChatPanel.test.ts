@@ -199,12 +199,6 @@ describe('ChatPanel.vue', () => {
     expect(text).toContain('World!');
   });
 
-  it('renders avatar slot for mobile input bar (ProfileAnchor present)', () => {
-    wrapper = mount(ChatPanel);
-    const mobileBar = wrapper.find('.lg\\:hidden');
-    expect(mobileBar.exists()).toBe(true);
-  });
-
   it('calls initHistory on mount', async () => {
     wrapper = mount(ChatPanel);
     await flushPromises();
@@ -317,7 +311,7 @@ describe('ChatPanel.vue', () => {
       vi.useFakeTimers();
       wrapper = mount(ChatPanel);
       await flushPromises();
-      const textarea = wrapper.find('.hidden.lg\\:block textarea');
+      const textarea = wrapper.find('textarea');
       await textarea.setValue('h');
       await textarea.trigger('input');
       vi.advanceTimersByTime(400);
@@ -329,7 +323,7 @@ describe('ChatPanel.vue', () => {
       vi.useFakeTimers();
       wrapper = mount(ChatPanel);
       await flushPromises();
-      const textarea = wrapper.find('.hidden.lg\\:block textarea');
+      const textarea = wrapper.find('textarea');
       await textarea.setValue('h');
       await textarea.trigger('input');
       vi.advanceTimersByTime(400); // typingStart
