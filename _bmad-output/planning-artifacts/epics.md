@@ -1477,6 +1477,36 @@ So that I can deploy the full ManlyCam stack — Pi camera node through to serve
 
 ---
 
+### Story 6.4: Implement Root README with Architectural Overview
+
+As an **operator or developer**,
+I want a central README.md in the project root with architectural visualization and project context, including a dynamic code coverage badge,
+So that I can understand the full stack at a glance and see the real-time health of the codebase.
+
+**Acceptance Criteria:**
+
+**Given** a user visits the repository root
+**When** the README.md is viewed
+**Then** it contains a high-level project intro, a photo of Manly in `docs/assets/manly.jpg`, and a set of "fancy shields" (CI Status, License, TypeScript, Node.js, Vue.js, Raspberry Pi)
+
+**Given** the code coverage shield in the README
+**When** a CI run completes on the `main` branch
+**Then** the shield dynamically updates to reflect the latest line coverage percentage extracted from the Vitest reports (using a GitHub Gist or similar dynamic endpoint)
+
+**Given** the architecture section of the README
+**When** viewed in a browser that supports Mermaid
+**Then** a Mermaid diagram renders showing the end-to-end pipeline: Pi Camera → mediamtx (Pi) → frp tunnel → mediamtx (Server) → WebRTC WHEP → Vue SPA
+
+**Given** the monorepo structure
+**When** the README is viewed
+**Then** it contains deep links to `apps/server/README.md`, `apps/web/README.md`, and `pi/README.md` with brief descriptions of each component's role
+
+**Given** the requirements section
+**When** viewed
+**Then** it lists the high-level prerequisites for running the full stack (Node.js, Docker, Raspberry Pi hardware)
+
+---
+
 ## Post-MVP / Phase 2
 
 > The following stories are deferred from the MVP scope. They are documented here for planning continuity. See the Implementation Readiness Report (2026-03-06) for the rationale behind each deferral.
