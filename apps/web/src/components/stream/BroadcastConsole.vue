@@ -20,12 +20,16 @@ const props = withDefaults(defineProps<{
   chatSidebarOpen?: boolean;
   unreadCount?: number;
   isDesktop?: boolean;
+  showChatToggle?: boolean;
+  showViewerCount?: boolean;
 }>(), {
   isAdmin: false,
   adminPanelOpen: false,
   chatSidebarOpen: false,
   unreadCount: 0,
-  isDesktop: true
+  isDesktop: true,
+  showChatToggle: true,
+  showViewerCount: true,
 });
 
 const emit = defineEmits<{
@@ -141,7 +145,7 @@ const streamToggleLabel = computed(() => {
     <!-- Center Flank -->
     <div class="flex items-center gap-2 flex-1 justify-center text-sm font-medium">
       <StreamStatusBadge :state="streamState" />
-      <span class="text-muted-foreground whitespace-nowrap hidden sm:inline">{{ viewerText }}</span>
+      <span v-if="showViewerCount" class="text-muted-foreground whitespace-nowrap hidden sm:inline">{{ viewerText }}</span>
       <span v-show="false" class="truncate hidden md:inline">Manly is live 🐾</span>
       <!-- 7-2: editable title -->
     </div>
@@ -214,7 +218,7 @@ const streamToggleLabel = computed(() => {
         </PopoverContent>
       </Popover>
 
-      <div class="relative">
+      <div v-if="showChatToggle" class="relative">
         <Button
           variant="ghost"
           size="icon"
