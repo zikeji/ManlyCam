@@ -61,7 +61,9 @@ describe('StreamStatusBadge', () => {
     });
 
     it('explicit-offline: shows "Offline"', () => {
-      const wrapper = mount(StreamStatusBadge, { props: { state: 'explicit-offline', compact: true } });
+      const wrapper = mount(StreamStatusBadge, {
+        props: { state: 'explicit-offline', compact: true },
+      });
       expect(wrapper.text()).toContain('Offline');
     });
   });

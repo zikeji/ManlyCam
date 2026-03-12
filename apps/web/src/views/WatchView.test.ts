@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { ref, nextTick } from 'vue';
 import { createRouter, createMemoryHistory } from 'vue-router';
+import type { ComponentPublicInstance } from 'vue';
 import WatchView from './WatchView.vue';
 
 // Shared mutable state so tests can control auth role
@@ -174,7 +175,9 @@ describe('WatchView', () => {
 
   describe('Desktop Layout', () => {
     beforeEach(() => {
-      mockIsDesktop = true; mockIsPortrait = false; mockIsLandscape = false;
+      mockIsDesktop = true;
+      mockIsPortrait = false;
+      mockIsLandscape = false;
     });
 
     it('renders content area with absolute AtmosphericVoid inside relative centered flex container', async () => {
@@ -184,7 +187,7 @@ describe('WatchView', () => {
       const main = wrapper.find('main');
       const contentArea = main.find('div.relative.flex.items-center.justify-center');
       expect(contentArea.exists()).toBe(true);
-      
+
       const voidComp = contentArea.find('[data-atmospheric-void]');
       expect(voidComp.exists()).toBe(true);
       expect(voidComp.classes()).toContain('absolute');
@@ -203,7 +206,9 @@ describe('WatchView', () => {
 
   describe('Mobile Portrait Layout', () => {
     beforeEach(() => {
-      mockIsDesktop = false; mockIsPortrait = true; mockIsLandscape = false;
+      mockIsDesktop = false;
+      mockIsPortrait = true;
+      mockIsLandscape = false;
     });
 
     it('stream container is shrink-0 without centering flex', async () => {
@@ -233,7 +238,9 @@ describe('WatchView', () => {
 
   describe('Mobile Landscape Layout', () => {
     beforeEach(() => {
-      mockIsDesktop = false; mockIsPortrait = false; mockIsLandscape = true;
+      mockIsDesktop = false;
+      mockIsPortrait = false;
+      mockIsLandscape = true;
     });
 
     it('does NOT render AtmosphericVoid', async () => {
@@ -252,9 +259,9 @@ describe('WatchView', () => {
     it('renders ChatPanel and BroadcastConsole stacked in right column when sidebar open', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       // ensure sidebar is open
-      wrapper.vm.chatSidebarOpen = true;
+      (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen = true;
       await nextTick();
-      
+
       const rightCol = wrapper.find('div.w-\\[280px\\]');
       expect(rightCol.exists()).toBe(true);
       expect(rightCol.find('[data-chat-panel]').exists()).toBe(true);
@@ -263,7 +270,8 @@ describe('WatchView', () => {
 
     it('passes showLandscapeTapToggle=true to StreamPlayer when sidebar is closed', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-      wrapper.vm.chatSidebarOpen = false;
+      (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen =
+        false;
       await nextTick();
 
       const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
@@ -272,7 +280,7 @@ describe('WatchView', () => {
 
     it('passes showLandscapeTapToggle=false to StreamPlayer when sidebar is open', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-      wrapper.vm.chatSidebarOpen = true;
+      (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen = true;
       await nextTick();
 
       const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });

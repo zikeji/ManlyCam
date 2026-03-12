@@ -4,7 +4,7 @@ import { Settings2, Video, VideoOff, Camera, ArrowLeftFromLine, ArrowRightFromLi
 import type { ClientStreamState } from '@/composables/useStream';
 import { useAuth } from '@/composables/useAuth';
 import { useAdminStream } from '@/composables/useAdminStream';
-import { Role } from '@manlycam/types';
+// import { Role } from '@manlycam/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';

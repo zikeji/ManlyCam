@@ -26,7 +26,10 @@ vi.mock('@/composables/useAdminStream', () => ({
 }));
 
 vi.mock('@/composables/usePresence', () => ({
-  viewers: ref([{ id: '1', displayName: 'Alice' }, { id: '2', displayName: 'Bob' }]),
+  viewers: ref([
+    { id: '1', displayName: 'Alice' },
+    { id: '2', displayName: 'Bob' },
+  ]),
 }));
 
 // Mock ResizeObserver for Popover
@@ -37,7 +40,7 @@ global.ResizeObserver = class ResizeObserver {
 };
 
 describe('BroadcastConsole', () => {
-  let wrapper: VueWrapper<any> | null = null;
+  let wrapper: VueWrapper<InstanceType<typeof BroadcastConsole>> | null = null;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -65,7 +68,7 @@ describe('BroadcastConsole', () => {
           Camera: true,
           MessageSquare: true,
         },
-      }
+      },
     });
     return wrapper;
   };
@@ -147,10 +150,10 @@ describe('BroadcastConsole', () => {
     await avatarBtn.trigger('click');
     await flushPromises();
 
-    // popover content is rendered in a portal by default in shadcn, 
+    // popover content is rendered in a portal by default in shadcn,
     // but without document.body mocking it's usually inside wrapper or document
     const popoverContent = document.querySelector('[role="dialog"]') || wrapper.element;
-    
+
     expect(popoverContent.textContent).toContain('Admin User');
     expect(popoverContent.textContent).not.toContain('Start Stream');
     expect(popoverContent.textContent).not.toContain('Stop Stream');

@@ -3,7 +3,7 @@ import { mount, type VueWrapper } from '@vue/test-utils';
 import AtmosphericVoid from './AtmosphericVoid.vue';
 
 describe('AtmosphericVoid', () => {
-  let wrapper: VueWrapper<any> | null = null;
+  let wrapper: VueWrapper<InstanceType<typeof AtmosphericVoid>> | null = null;
 
   afterEach(() => {
     if (wrapper) {
@@ -17,7 +17,7 @@ describe('AtmosphericVoid', () => {
     wrapper = mount(AtmosphericVoid, {
       props: { videoRef: null },
     });
-    
+
     const container = wrapper.find('div');
     expect(container.exists()).toBe(true);
     expect(container.classes()).toContain('bg-[hsl(var(--surface))]');
@@ -28,11 +28,11 @@ describe('AtmosphericVoid', () => {
     const mockSrcObject = {} as MediaProvider;
     const mockVideoRef = document.createElement('video');
     mockVideoRef.srcObject = mockSrcObject;
-    
+
     wrapper = mount(AtmosphericVoid, {
       props: { videoRef: mockVideoRef },
     });
-    
+
     // flush watch
     await wrapper.vm.$nextTick();
 
@@ -42,19 +42,19 @@ describe('AtmosphericVoid', () => {
 
   it('copies srcObject to internal video on loadeddata event', async () => {
     const mockVideoRef = document.createElement('video');
-    
+
     wrapper = mount(AtmosphericVoid, {
       props: { videoRef: mockVideoRef },
     });
-    
+
     await wrapper.vm.$nextTick();
-    
+
     const mockSrcObject = {} as MediaProvider;
     mockVideoRef.srcObject = mockSrcObject;
-    
+
     // Dispatch loadeddata event
     mockVideoRef.dispatchEvent(new Event('loadeddata'));
-    
+
     const voidVideo = wrapper.find('video').element as HTMLVideoElement;
     expect(voidVideo.srcObject).toBe(mockSrcObject);
   });
@@ -62,16 +62,19 @@ describe('AtmosphericVoid', () => {
   it('cleans up event listener on unmount', async () => {
     const mockVideoRef = document.createElement('video');
     vi.spyOn(mockVideoRef, 'removeEventListener');
-    
+
     wrapper = mount(AtmosphericVoid, {
       props: { videoRef: mockVideoRef },
     });
-    
+
     await wrapper.vm.$nextTick();
-    
+
     wrapper.unmount();
     wrapper = null;
-    
-    expect(mockVideoRef.removeEventListener).toHaveBeenCalledWith('loadeddata', expect.any(Function));
+
+    expect(mockVideoRef.removeEventListener).toHaveBeenCalledWith(
+      'loadeddata',
+      expect.any(Function),
+    );
   });
 });

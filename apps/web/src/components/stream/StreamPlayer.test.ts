@@ -14,7 +14,7 @@ vi.mock('@/composables/useWhep', () => ({
 }));
 
 describe('StreamPlayer', () => {
-  let wrapper: VueWrapper<any> | null;
+  let wrapper: VueWrapper<InstanceType<typeof StreamPlayer>> | null;
 
   beforeEach(() => {
     import.meta.env.VITE_PET_NAME = 'Buddy';
@@ -145,16 +145,16 @@ describe('StreamPlayer', () => {
         props: { streamState: 'live', showLandscapeTapToggle: true },
       });
       const container = wrapper.find('[data-stream-container]');
-      
+
       await container.trigger('click', { pointerType: 'touch' });
       await wrapper.vm.$nextTick();
-      
+
       const toggleOverlay = wrapper.find('.absolute.inset-y-0.right-3');
       expect(toggleOverlay.classes()).toContain('opacity-100');
-      
+
       vi.advanceTimersByTime(3000);
       await wrapper.vm.$nextTick();
-      
+
       expect(toggleOverlay.classes()).toContain('opacity-0');
       vi.useRealTimers();
     });
@@ -163,7 +163,7 @@ describe('StreamPlayer', () => {
       wrapper = mount(StreamPlayer, {
         props: { streamState: 'live', showLandscapeTapToggle: true },
       });
-      
+
       const button = wrapper.find('button');
       await button.trigger('click');
       expect(wrapper.emitted('toggleChatSidebar')).toBeTruthy();

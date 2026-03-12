@@ -15,10 +15,10 @@ import TypingIndicator from './TypingIndicator.vue';
 import { Role, ROLE_RANK } from '@manlycam/types';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
-const emit = defineEmits<{
-  openCameraControls: [];
-  openUserManager: [];
-}>();
+// const emit = defineEmits<{
+//   openCameraControls: [];
+//   openUserManager: [];
+// }>();
 
 const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory, editMessage, deleteMessage } =
   useChat();

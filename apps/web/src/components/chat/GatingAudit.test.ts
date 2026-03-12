@@ -298,5 +298,4 @@ describe('Gating Audit (UI)', () => {
       expect(wrapper.find('button[aria-label*="admin panel"]').exists()).toBe(false);
     });
   });
-
 });

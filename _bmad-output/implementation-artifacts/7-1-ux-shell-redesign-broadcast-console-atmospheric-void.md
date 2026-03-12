@@ -1,6 +1,6 @@
 # Story 7.1: UX Shell Redesign — Broadcast Console + Atmospheric Void
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
