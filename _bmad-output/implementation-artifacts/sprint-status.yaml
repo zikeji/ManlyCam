@@ -92,6 +92,6 @@ development_status:
   epic-6: in-progress  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md; story 6-1 and 6-3 scopes expanded 2026-03-11 via sprint-change-proposal-2026-03-11.md
   6-1-remove-go-agent-extract-mediamtx-clean-dependencies: done  # code-review findings fixed (traefik docker-compose mediamtx service added); all ACs implemented. Done 2026-03-11
   6-2-pi-install-and-uninstall-script: done # code-review findings: critical (smoke test) verified by user; security/arch fixes applied. Ready 2026-03-11
-  web-runtime-env-monolithic-deploy: review
-  6-3-operator-documentation: backlog
+  web-runtime-env-monolithic-deploy: done  # unplanned: implemented as part of 6-1 to resolve environment variable management complexity; all runtime env vars now injected at build time via Dockerfile, eliminating need for runtime env var management in server and Pi agent; simplifies deployment and improves security by not requiring runtime env vars
+  6-3-operator-documentation: done  # code-review findings fixed (2026-03-11): sprint-status.yaml added to file list, bare-metal frps section expanded with explicit commands and systemd unit
   epic-6-retrospective: optional

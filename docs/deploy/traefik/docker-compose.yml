@@ -81,8 +81,9 @@ services:
     image: bluenviron/mediamtx:latest
     restart: unless-stopped
     ports:
-      - "8554:8554"   # RTSP — frpc on Pi pushes stream here via frps tunnel
-      # 8888 (WebRTC) and 9997 (API) are internal-only — server reaches via Docker bridge
+      - "8554:8554"     # RTSP — frpc on Pi pushes stream here via frps tunnel
+      - "8189:8189/udp" # WebRTC ICE/STUN — browsers negotiate media transport over UDP
+      # 8888 (WebRTC WHEP signaling) and 9997 (API) are internal-only — server reaches via Docker bridge
     volumes:
       # Copy mediamtx-server.yml alongside this compose file and substitute FRP_HOST/FRP_RTSP_PORT
       - ./mediamtx-server.yml:/mediamtx.yml:ro
