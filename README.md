@@ -1,3 +1,5 @@
+<img src="apps/web/public/favicon.svg" title="ManlyCam" height="150"/>
+
 # ManlyCam 📸
 
 [![CI](https://github.com/zikeji/ManlyCam/actions/workflows/server-ci.yml/badge.svg?branch=main)](https://github.com/zikeji/ManlyCam/actions/workflows/server-ci.yml)
@@ -7,7 +9,6 @@
 [![Vue.js](https://img.shields.io/badge/Vue.js-3-4FC08D?style=flat-square&logo=vuedotjs&logoColor=white)](https://vuejs.org/)
 [![Raspberry Pi](https://img.shields.io/badge/Raspberry%20Pi-Zero%202%20W-A22846?style=flat-square&logo=raspberrypi&logoColor=white)](https://www.raspberrypi.com/)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fgist.githubusercontent.com%2Fzikeji%2F9f35589c72945fc1e5f92026ded314b0%2Fraw%2F9f32e27e79d3caf3d62001892e840baeef5ee65c%2Fcoverage.json)](#-testing--coverage)
-
 
 ManlyCam is a real-time Raspberry Pi camera streaming and chat platform, named after my dog, Manly. It provides low-latency WebRTC video streaming from a Pi at home to a web interface anywhere in the world, with integrated real-time chat and administrative controls (this was in the MVP, I'll add more and forget to update here).
 

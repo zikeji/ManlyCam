@@ -1,6 +1,6 @@
 # Story 6.4: Implement Root README with Architectural Overview
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 

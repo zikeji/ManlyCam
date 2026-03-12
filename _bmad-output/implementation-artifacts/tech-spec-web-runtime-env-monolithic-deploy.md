@@ -2,7 +2,7 @@
 title: 'Web Runtime Env Injection & Monolithic Deploy Consolidation'
 slug: 'web-runtime-env-monolithic-deploy'
 created: '2026-03-11'
-status: 'review'
+status: 'done'
 stepsCompleted: [1, 2, 3, 4]
 tech_stack: ['hono', 'vite', 'vue3', 'typescript', 'docker', 'github-actions']
 files_to_modify:

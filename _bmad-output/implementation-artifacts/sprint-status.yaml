@@ -80,7 +80,7 @@ development_status:
   4-6-viewer-presence-list-and-typing-indicator: done  # code-review findings documented: HIGH - typing debounce spec mismatch (heartbeat pattern intentional), MEDIUM - StreamPlayer.test.ts undocumented, timing variance. Post-review summary added 2026-03-09
   epic-4-retrospective: done  # Completed 2026-03-09
 
-  epic-5: in-progress
+  epic-5: done
   5-1-moderator-and-admin-delete-any-chat-message: done  # code-review findings documented: zero critical/high/medium issues. All 12 ACs implemented. 564 tests passing. Ready 2026-03-10
   5-2-mute-and-unmute: done  # code-review findings: HIGH - role hierarchy enforcement + apiFetch explicit creds. All 12 ACs implemented. 619 tests passing. Done 2026-03-10
   5-3-ban-with-immediate-session-revocation: done  # code-review findings fixed: file list documentation, ROLE_RANK duplication, and component logic refactored.
@@ -89,10 +89,10 @@ development_status:
   5-6-usertag-assignment-and-server-computed-effective-usertag: done
   epic-5-retrospective: done  # Completed 2026-03-11
 
-  epic-6: in-progress  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md; story 6-1 and 6-3 scopes expanded 2026-03-11 via sprint-change-proposal-2026-03-11.md
+  epic-6: done  # redefined 2026-03-08 via sprint-change-proposal-2026-03-08.md; story 6-1 and 6-3 scopes expanded 2026-03-11 via sprint-change-proposal-2026-03-11.md
   6-1-remove-go-agent-extract-mediamtx-clean-dependencies: done  # code-review findings fixed (traefik docker-compose mediamtx service added); all ACs implemented. Done 2026-03-11
   6-2-pi-install-and-uninstall-script: done # code-review findings: critical (smoke test) verified by user; security/arch fixes applied. Ready 2026-03-11
   web-runtime-env-monolithic-deploy: done  # unplanned: implemented as part of 6-1 to resolve environment variable management complexity; all runtime env vars now injected at build time via Dockerfile, eliminating need for runtime env var management in server and Pi agent; simplifies deployment and improves security by not requiring runtime env vars
   6-3-operator-documentation: done  # code-review findings fixed (2026-03-11): sprint-status.yaml added to file list, bare-metal frps section expanded with explicit commands and systemd unit
-  6-4-implement-root-readme-with-architectural-overview: review
-  epic-6-retrospective: optional
+  6-4-implement-root-readme-with-architectural-overview: done
+  epic-6-retrospective: done
