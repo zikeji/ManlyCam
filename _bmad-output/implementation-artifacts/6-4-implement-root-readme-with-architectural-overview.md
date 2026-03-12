@@ -1,6 +1,6 @@
 # Story 6.4: Implement Root README with Architectural Overview
 
-Status: ready-for-dev
+Status: review
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -20,20 +20,20 @@ so that I can quickly understand the project's purpose, technical stack, and hea
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: Create the root `README.md` structure (AC: #1, #4, #5)
-  - [ ] Add project title and intro
-  - [ ] Embed `docs/assets/manly.jpg`
-  - [ ] Add "Fancy Shields" section (CI, License, TS, Node, Vue, Pi)
-  - [ ] Add monorepo component deep links with descriptions
-  - [ ] Add prerequisites/requirements section
+- [x] Task 1: Create the root `README.md` structure (AC: #1, #4, #5)
+  - [x] Add project title and intro
+  - [x] Embed `docs/assets/manly.jpg`
+  - [x] Add "Fancy Shields" section (CI, License, TS, Node, Vue, Pi)
+  - [x] Add monorepo component deep links with descriptions
+  - [x] Add prerequisites/requirements section
 
-- [ ] Task 2: Implement Mermaid architecture diagram (AC: #3)
-  - [ ] Create a sequence or flowchart diagram in Mermaid
-  - [ ] Cover the path: Pi Camera → mediamtx (Pi) → frp tunnel → mediamtx (Server) → WebRTC WHEP → Vue SPA
+- [x] Task 2: Implement Mermaid architecture diagram (AC: #3)
+  - [x] Create a sequence or flowchart diagram in Mermaid
+  - [x] Cover the path: Pi Camera → mediamtx (Pi) → frp tunnel → mediamtx (Server) → WebRTC WHEP → Vue SPA
 
-- [ ] Task 3: Set up dynamic coverage shield (AC: #2)
-  - [ ] Update `.github/workflows/server-ci.yml` to extract coverage percentages from `coverage-summary.json`
-  - [ ] Implement a mechanism (e.g., `Schneegans/dynamic-badges-action` + Gist) to update the coverage badge dynamically on `main` branch pushes
+- [x] Task 3: Set up dynamic coverage shield (AC: #2)
+  - [x] Update `.github/workflows/server-ci.yml` to extract coverage percentages from `coverage-summary.json`
+  - [x] Implement a mechanism (e.g., `Schneegans/dynamic-badges-action` + Gist) to update the coverage badge dynamically on `main` branch pushes
 
 ## Dev Notes
 
@@ -67,6 +67,22 @@ gemini-2.0-flash-thinking-exp-01-21
 
 ### Debug Log References
 
+- [2026-03-12 11:00] Created root README.md with intro, mermaid diagram, shields, and requirements.
+- [2026-03-12 11:10] Updated .github/workflows/server-ci.yml with coverage extraction and dynamic badge update steps.
+
 ### Completion Notes List
 
+- Root README.md created with high-level architecture diagram.
+- CI pipeline now calculates average code coverage and updates a dynamic shield.
+- Documentation added to README on how to configure Gist-based shields.
+- Cleaned up monorepo structure links to remove dead/empty READMEs and pointed to `docs/deploy/README.md`.
+- Added "✨ Inspiration" section to root README.md describing project's organic origins.
+
 ### File List
+
+- `README.md`
+- `.github/workflows/server-ci.yml`
+- `_bmad-output/implementation-artifacts/sprint-status.yaml`
+- `_bmad-output/implementation-artifacts/6-4-implement-root-readme-with-architectural-overview.md`
+- `docs/deploy/README.md` (referenced)
+- `pi/README.md` (referenced)

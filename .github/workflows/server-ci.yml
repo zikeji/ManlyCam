@@ -52,6 +52,35 @@ jobs:
           json-final-path: apps/server/coverage/coverage-final.json
           vite-config-path: apps/server/vitest.config.ts
 
+      - name: Extract coverage
+        id: extract_coverage
+        run: |
+          WEB_COVERAGE=$(jq '.total.lines.pct' apps/web/coverage/coverage-summary.json)
+          SERVER_COVERAGE=$(jq '.total.lines.pct' apps/server/coverage/coverage-summary.json)
+          TOTAL_COVERAGE=$(echo "($WEB_COVERAGE + $SERVER_COVERAGE) / 2" | bc -l | xargs printf "%.2f")
+          echo "total_coverage=$TOTAL_COVERAGE" >> $GITHUB_OUTPUT
+
+          # Color logic based on coverage percentage
+          if (( $(echo "$TOTAL_COVERAGE >= 90" | bc -l) )); then COLOR="brightgreen";
+          elif (( $(echo "$TOTAL_COVERAGE >= 80" | bc -l) )); then COLOR="green";
+          elif (( $(echo "$TOTAL_COVERAGE >= 70" | bc -l) )); then COLOR="yellowgreen";
+          elif (( $(echo "$TOTAL_COVERAGE >= 60" | bc -l) )); then COLOR="yellow";
+          elif (( $(echo "$TOTAL_COVERAGE >= 50" | bc -l) )); then COLOR="orange";
+          else COLOR="red"; fi
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+
+      - name: Update Coverage Badge
+        if: github.ref == 'refs/heads/main'
+        continue-on-error: true
+        uses: schneegans/dynamic-badges-action@v1.7.0
+        with:
+          auth: ${{ secrets.GIST_SECRET }}
+          gistID: ${{ secrets.GIST_ID }}
+          filename: coverage.json
+          label: coverage
+          message: ${{ steps.extract_coverage.outputs.total_coverage }}%
+          color: ${{ steps.extract_coverage.outputs.color }}
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
