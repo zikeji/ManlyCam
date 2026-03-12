@@ -43,4 +43,28 @@ describe('StreamStatusBadge', () => {
     expect(dot.exists()).toBe(true);
     expect(dot.classes().join(' ')).toMatch(/muted|offline/);
   });
+
+  describe('compact mode', () => {
+    it('connecting: shows "Connecting"', () => {
+      const wrapper = mount(StreamStatusBadge, { props: { state: 'connecting', compact: true } });
+      expect(wrapper.text()).toContain('Connecting');
+    });
+
+    it('live: shows "Live"', () => {
+      const wrapper = mount(StreamStatusBadge, { props: { state: 'live', compact: true } });
+      expect(wrapper.text()).toContain('Live');
+    });
+
+    it('unreachable: shows "Problem"', () => {
+      const wrapper = mount(StreamStatusBadge, { props: { state: 'unreachable', compact: true } });
+      expect(wrapper.text()).toContain('Problem');
+    });
+
+    it('explicit-offline: shows "Offline"', () => {
+      const wrapper = mount(StreamStatusBadge, {
+        props: { state: 'explicit-offline', compact: true },
+      });
+      expect(wrapper.text()).toContain('Offline');
+    });
+  });
 });

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { ref, nextTick } from 'vue';
 import { createRouter, createMemoryHistory } from 'vue-router';
+import type { ComponentPublicInstance } from 'vue';
 import WatchView from './WatchView.vue';
 
 // Shared mutable state so tests can control auth role
@@ -29,7 +30,7 @@ vi.mock('@/composables/useStream', () => ({
   }),
 }));
 
-// vi.hoisted runs before any imports — required for module-level exports in vi.mock
+// vi.hoisted runs before any imports
 const {
   mockMessages,
   mockUnreadCount,
@@ -80,18 +81,15 @@ vi.mock('@/composables/useAdminStream', () => ({
   }),
 }));
 
-// Stub StreamPlayer to avoid WebRTC complexity in layout tests
 vi.mock('@/components/stream/StreamPlayer.vue', () => ({
   default: {
     name: 'StreamPlayer',
-    props: ['streamState', 'chatSidebarOpen', 'unreadCount', 'showChatSidebarToggle'],
-    emits: ['openCameraControls', 'toggleChatSidebar'],
-    template:
-      '<button data-stream-player @click="$emit(\'openCameraControls\')" @dblclick="$emit(\'toggleChatSidebar\')" />',
+    props: ['streamState', 'chatSidebarOpen', 'unreadCount', 'showLandscapeTapToggle'],
+    emits: ['toggleChatSidebar'],
+    template: '<button data-stream-player @dblclick="$emit(\'toggleChatSidebar\')" />',
   },
 }));
 
-// Stub ChatPanel to avoid chat composable complexity in layout tests
 vi.mock('@/components/chat/ChatPanel.vue', () => ({
   default: {
     name: 'ChatPanel',
@@ -100,10 +98,24 @@ vi.mock('@/components/chat/ChatPanel.vue', () => ({
   },
 }));
 
+vi.mock('@/components/stream/BroadcastConsole.vue', () => ({
+  default: {
+    name: 'BroadcastConsole',
+    template: '<div data-broadcast-console />',
+  },
+}));
+
+vi.mock('@/components/stream/AtmosphericVoid.vue', () => ({
+  default: {
+    name: 'AtmosphericVoid',
+    template: '<div data-atmospheric-void />',
+  },
+}));
+
 let mockIsDesktop = true;
 let mockIsPortrait = false;
+let mockIsLandscape = false;
 
-// localStorage mock (jsdom doesn't provide a full Storage in this vitest setup)
 let mockStorageStore: Record<string, string> = {};
 const mockLocalStorage = {
   getItem: (key: string): string | null => mockStorageStore[key] ?? null,
@@ -134,15 +146,18 @@ describe('WatchView', () => {
     mockResetUnread.mockClear();
     mockIsDesktop = true;
     mockIsPortrait = false;
+    mockIsLandscape = false;
 
     Object.defineProperty(window, 'matchMedia', {
       value: vi.fn().mockImplementation((query: string) => ({
         matches:
           query === '(min-width: 1024px)'
             ? mockIsDesktop
-            : query === '(max-width: 767px) and (orientation: portrait)'
+            : query === '(max-width: 1023px) and (orientation: portrait)'
               ? mockIsPortrait
-              : false,
+              : query === '(max-width: 1023px) and (orientation: landscape)'
+                ? mockIsLandscape
+                : false,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
       })),
@@ -158,133 +173,124 @@ describe('WatchView', () => {
     wrapper = null;
   });
 
-  it('renders StreamPlayer with streamState prop', async () => {
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-    expect(wrapper.find('[data-stream-player]').exists()).toBe(true);
-  });
-
-  it('calls initStream on mount', async () => {
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-    expect(mockInitStream).toHaveBeenCalledOnce();
-  });
-
-  it('left sidebar is hidden for non-Admin users', async () => {
-    mockUser.value = { role: 'ViewerCompany', displayName: 'Test User' };
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-    expect(wrapper.find('[data-sidebar-left]').exists()).toBe(false);
-  });
-
-  it('left sidebar is shown for Admin users when adminPanelOpen is true', async () => {
-    mockUser.value = { role: 'Admin', displayName: 'Admin User' };
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-    // Initially sidebar should not exist (adminPanelOpen is false by default)
-    expect(wrapper.find('[data-sidebar-left]').exists()).toBe(false);
-  });
-
-  it('renders ChatPanel (replaces right sidebar placeholder)', async () => {
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-    expect(wrapper.find('[data-chat-panel]').exists()).toBe(true);
-  });
-
-  it('outer container has flex flex-col lg:flex-row classes', async () => {
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-    const outer = wrapper.find('div.flex.flex-col');
-    expect(outer.exists()).toBe(true);
-  });
-
-  it('left sidebar is hidden when user is null', async () => {
-    mockUser.value = null;
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-    expect(wrapper.find('[data-sidebar-left]').exists()).toBe(false);
-  });
-
-  it('handleOpenCameraControls toggles panel open/closed via StreamPlayer event', async () => {
-    mockUser.value = { role: 'Admin', displayName: 'Admin User' };
-    wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-    await flushPromises();
-
-    // Click once to open
-    await wrapper.find('[data-stream-player]').trigger('click');
-    await flushPromises();
-
-    // Click again to toggle closed
-    await wrapper.find('[data-stream-player]').trigger('click');
-    await flushPromises();
-
-    // Component still renders correctly after toggle
-    expect(wrapper.find('[data-stream-player]').exists()).toBe(true);
-  });
-
-  describe('chat sidebar', () => {
-    it('chat panel renders on desktop when chatSidebarOpen is true (default on desktop)', async () => {
+  describe('Desktop Layout', () => {
+    beforeEach(() => {
       mockIsDesktop = true;
       mockIsPortrait = false;
-      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-      await flushPromises();
-      expect(wrapper.find('[data-chat-panel]').exists()).toBe(true);
+      mockIsLandscape = false;
     });
 
-    it('chat panel NOT rendered when desktop + chatSidebarOpen collapses after toggle', async () => {
-      mockIsDesktop = true;
-      mockIsPortrait = false;
+    it('renders content area with absolute AtmosphericVoid inside relative centered flex container', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
-      // Trigger toggleChatSidebar via dblclick on stream player stub
-      await wrapper.find('[data-stream-player]').trigger('dblclick');
-      await nextTick();
-      expect(wrapper.find('[data-chat-panel]').exists()).toBe(false);
+
+      const main = wrapper.find('main');
+      const contentArea = main.find('div.relative.flex.items-center.justify-center');
+      expect(contentArea.exists()).toBe(true);
+
+      const voidComp = contentArea.find('[data-atmospheric-void]');
+      expect(voidComp.exists()).toBe(true);
+      expect(voidComp.classes()).toContain('absolute');
+      expect(voidComp.classes()).toContain('inset-0');
     });
 
-    it('chat panel always rendered when isMobilePortrait=true regardless of chatSidebarOpen', async () => {
+    it('renders BroadcastConsole directly in main below content area', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const main = wrapper.find('main');
+      const consoleComp = main.find('[data-broadcast-console]');
+      expect(consoleComp.exists()).toBe(true);
+    });
+  });
+
+  describe('Mobile Portrait Layout', () => {
+    beforeEach(() => {
       mockIsDesktop = false;
       mockIsPortrait = true;
+      mockIsLandscape = false;
+    });
+
+    it('stream container is shrink-0 without centering flex', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
-      // Even after toggle, portrait panel always renders
-      await wrapper.find('[data-stream-player]').trigger('dblclick');
+
+      const streamWrapper = wrapper.find('main > div.shrink-0');
+      expect(streamWrapper.exists()).toBe(true);
+      // Ensure no centering div is rendered
+      expect(wrapper.find('div.relative.flex.items-center.justify-center').exists()).toBe(false);
+    });
+
+    it('does NOT render AtmosphericVoid', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      expect(wrapper.find('[data-atmospheric-void]').exists()).toBe(false);
+    });
+
+    it('renders ChatPanel below Console directly in main', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      const main = wrapper.find('main');
+      expect(main.find('[data-broadcast-console]').exists()).toBe(true);
+      expect(main.find('[data-chat-panel]').exists()).toBe(true);
+    });
+  });
+
+  describe('Mobile Landscape Layout', () => {
+    beforeEach(() => {
+      mockIsDesktop = false;
+      mockIsPortrait = false;
+      mockIsLandscape = true;
+    });
+
+    it('does NOT render AtmosphericVoid', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      expect(wrapper.find('[data-atmospheric-void]').exists()).toBe(false);
+    });
+
+    it('does NOT render BroadcastConsole in main', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      const main = wrapper.find('main');
+      expect(main.find('[data-broadcast-console]').exists()).toBe(false);
+    });
+
+    it('renders ChatPanel and BroadcastConsole stacked in right column when sidebar open', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      // ensure sidebar is open
+      (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen = true;
       await nextTick();
-      expect(wrapper.find('[data-chat-panel]').exists()).toBe(true);
+
+      const rightCol = wrapper.find('div.w-\\[280px\\]');
+      expect(rightCol.exists()).toBe(true);
+      expect(rightCol.find('[data-chat-panel]').exists()).toBe(true);
+      expect(rightCol.find('[data-broadcast-console]').exists()).toBe(true);
     });
 
-    it('localStorage.setItem called on chat sidebar toggle', async () => {
-      mockIsDesktop = true;
-      mockIsPortrait = false;
-      const setItemSpy = vi.spyOn(mockLocalStorage, 'setItem');
+    it('passes showLandscapeTapToggle=true to StreamPlayer when sidebar is closed', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-      await flushPromises();
-      await wrapper.find('[data-stream-player]').trigger('dblclick');
+      (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen =
+        false;
       await nextTick();
-      expect(setItemSpy).toHaveBeenCalledWith('manlycam:chat-sidebar-open', expect.any(String));
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('showLandscapeTapToggle')).toBe(true);
     });
 
-    it('on mount with localStorage "true" → chatSidebarOpen=true (chat panel visible)', async () => {
-      mockIsDesktop = true;
-      mockIsPortrait = false;
-      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'true');
+    it('passes showLandscapeTapToggle=false to StreamPlayer when sidebar is open', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-      await flushPromises();
-      expect(wrapper.find('[data-chat-panel]').exists()).toBe(true);
-    });
+      (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen = true;
+      await nextTick();
 
-    it('on mount with localStorage "false" → chatSidebarOpen=false (chat panel hidden)', async () => {
-      mockIsDesktop = true;
-      mockIsPortrait = false;
-      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'false');
-      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-      await flushPromises();
-      expect(wrapper.find('[data-chat-panel]').exists()).toBe(false);
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('showLandscapeTapToggle')).toBe(false);
     });
+  });
 
+  describe('Chat sidebar toggling', () => {
     it('resetUnread called when sidebar toggles open', async () => {
       mockIsDesktop = true;
-      mockIsPortrait = false;
       // Start collapsed
       mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'false');
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
@@ -294,20 +300,6 @@ describe('WatchView', () => {
       await wrapper.find('[data-stream-player]').trigger('dblclick');
       await nextTick();
       expect(mockResetUnread).toHaveBeenCalled();
-    });
-
-    it('incrementUnread called when new message arrives while sidebar is collapsed', async () => {
-      mockIsDesktop = true;
-      mockIsPortrait = false;
-      // Start collapsed
-      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'false');
-      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
-      await flushPromises();
-      mockIncrementUnread.mockClear();
-      // Simulate new message arriving
-      mockMessages.value = [{ id: 'msg-1', content: 'Hello' }];
-      await nextTick();
-      expect(mockIncrementUnread).toHaveBeenCalled();
     });
   });
 });

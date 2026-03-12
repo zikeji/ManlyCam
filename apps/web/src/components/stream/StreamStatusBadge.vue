@@ -4,6 +4,7 @@ import type { ClientStreamState } from '@/composables/useStream';
 
 const props = defineProps<{
   state: ClientStreamState;
+  compact?: boolean;
 }>();
 
 const petName = getPetName();
@@ -21,6 +22,19 @@ const dotClass = (state: ClientStreamState): string => {
 };
 
 const label = (state: ClientStreamState): string => {
+  if (props.compact) {
+    switch (state) {
+      case 'connecting':
+        return 'Connecting';
+      case 'live':
+        return 'Live';
+      case 'unreachable':
+        return 'Problem';
+      case 'explicit-offline':
+        return 'Offline';
+    }
+  }
+
   switch (state) {
     case 'connecting':
       return 'Connecting...';
