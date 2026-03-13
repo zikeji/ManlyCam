@@ -140,14 +140,25 @@ describe('BatteryIndicator', () => {
     });
   });
 
-  // AC #10: Smart charge (plugged: true, charging: false, chargingRange set)
+  // AC #10: Smart charge (plugged: true, chargingRange set, level within range)
   describe('AC #10 — smart charge state', () => {
-    it('renders BatteryPlus icon', () => {
+    it('renders BatteryPlus icon when level is within charging range', () => {
       mountBattery({
         connected: true,
         level: 80,
         plugged: true,
         charging: false,
+        chargingRange: [75, 90],
+      });
+      expect(wrapper!.html()).toContain('lucide-battery-plus');
+    });
+
+    it('renders BatteryPlus icon when charging=true but level is within range', () => {
+      mountBattery({
+        connected: true,
+        level: 80,
+        plugged: true,
+        charging: true,
         chargingRange: [75, 90],
       });
       expect(wrapper!.html()).toContain('lucide-battery-plus');
@@ -175,6 +186,29 @@ describe('BatteryIndicator', () => {
       });
       const icon = wrapper!.find('[class*="text-green"]');
       expect(icon.exists()).toBe(true);
+    });
+
+    it('falls through to charging state when level is outside the charging range', () => {
+      mountBattery({
+        connected: true,
+        level: 60,
+        plugged: true,
+        charging: true,
+        chargingRange: [75, 90],
+      });
+      expect(wrapper!.html()).toContain('lucide-battery-charging');
+    });
+
+    it('falls through to discharging state when level is below range and not charging', () => {
+      mountBattery({
+        connected: true,
+        level: 60,
+        plugged: true,
+        charging: false,
+        chargingRange: [75, 90],
+      });
+      // level=60 is not within [75,90] and not charging: discharging-medium
+      expect(wrapper!.html()).toContain('lucide-battery-medium');
     });
   });
 

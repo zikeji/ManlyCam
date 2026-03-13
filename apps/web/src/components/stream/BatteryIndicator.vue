@@ -30,8 +30,9 @@ const batteryState = computed((): BatteryState => {
   if (!props.status.connected) return 'unknown';
   const { level, plugged, charging, chargingRange } = props.status;
   if (plugged && level >= 100) return 'full';
+  if (plugged && chargingRange !== null && level >= chargingRange[0] && level <= chargingRange[1])
+    return 'smart-charge';
   if (plugged && charging) return 'charging';
-  if (plugged && !charging && chargingRange !== null) return 'smart-charge';
   if (level <= 20) return 'discharging-low';
   if (level <= 80) return 'discharging-medium';
   return 'discharging-high';
