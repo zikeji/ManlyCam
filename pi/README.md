@@ -258,3 +258,48 @@ ls /usr/local/bin/frpc     # expect: No such file or directory
 ```
 
 The script is safe to run even if services are not currently installed.
+
+## PiSugar Battery Monitoring (Optional)
+
+If you have a PiSugar power management module installed on your Pi, you can enable battery monitoring in the web UI.
+
+### Prerequisites
+
+1. Install PiSugar manager on your Pi (follow [official PiSugar documentation](https://github.com/PiSugar/PiSugar))
+2. Ensure PiSugar manager is running and listening on port 8423 (default)
+
+### Server Configuration
+
+Add to your server `.env`:
+
+```
+FRP_PISUGAR_PORT=<port>
+```
+
+Choose an available port (e.g., 8424). This is the server-side port that will receive the tunneled connection.
+
+### Pi frpc Configuration
+
+Add to your Pi's `/etc/manlycam/frpc.toml`:
+
+```toml
+[[proxies]]
+name = "pisugar"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 8423
+remotePort = <FRP_PISUGAR_PORT>
+```
+
+Replace `<FRP_PISUGAR_PORT>` with the same port you configured on the server.
+
+After updating frpc.toml, restart the frpc service:
+
+```bash
+sudo systemctl restart frpc
+```
+
+### Verification
+
+1. Check frpc tunnel is established: `sudo journalctl -u frpc -f`
+2. On the server, the battery indicator should appear in the Broadcast Console left flank (admin-only) within 30 seconds

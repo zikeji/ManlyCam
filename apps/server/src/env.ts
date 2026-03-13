@@ -15,6 +15,7 @@ const envSchema = z.object({
   FRP_API_PORT: z.string().min(1),
   PET_NAME: z.string().min(1),
   SITE_NAME: z.string().min(1),
+  FRP_PISUGAR_PORT: z.coerce.number().optional(),
 });
 
 const result = envSchema.safeParse(process.env);

@@ -114,7 +114,6 @@ vi.mock('@/components/stream/AtmosphericVoid.vue', () => ({
 
 let mockIsDesktop = true;
 let mockIsPortrait = false;
-let mockIsLandscape = false;
 
 let mockStorageStore: Record<string, string> = {};
 const mockLocalStorage = {
@@ -146,22 +145,30 @@ describe('WatchView', () => {
     mockResetUnread.mockClear();
     mockIsDesktop = true;
     mockIsPortrait = false;
-    mockIsLandscape = false;
 
     Object.defineProperty(window, 'matchMedia', {
       value: vi.fn().mockImplementation((query: string) => ({
-        matches:
-          query === '(min-width: 1024px)'
-            ? mockIsDesktop
-            : query === '(max-width: 1023px) and (orientation: portrait)'
-              ? mockIsPortrait
-              : query === '(max-width: 1023px) and (orientation: landscape)'
-                ? mockIsLandscape
-                : false,
+        matches: query === '(min-width: 1024px)' ? mockIsDesktop : false,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
       })),
       writable: true,
+    });
+
+    // Orientation now derives from screen.width/height (keyboard-safe).
+    // Use getters so the value is read after suite-level beforeEach overrides the flags.
+    Object.defineProperty(screen, 'width', {
+      get: () => (mockIsPortrait ? 400 : 800),
+      configurable: true,
+    });
+    Object.defineProperty(screen, 'height', {
+      get: () => (mockIsPortrait ? 800 : 400),
+      configurable: true,
+    });
+    Object.defineProperty(screen, 'orientation', {
+      value: { addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      writable: true,
+      configurable: true,
     });
 
     mockStorageStore = {};
@@ -177,7 +184,6 @@ describe('WatchView', () => {
     beforeEach(() => {
       mockIsDesktop = true;
       mockIsPortrait = false;
-      mockIsLandscape = false;
     });
 
     it('renders content area with absolute AtmosphericVoid inside relative centered flex container', async () => {
@@ -208,7 +214,6 @@ describe('WatchView', () => {
     beforeEach(() => {
       mockIsDesktop = false;
       mockIsPortrait = true;
-      mockIsLandscape = false;
     });
 
     it('stream container is shrink-0 without centering flex', async () => {
@@ -240,13 +245,12 @@ describe('WatchView', () => {
     beforeEach(() => {
       mockIsDesktop = false;
       mockIsPortrait = false;
-      mockIsLandscape = true;
     });
 
-    it('does NOT render AtmosphericVoid', async () => {
+    it('renders AtmosphericVoid for letterbox fill', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
-      expect(wrapper.find('[data-atmospheric-void]').exists()).toBe(false);
+      expect(wrapper.find('[data-atmospheric-void]').exists()).toBe(true);
     });
 
     it('does NOT render BroadcastConsole in main', async () => {

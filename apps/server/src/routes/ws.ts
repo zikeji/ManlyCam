@@ -2,11 +2,13 @@ import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { wsHub } from '../services/wsHub.js';
 import { streamService } from '../services/streamService.js';
+import { pisugarStatus } from '../lib/pisugar.js';
+import { env } from '../env.js';
 import { logger } from '../lib/logger.js';
 import { ulid } from '../lib/ulid.js';
 import { computeUserTag } from '../lib/user-tag.js';
 import type { AppEnv } from '../lib/types.js';
-import type { Role, UserPresence, WsMessage } from '@manlycam/types';
+import type { PiSugarStatus, Role, UserPresence, WsMessage } from '@manlycam/types';
 import type { createNodeWebSocket } from '@hono/node-ws';
 
 type UpgradeWebSocket = ReturnType<typeof createNodeWebSocket>['upgradeWebSocket'];
@@ -16,6 +18,17 @@ const disposeMap = new WeakMap<
   object,
   { dispose: () => void; connectionId: string; userId: string }
 >();
+
+// Cached latest PiSugar status — included in admin init payload
+let cachedPiSugarStatus: PiSugarStatus | null = null;
+
+// Subscribe to PiSugar events if feature is configured
+if (env.FRP_PISUGAR_PORT) {
+  pisugarStatus.on('pisugarStatus', (status: PiSugarStatus) => {
+    cachedPiSugarStatus = status;
+    wsHub.broadcastToAdmin({ type: 'pisugar:status', payload: status });
+  });
+}
 
 export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
   const wsRouter = new Hono<AppEnv>();
@@ -57,6 +70,15 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
 
             const initMsg: WsMessage = { type: 'stream:state', payload: streamService.getState() };
             ws.send(JSON.stringify(initMsg));
+
+            // Send cached PiSugar status to admin connections
+            if (userPresence.role === 'Admin' && cachedPiSugarStatus !== null) {
+              const piSugarMsg: WsMessage = {
+                type: 'pisugar:status',
+                payload: cachedPiSugarStatus,
+              };
+              ws.send(JSON.stringify(piSugarMsg));
+            }
           } catch (err) {
             logger.warn({ err }, 'Failed to send initial messages on WS open');
             ws.close();

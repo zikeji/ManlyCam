@@ -5,6 +5,7 @@ import type { ClientStreamState } from '@/composables/useStream';
 import { useAuth } from '@/composables/useAuth';
 import { useAdminStream } from '@/composables/useAdminStream';
 import { useSnapshot } from '@/composables/useSnapshot';
+import { piSugarStatus } from '@/composables/usePiSugar';
 // import { Role } from '@manlycam/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import StreamStatusBadge from './StreamStatusBadge.vue';
+import BatteryIndicator from './BatteryIndicator.vue';
 import { viewers } from '@/composables/usePresence';
 
 const props = withDefaults(defineProps<{
@@ -120,8 +122,29 @@ const streamToggleLabel = computed(() => {
   <div class="h-14 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))] flex items-center justify-between px-3 shrink-0 w-full z-20">
     <!-- Left Flank -->
     <div class="flex items-center gap-1 flex-1 justify-start">
-      <!-- 7-4: BatteryIndicator -->
-      <template v-if="isAdmin">
+      <!-- Mobile landscape: chat collapse visible to all users -->
+      <div v-if="!isDesktop && showChatToggle" class="relative">
+        <Button
+          variant="ghost"
+          size="icon"
+          class="w-11 h-11 rounded"
+          :aria-label="chatToggleAriaLabel"
+          @click="emit('toggleChatSidebar')"
+        >
+          <ArrowRightFromLine v-if="chatSidebarOpen" class="w-5 h-5" />
+          <ArrowLeftFromLine v-else class="w-5 h-5" />
+        </Button>
+        <Badge
+          v-if="!chatSidebarOpen && unreadCount > 0"
+          :class="['absolute top-0 right-0 h-4 min-w-4 px-1 text-[10px] border-2 border-[hsl(var(--background))] pointer-events-none transform translate-x-1/4 -translate-y-1/4', isPulsing && 'badge-pulse']"
+          aria-hidden="true"
+        >
+          {{ unreadCount > 99 ? '99+' : unreadCount }}
+        </Badge>
+      </div>
+
+      <!-- Desktop: admin icon controls -->
+      <template v-if="isAdmin && isDesktop">
         <Button
           variant="ghost"
           size="icon"
@@ -158,6 +181,12 @@ const streamToggleLabel = computed(() => {
           </Tooltip>
         </TooltipProvider>
       </template>
+
+      <!-- Battery indicator (admin only, both orientations) -->
+      <BatteryIndicator
+        v-if="isAdmin && piSugarStatus !== null"
+        :status="piSugarStatus"
+      />
     </div>
 
     <!-- Center Flank -->
@@ -215,6 +244,14 @@ const streamToggleLabel = computed(() => {
               Camera Controls
             </button>
             <button
+              v-if="!isDesktop"
+              class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
+              :disabled="isLoading"
+              @click="() => { isProfileOpen = false; void handleStreamToggle(); }"
+            >
+              {{ streamToggleLabel }}
+            </button>
+            <button
               class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
               @click="() => { isProfileOpen = false; emit('openUserManager'); }"
             >
@@ -234,7 +271,7 @@ const streamToggleLabel = computed(() => {
         </PopoverContent>
       </Popover>
 
-      <div v-if="showChatToggle" class="relative">
+      <div v-if="isDesktop && showChatToggle" class="relative">
         <Button
           variant="ghost"
           size="icon"

@@ -41,6 +41,18 @@ export class WsHub {
     }
   }
 
+  broadcastToAdmin(message: WsMessage): void {
+    const data = JSON.stringify(message);
+    for (const conn of this.connections.values()) {
+      if (conn.role !== 'Admin') continue;
+      try {
+        conn.client.send(data);
+      } catch {
+        // client disconnected
+      }
+    }
+  }
+
   broadcastExcept(connectionId: string, message: WsMessage): void {
     const data = JSON.stringify(message);
     for (const [id, conn] of this.connections) {

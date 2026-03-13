@@ -3,6 +3,7 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { ref } from 'vue';
 import BroadcastConsole from './BroadcastConsole.vue';
 import { Role } from '@manlycam/types';
+import { piSugarStatus } from '@/composables/usePiSugar';
 
 // Mock useSnapshot composable
 const mockTakeSnapshot = vi.fn();
@@ -81,20 +82,45 @@ describe('BroadcastConsole', () => {
     return wrapper;
   };
 
-  it('renders left flank when isAdmin is true', () => {
-    wrapper = mountConsole({ isAdmin: true });
-    // Left flank buttons: Camera controls and Stream start/stop
-    const buttons = wrapper.findAll('button');
-    expect(buttons.length).toBeGreaterThan(3); // Left, right flank
+  it('renders left flank admin controls when isAdmin is true on desktop', () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: true });
     expect(wrapper.find('button[aria-label="Show camera controls"]').exists()).toBe(true);
     expect(wrapper.find('button[aria-label="Stop Stream"]').exists()).toBe(true);
   });
 
-  it('hides left flank when isAdmin is false', () => {
+  it('hides left flank admin icon controls when isAdmin is false', () => {
     wrapper = mountConsole({ isAdmin: false });
     expect(wrapper.find('button[aria-label="Show camera controls"]').exists()).toBe(false);
     expect(wrapper.find('button[aria-label="Stop Stream"]').exists()).toBe(false);
     expect(wrapper.find('button[aria-label="Start Stream"]').exists()).toBe(false);
+  });
+
+  it('hides admin icon controls on mobile (isDesktop: false)', () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: false });
+    expect(wrapper.find('button[aria-label="Show camera controls"]').exists()).toBe(false);
+    expect(wrapper.find('button[aria-label="Stop Stream"]').exists()).toBe(false);
+  });
+
+  it('shows chat collapse in left flank on mobile', () => {
+    wrapper = mountConsole({ isDesktop: false, showChatToggle: true });
+    // Left flank collapse button rendered before profile popover
+    const allButtons = wrapper.findAll('button');
+    const collapseIdx = allButtons.findIndex((b) =>
+      b.attributes('aria-label')?.includes('chat sidebar'),
+    );
+    const avatarIdx = allButtons.findIndex((b) => b.attributes('aria-label') === 'Account menu');
+    expect(collapseIdx).toBeGreaterThanOrEqual(0);
+    expect(collapseIdx).toBeLessThan(avatarIdx);
+  });
+
+  it('hides chat collapse from right flank on mobile', () => {
+    wrapper = mountConsole({ isDesktop: false, showChatToggle: true });
+    // On mobile, right flank collapse is hidden; only left flank collapse exists
+    const collapseButtons = wrapper
+      .findAll('button')
+      .filter((b) => b.attributes('aria-label')?.includes('chat sidebar'));
+    // Only 1 collapse button (left flank), not 2
+    expect(collapseButtons.length).toBe(1);
   });
 
   it('emits toggleAdminPanel when Camera Controls button is clicked', async () => {
@@ -151,20 +177,91 @@ describe('BroadcastConsole', () => {
     expect(badge.exists()).toBe(false);
   });
 
-  it('profile popover contains username but NO Start/Stop stream button', async () => {
+  it('profile popover on desktop contains username but NO stream toggle button', async () => {
     wrapper = mountConsole({ isAdmin: true, isDesktop: true });
-    // Open popover
     const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
     await avatarBtn.trigger('click');
     await flushPromises();
 
-    // popover content is rendered in a portal by default in shadcn,
-    // but without document.body mocking it's usually inside wrapper or document
     const popoverContent = document.querySelector('[role="dialog"]') || wrapper.element;
-
     expect(popoverContent.textContent).toContain('Admin User');
     expect(popoverContent.textContent).not.toContain('Start Stream');
     expect(popoverContent.textContent).not.toContain('Stop Stream');
+  });
+
+  it('profile popover on mobile contains stream toggle for admin', async () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: false, streamState: 'explicit-offline' });
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+
+    const body = document.body.innerHTML;
+    expect(body).toContain('Start Stream');
+  });
+
+  it('profile popover stream toggle on mobile calls startStream', async () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: false, streamState: 'explicit-offline' });
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+
+    // Find the Start Stream button in the popover (inside document.body)
+    const startBtn = Array.from(document.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Start Stream',
+    ) as HTMLButtonElement | undefined;
+    startBtn?.click();
+    await flushPromises();
+
+    expect(mockStartStream).toHaveBeenCalled();
+  });
+
+  // 7-4: BatteryIndicator integration tests (AC #12, #6)
+  describe('BatteryIndicator integration', () => {
+    afterEach(() => {
+      piSugarStatus.value = null;
+    });
+
+    it('hides BatteryIndicator when piSugarStatus is null (AC #12)', () => {
+      piSugarStatus.value = null;
+      wrapper = mountConsole({ isAdmin: true });
+      // BatteryIndicator should not be rendered
+      const batteryBtn = wrapper
+        .findAll('button')
+        .find((btn) => btn.html().includes('lucide-battery'));
+      expect(batteryBtn).toBeUndefined();
+    });
+
+    it('shows BatteryIndicator when piSugarStatus is set and isAdmin (AC #6)', async () => {
+      piSugarStatus.value = {
+        connected: true,
+        level: 80,
+        plugged: false,
+        charging: false,
+        chargingRange: null,
+      };
+      wrapper = mountConsole({ isAdmin: true });
+      await flushPromises();
+      const batteryBtn = wrapper
+        .findAll('button')
+        .find((btn) => btn.html().includes('lucide-battery'));
+      expect(batteryBtn).toBeDefined();
+    });
+
+    it('hides BatteryIndicator when not admin even if piSugarStatus is set (AC #12)', async () => {
+      piSugarStatus.value = {
+        connected: true,
+        level: 80,
+        plugged: false,
+        charging: false,
+        chargingRange: null,
+      };
+      wrapper = mountConsole({ isAdmin: false });
+      await flushPromises();
+      const batteryBtn = wrapper
+        .findAll('button')
+        .find((btn) => btn.html().includes('lucide-battery'));
+      expect(batteryBtn).toBeUndefined();
+    });
   });
 
   // 7-3: snapshot button tests
