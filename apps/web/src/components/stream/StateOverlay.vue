@@ -10,7 +10,7 @@ const petName = getPetName();
 </script>
 
 <template>
-  <!-- unreachable: dark frosted overlay + amber spinner -->
+  <!-- unreachable: server reports camera offline -->
   <div
     v-if="variant === 'unreachable'"
     data-overlay
