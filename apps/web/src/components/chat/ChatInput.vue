@@ -102,7 +102,7 @@ onUnmounted(() => {
     </div>
 
     <Button
-      variant="ghost"
+      variant="default"
       size="icon"
       class="shrink-0 h-9 w-9"
       :disabled="isEmpty || muted"

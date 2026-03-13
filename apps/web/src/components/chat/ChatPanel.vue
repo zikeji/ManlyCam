@@ -7,6 +7,7 @@ import { useWebSocket } from '@/composables/useWebSocket';
 import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
 import { apiFetch } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 import { TabsIndicator } from 'reka-ui';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
@@ -249,19 +250,20 @@ async function handleSend(content: string) {
         class="relative flex w-full rounded-none bg-transparent p-0 gap-0 h-10 border-b border-[hsl(var(--border))]"
       >
         <TabsIndicator
-          class="absolute bottom-0 left-0 h-0.5 bg-foreground w-[--reka-tabs-indicator-size] translate-x-[--reka-tabs-indicator-position] transition-all duration-200 ease-in-out"
+          class="absolute bottom-0 left-0 h-0.5 bg-primary w-[--reka-tabs-indicator-size] translate-x-[--reka-tabs-indicator-position] transition-all duration-200 ease-in-out"
         />
         <TabsTrigger
           value="chat"
-          class="flex-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none text-muted-foreground data-[state=active]:text-foreground transition-colors"
+          class="flex-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none text-muted-foreground data-[state=active]:text-primary transition-colors"
         >
           Chat
         </TabsTrigger>
         <TabsTrigger
           value="viewers"
-          class="flex-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none text-muted-foreground data-[state=active]:text-foreground transition-colors"
+          class="flex-1 rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none text-muted-foreground data-[state=active]:text-primary transition-colors gap-1.5"
         >
           Viewers
+          <Badge variant="secondary" class="px-1.5 py-0 text-xs leading-4 min-w-[1.25rem] h-4">{{ viewers.length }}</Badge>
         </TabsTrigger>
       </TabsList>
 
