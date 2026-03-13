@@ -6,13 +6,15 @@ import StreamPlayer from './StreamPlayer.vue';
 // Module-level mock instances so the component and test share the same references
 const mockStartWhep = vi.fn().mockResolvedValue(undefined);
 const mockStopWhep = vi.fn().mockResolvedValue(undefined);
-const mockIsHealthy = ref(true); // healthy by default — overlay only shows when false
+const mockIsHealthy = ref(true); // healthy by default
+const mockClientFrozen = ref(false); // not frozen by default — overlay only shows when true
 
 vi.mock('@/composables/useWhep', () => ({
   useWhep: () => ({
     startWhep: mockStartWhep,
     stopWhep: mockStopWhep,
     isHealthy: mockIsHealthy,
+    clientFrozen: mockClientFrozen,
   }),
 }));
 
@@ -27,6 +29,7 @@ describe('StreamPlayer', () => {
     mockStartWhep.mockClear();
     mockStopWhep.mockClear();
     mockIsHealthy.value = true; // reset to healthy for next test
+    mockClientFrozen.value = false; // reset to not frozen for next test
     if (wrapper) {
       wrapper.unmount();
       wrapper = null;
@@ -75,18 +78,40 @@ describe('StreamPlayer', () => {
     }
   });
 
-  it('renders unreachable StateOverlay when live but stream is frozen (isHealthy=false)', async () => {
+  it('shows spinner overlay when live but not yet healthy (initial connect)', async () => {
     mockIsHealthy.value = false;
     wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     await wrapper.vm.$nextTick();
-    const overlay = wrapper.findComponent({ name: 'StateOverlay' });
-    expect(overlay.exists()).toBe(true);
-    expect(overlay.props('variant')).toBe('unreachable');
+    expect(wrapper.find('.animate-spin').exists()).toBe(true);
+    expect(wrapper.find('p').exists()).toBe(false); // no text on initial connect
+  });
+
+  it('shows spinner overlay with "Reconnecting..." text when live and clientFrozen', async () => {
+    mockIsHealthy.value = false;
+    mockClientFrozen.value = true;
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.animate-spin').exists()).toBe(true);
+    expect(wrapper.find('p').text()).toBe('Reconnecting...');
+  });
+
+  it('does NOT show spinner overlay when live and healthy', () => {
+    mockIsHealthy.value = true;
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    expect(wrapper.find('.animate-spin').exists()).toBe(false);
   });
 
   it('calls startWhep when streamState transitions to live', async () => {
     wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     await wrapper.setProps({ streamState: 'live' });
+    await flushPromises();
+    expect(mockStartWhep).toHaveBeenCalled();
+  });
+
+  it('calls startWhep when mounted with streamState already live (remount after layout change)', async () => {
+    // When the component remounts with streamState already 'live' (e.g. portrait↔landscape),
+    // the immediate watch fires before videoRef is populated. nextTick ensures it still connects.
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     await flushPromises();
     expect(mockStartWhep).toHaveBeenCalled();
   });

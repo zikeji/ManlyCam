@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue';
+import { ref, watch, nextTick, onUnmounted } from 'vue';
 import { ChevronLeft } from 'lucide-vue-next';
 import type { ClientStreamState } from '@/composables/useStream';
 import { useWhep } from '@/composables/useWhep';
@@ -24,7 +24,7 @@ const petName = getPetName();
 const videoRef = ref<HTMLVideoElement | null>(null);
 const tapOverlayVisible = ref(false);
 let tapTimer: ReturnType<typeof setTimeout> | null = null;
-const { startWhep, stopWhep, isHealthy } = useWhep();
+const { startWhep, stopWhep, isHealthy, clientFrozen } = useWhep();
 
 function handleTap(event: MouseEvent): void {
   // Only activate tap overlay for touch-originated events
@@ -41,6 +41,9 @@ watch(
   () => props.streamState,
   async (newState, oldState) => {
     if (newState === 'live') {
+      // videoRef may be null when the watch fires immediately on mount (template not yet rendered).
+      // nextTick ensures the ref is populated before we try to use it.
+      if (!videoRef.value) await nextTick();
       if (videoRef.value) {
         try {
           await startWhep(videoRef.value);
@@ -87,11 +90,29 @@ defineExpose({ videoRef });
       playsinline
     />
 
-    <!-- State overlays: server-reported unreachable/offline, or client-detected stream freeze -->
+    <!-- Server-reported state overlays -->
     <StateOverlay
-      v-if="streamState === 'unreachable' || streamState === 'explicit-offline' || (streamState === 'live' && !isHealthy)"
+      v-if="streamState === 'unreachable' || streamState === 'explicit-offline'"
       :variant="streamState === 'explicit-offline' ? 'explicit-offline' : 'unreachable'"
     />
+
+    <!-- Client-side loading/reconnecting overlay: shown while waiting for first frame or after connection drop -->
+    <div
+      v-if="streamState === 'live' && !isHealthy"
+      class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90"
+    >
+      <svg
+        class="h-8 w-8 animate-spin text-white/40"
+        xmlns="http://www.w3.org/2000/svg"
+        fill="none"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      </svg>
+      <p v-if="clientFrozen" class="text-sm text-white/60">Reconnecting...</p>
+    </div>
 
     <!-- Landscape-only tap-to-reveal chat toggle (touch only, 3s auto-hide) -->
     <div

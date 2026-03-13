@@ -9,6 +9,9 @@ const MAX_DELAY = 30_000;
 const STALL_TIMEOUT_MS = 5_000;
 
 const isHealthy = ref(false);
+// clientFrozen is true only after a healthy stream loses connection — not during initial connect.
+// This prevents showing the reconnecting overlay on first page load.
+const clientFrozen = ref(false);
 
 let stallTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -48,6 +51,7 @@ function onTimeupdate(): void {
   lastTimeupdateAt = Date.now();
   if (!isHealthy.value) {
     isHealthy.value = true;
+    clientFrozen.value = false;
     reconnectDelay = 1000;
     clearReconnectTimer();
   }
@@ -202,6 +206,7 @@ scheduleReconnect = (): void => {
   clearStallTimer();
   clearReconnectTimer();
   isHealthy.value = false;
+  clientFrozen.value = true;
   const delay = reconnectDelay;
   reconnectDelay = Math.min(reconnectDelay * 2, MAX_DELAY);
   const el = storedVideoEl;
@@ -218,20 +223,28 @@ export const useWhep = () => {
   const stopWhep = async (): Promise<void> => {
     clearReconnectTimer();
     stopMonitoring();
-    if (sessionUrl) {
-      await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
-      sessionUrl = null;
-    }
-    if (pc) {
-      pc.oniceconnectionstatechange = null;
-      pc.onconnectionstatechange = null;
-      pc.onicecandidate = null;
-      pc.ontrack = null;
-      pc.close();
-      pc = null;
-    }
-    isHealthy.value = false;
+    // Capture-and-clear: clear module state synchronously before async ops to prevent a
+    // concurrent startWhep (e.g. from component remount on layout change) from seeing
+    // stale sessionUrl/pc and sending a duplicate DELETE or closing the new connection.
+    const capturedSessionUrl = sessionUrl;
+    const capturedPc = pc;
+    sessionUrl = null;
+    pc = null;
     storedVideoEl = null;
+    // If we were healthy when stopped, the next load is a reconnect — preserve that signal
+    // so the spinner shows "Reconnecting..." (covers layout-change remounts, not just stall/ICE)
+    clientFrozen.value = isHealthy.value;
+    isHealthy.value = false;
+    if (capturedSessionUrl) {
+      await fetch(capturedSessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+    }
+    if (capturedPc) {
+      capturedPc.oniceconnectionstatechange = null;
+      capturedPc.onconnectionstatechange = null;
+      capturedPc.onicecandidate = null;
+      capturedPc.ontrack = null;
+      capturedPc.close();
+    }
   };
 
   const startWhep = async (videoEl: HTMLVideoElement): Promise<void> => {
@@ -240,5 +253,5 @@ export const useWhep = () => {
     await connectWhep(videoEl);
   };
 
-  return { startWhep, stopWhep, isHealthy };
+  return { startWhep, stopWhep, isHealthy, clientFrozen };
 };

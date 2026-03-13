@@ -254,6 +254,113 @@ describe('useWhep', () => {
       expect(isHealthy.value).toBe(false);
     });
 
+    it('clientFrozen starts as false', async () => {
+      const { useWhep } = await import('./useWhep');
+      const { clientFrozen } = useWhep();
+      expect(clientFrozen.value).toBe(false);
+    });
+
+    it('clientFrozen becomes true when scheduleReconnect fires (ICE failure)', async () => {
+      const videoEl = makeMockVideoEl();
+      const { useWhep } = await import('./useWhep');
+      const { startWhep, stopWhep, clientFrozen } = useWhep();
+      await startWhep(videoEl as unknown as HTMLVideoElement);
+      videoEl.dispatchTimeupdate();
+      expect(clientFrozen.value).toBe(false);
+
+      mockPc.iceConnectionState = 'failed';
+      mockPc.oniceconnectionstatechange!();
+
+      expect(clientFrozen.value).toBe(true);
+      await stopWhep();
+    });
+
+    it('clientFrozen becomes false after reconnect succeeds (timeupdate received)', async () => {
+      const videoEl = makeMockVideoEl();
+      const { useWhep } = await import('./useWhep');
+      const { startWhep, stopWhep, clientFrozen } = useWhep();
+      await startWhep(videoEl as unknown as HTMLVideoElement);
+      videoEl.dispatchTimeupdate();
+
+      mockPc.iceConnectionState = 'failed';
+      mockPc.oniceconnectionstatechange!();
+      expect(clientFrozen.value).toBe(true);
+
+      const mockPc2 = makeMockPc();
+      vi.stubGlobal(
+        'RTCPeerConnection',
+        vi.fn(() => mockPc2),
+      );
+
+      await vi.advanceTimersByTimeAsync(1001);
+
+      videoEl.dispatchTimeupdate();
+      expect(clientFrozen.value).toBe(false);
+
+      await stopWhep();
+    });
+
+    it('stopWhep sets clientFrozen to true when was healthy (layout-change reconnect)', async () => {
+      const videoEl = makeMockVideoEl();
+      const { useWhep } = await import('./useWhep');
+      const { startWhep, stopWhep, clientFrozen } = useWhep();
+      await startWhep(videoEl as unknown as HTMLVideoElement);
+      videoEl.dispatchTimeupdate();
+      expect(clientFrozen.value).toBe(false);
+
+      // Stopping from a healthy state (e.g. orientation change) preserves frozen=true
+      // so the next startWhep shows "Reconnecting..." rather than just a bare spinner
+      await stopWhep();
+      expect(clientFrozen.value).toBe(true);
+    });
+
+    it('stopWhep sets clientFrozen to false when was never healthy', async () => {
+      const { useWhep } = await import('./useWhep');
+      const { stopWhep, clientFrozen } = useWhep();
+      await stopWhep();
+      expect(clientFrozen.value).toBe(false);
+    });
+
+    it('stopWhep clears sessionUrl synchronously so concurrent startWhep does not send duplicate DELETE', async () => {
+      const videoEl = makeMockVideoEl();
+      const videoEl2 = makeMockVideoEl();
+      let deleteResolve: () => void;
+      const deletePromise = new Promise<void>((res) => {
+        deleteResolve = res;
+      });
+
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
+          if (opts?.method === 'DELETE') return deletePromise.then(() => ({ ok: true }));
+          if (opts?.method === 'POST') {
+            return Promise.resolve({
+              ok: true,
+              text: () => Promise.resolve('v=0\r\nanswer-sdp'),
+              headers: { get: (name: string) => (name === 'Location' ? SESSION_URL : null) },
+            });
+          }
+          return Promise.resolve({ ok: true });
+        }),
+      );
+
+      const { useWhep } = await import('./useWhep');
+      const { startWhep, stopWhep } = useWhep();
+      await startWhep(videoEl as unknown as HTMLVideoElement);
+
+      const stopPromise = stopWhep();
+      const startPromise = startWhep(videoEl2 as unknown as HTMLVideoElement);
+
+      deleteResolve!();
+      await Promise.all([stopPromise, startPromise]);
+
+      const fetchMock = fetch as ReturnType<typeof vi.fn>;
+      const deleteCalls = (fetchMock.mock.calls as [string, RequestInit | undefined][]).filter(
+        ([url, opts]) => url === SESSION_URL && opts?.method === 'DELETE',
+      );
+      expect(deleteCalls.length).toBe(1);
+    });
+
     it('isHealthy becomes true after first timeupdate event', async () => {
       const videoEl = makeMockVideoEl();
       const { useWhep } = await import('./useWhep');
