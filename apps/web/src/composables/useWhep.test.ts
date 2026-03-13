@@ -75,13 +75,13 @@ describe('useWhep', () => {
     vi.unstubAllGlobals();
   });
 
-  it('startWhep creates RTCPeerConnection with correct transceivers', async () => {
+  it('startWhep creates RTCPeerConnection with video-only transceiver (no audio)', async () => {
     const videoEl = makeMockVideoEl();
     const { useWhep } = await import('./useWhep');
     const { startWhep, stopWhep } = useWhep();
     await startWhep(videoEl as unknown as HTMLVideoElement);
     expect(mockPc.addTransceiver).toHaveBeenCalledWith('video', { direction: 'recvonly' });
-    expect(mockPc.addTransceiver).toHaveBeenCalledWith('audio', { direction: 'recvonly' });
+    expect(mockPc.addTransceiver).not.toHaveBeenCalledWith('audio', expect.anything());
     await stopWhep();
   });
 

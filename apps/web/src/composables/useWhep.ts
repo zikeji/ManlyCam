@@ -115,7 +115,8 @@ async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
   try {
     pc = new RTCPeerConnection({ iceServers: [] });
     pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.addTransceiver('audio', { direction: 'recvonly' });
+    // No audio transceiver — camera has no mic and omitting it prevents the browser
+    // from showing the tab audio indicator. Future ambient audio will use a separate mechanism.
 
     // Wire up handlers BEFORE setRemoteDescription — ontrack fires synchronously
     // during setRemoteDescription processing and would be missed if set afterwards.
