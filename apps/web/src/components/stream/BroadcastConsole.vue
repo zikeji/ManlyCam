@@ -146,8 +146,6 @@ const streamToggleLabel = computed(() => {
     <div class="flex items-center gap-2 flex-1 justify-center text-sm font-medium">
       <StreamStatusBadge :state="streamState" :compact="!isDesktop" />
       <span v-if="showViewerCount" class="text-muted-foreground whitespace-nowrap hidden sm:inline">{{ viewerText }}</span>
-      <span v-show="false" class="truncate hidden md:inline">Manly is live 🐾</span>
-      <!-- 7-2: editable title -->
     </div>
 
     <!-- Right Flank -->
