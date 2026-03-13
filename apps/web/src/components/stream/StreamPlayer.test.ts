@@ -1,15 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ref } from 'vue';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import StreamPlayer from './StreamPlayer.vue';
 
 // Module-level mock instances so the component and test share the same references
 const mockStartWhep = vi.fn().mockResolvedValue(undefined);
 const mockStopWhep = vi.fn().mockResolvedValue(undefined);
+const mockIsHealthy = ref(true); // healthy by default — overlay only shows when false
 
 vi.mock('@/composables/useWhep', () => ({
   useWhep: () => ({
     startWhep: mockStartWhep,
     stopWhep: mockStopWhep,
+    isHealthy: mockIsHealthy,
   }),
 }));
 
@@ -23,6 +26,7 @@ describe('StreamPlayer', () => {
   afterEach(() => {
     mockStartWhep.mockClear();
     mockStopWhep.mockClear();
+    mockIsHealthy.value = true; // reset to healthy for next test
     if (wrapper) {
       wrapper.unmount();
       wrapper = null;
@@ -61,12 +65,23 @@ describe('StreamPlayer', () => {
     expect(overlay.props('variant')).toBe('explicit-offline');
   });
 
-  it('does NOT render StateOverlay when connecting or live', () => {
+  it('does NOT render StateOverlay when connecting or live (healthy)', () => {
     for (const state of ['connecting', 'live'] as const) {
       wrapper = mount(StreamPlayer, { props: { streamState: state } });
       const overlay = wrapper.findComponent({ name: 'StateOverlay' });
       expect(overlay.exists()).toBe(false);
+      wrapper.unmount();
+      wrapper = null;
     }
+  });
+
+  it('renders unreachable StateOverlay when live but stream is frozen (isHealthy=false)', async () => {
+    mockIsHealthy.value = false;
+    wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+    await wrapper.vm.$nextTick();
+    const overlay = wrapper.findComponent({ name: 'StateOverlay' });
+    expect(overlay.exists()).toBe(true);
+    expect(overlay.props('variant')).toBe('unreachable');
   });
 
   it('calls startWhep when streamState transitions to live', async () => {

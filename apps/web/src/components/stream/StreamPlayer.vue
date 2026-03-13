@@ -24,7 +24,7 @@ const petName = getPetName();
 const videoRef = ref<HTMLVideoElement | null>(null);
 const tapOverlayVisible = ref(false);
 let tapTimer: ReturnType<typeof setTimeout> | null = null;
-const { startWhep, stopWhep } = useWhep();
+const { startWhep, stopWhep, isHealthy } = useWhep();
 
 function handleTap(event: MouseEvent): void {
   // Only activate tap overlay for touch-originated events
@@ -87,10 +87,10 @@ defineExpose({ videoRef });
       playsinline
     />
 
-    <!-- State overlays -->
+    <!-- State overlays: server-reported unreachable/offline, or client-detected stream freeze -->
     <StateOverlay
-      v-if="streamState === 'unreachable' || streamState === 'explicit-offline'"
-      :variant="streamState === 'unreachable' ? 'unreachable' : 'explicit-offline'"
+      v-if="streamState === 'unreachable' || streamState === 'explicit-offline' || (streamState === 'live' && !isHealthy)"
+      :variant="streamState === 'explicit-offline' ? 'explicit-offline' : 'unreachable'"
     />
 
     <!-- Landscape-only tap-to-reveal chat toggle (touch only, 3s auto-hide) -->

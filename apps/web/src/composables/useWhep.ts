@@ -1,72 +1,244 @@
+import { ref } from 'vue';
+
 let pc: RTCPeerConnection | null = null;
 let sessionUrl: string | null = null;
+let storedVideoEl: HTMLVideoElement | null = null;
+let reconnectDelay = 1000;
+const MAX_DELAY = 30_000;
+// 5s chosen to detect frozen video without false positives from normal network jitter
+const STALL_TIMEOUT_MS = 5_000;
 
-export const useWhep = () => {
-  const stopWhep = async (): Promise<void> => {
+const isHealthy = ref(false);
+
+let stallTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let lastTimeupdateAt = 0;
+let isMonitoring = false;
+
+// Forward reference: connectWhep and scheduleReconnect are mutually recursive.
+// Declared first so all functions below can safely reference it;
+// the actual implementation is assigned after connectWhep is defined.
+let scheduleReconnect = (): void => {};
+
+function clearStallTimer(): void {
+  if (stallTimer !== null) {
+    clearTimeout(stallTimer);
+    stallTimer = null;
+  }
+}
+
+function clearReconnectTimer(): void {
+  if (reconnectTimer !== null) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+}
+
+function resetStallTimer(): void {
+  clearStallTimer();
+  stallTimer = setTimeout(() => {
+    stallTimer = null;
+    if (isMonitoring && !document.hidden) {
+      scheduleReconnect();
+    }
+  }, STALL_TIMEOUT_MS);
+}
+
+function onTimeupdate(): void {
+  lastTimeupdateAt = Date.now();
+  if (!isHealthy.value) {
+    isHealthy.value = true;
+    reconnectDelay = 1000;
+    clearReconnectTimer();
+  }
+  if (!document.hidden) {
+    resetStallTimer();
+  }
+}
+
+function onVisibilityChange(): void {
+  if (document.hidden) {
+    clearStallTimer();
+  } else if (isMonitoring && storedVideoEl && !storedVideoEl.paused) {
+    // Returned to visible — if stream was frozen while backgrounded, reconnect immediately
+    const elapsed = Date.now() - lastTimeupdateAt;
+    if (lastTimeupdateAt > 0 && elapsed > STALL_TIMEOUT_MS) {
+      scheduleReconnect();
+    } else {
+      resetStallTimer();
+    }
+  }
+}
+
+function startMonitoring(videoEl: HTMLVideoElement): void {
+  isMonitoring = true;
+  lastTimeupdateAt = 0;
+  videoEl.addEventListener('timeupdate', onTimeupdate);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  if (!document.hidden) {
+    resetStallTimer();
+  }
+}
+
+function stopMonitoring(): void {
+  isMonitoring = false;
+  clearStallTimer();
+  if (storedVideoEl) {
+    storedVideoEl.removeEventListener('timeupdate', onTimeupdate);
+  }
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+}
+
+async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
+  stopMonitoring();
+  clearReconnectTimer();
+
+  if (sessionUrl) {
+    await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+    sessionUrl = null;
+  }
+  if (pc) {
+    pc.oniceconnectionstatechange = null;
+    pc.onconnectionstatechange = null;
+    pc.onicecandidate = null;
+    pc.ontrack = null;
+    pc.close();
+    pc = null;
+  }
+
+  isHealthy.value = false;
+
+  try {
+    pc = new RTCPeerConnection({ iceServers: [] });
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.addTransceiver('audio', { direction: 'recvonly' });
+
+    // Wire up handlers BEFORE setRemoteDescription — ontrack fires synchronously
+    // during setRemoteDescription processing and would be missed if set afterwards.
+    pc.ontrack = (event) => {
+      const stream = event.streams[0] ?? new MediaStream([event.track]);
+      videoEl.srcObject = stream;
+      videoEl.play().catch(() => {});
+    };
+
+    // Trickle ICE — fire-and-forget; errors non-fatal
+    pc.onicecandidate = ({ candidate }) => {
+      if (candidate && sessionUrl) {
+        fetch(sessionUrl, {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/trickle-ice-sdpfrag' },
+          body: candidate.candidate,
+        }).catch(() => {});
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (!pc) return;
+      const { iceConnectionState } = pc;
+      if (
+        iceConnectionState === 'failed' ||
+        iceConnectionState === 'disconnected' ||
+        iceConnectionState === 'closed'
+      ) {
+        scheduleReconnect();
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (!pc) return;
+      const { connectionState } = pc;
+      if (
+        connectionState === 'failed' ||
+        connectionState === 'disconnected' ||
+        connectionState === 'closed'
+      ) {
+        scheduleReconnect();
+      }
+    };
+
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+
+    const res = await fetch('/api/stream/whep', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/sdp' },
+      body: offer.sdp,
+    });
+
+    if (!res.ok) {
+      throw new Error(`WHEP POST failed: ${res.status}`);
+    }
+
+    sessionUrl = res.headers.get('Location');
+    const sdpAnswer = await res.text();
+
+    // ontrack will fire during this call — handler is already set above.
+    await pc.setRemoteDescription({ type: 'answer', sdp: sdpAnswer });
+
+    startMonitoring(videoEl);
+  } catch (error) {
+    // Clean up on error so caller can retry
     if (sessionUrl) {
       await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
       sessionUrl = null;
     }
     if (pc) {
+      pc.oniceconnectionstatechange = null;
+      pc.onconnectionstatechange = null;
+      pc.onicecandidate = null;
+      pc.ontrack = null;
       pc.close();
       pc = null;
     }
+    throw error;
+  }
+}
+
+// Actual implementation assigned after connectWhep is defined (mutual recursion)
+scheduleReconnect = (): void => {
+  if (!storedVideoEl) return;
+  clearStallTimer();
+  clearReconnectTimer();
+  isHealthy.value = false;
+  const delay = reconnectDelay;
+  reconnectDelay = Math.min(reconnectDelay * 2, MAX_DELAY);
+  const el = storedVideoEl;
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectWhep(el).catch(() => {
+      // connectWhep cleaned up on error; schedule next attempt
+      scheduleReconnect();
+    });
+  }, delay);
+};
+
+export const useWhep = () => {
+  const stopWhep = async (): Promise<void> => {
+    clearReconnectTimer();
+    stopMonitoring();
+    if (sessionUrl) {
+      await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+      sessionUrl = null;
+    }
+    if (pc) {
+      pc.oniceconnectionstatechange = null;
+      pc.onconnectionstatechange = null;
+      pc.onicecandidate = null;
+      pc.ontrack = null;
+      pc.close();
+      pc = null;
+    }
+    isHealthy.value = false;
+    storedVideoEl = null;
   };
 
   const startWhep = async (videoEl: HTMLVideoElement): Promise<void> => {
-    await stopWhep();
-
-    try {
-      pc = new RTCPeerConnection({ iceServers: [] });
-      pc.addTransceiver('video', { direction: 'recvonly' });
-      pc.addTransceiver('audio', { direction: 'recvonly' });
-
-      // Wire up handlers BEFORE setRemoteDescription — ontrack fires synchronously
-      // during setRemoteDescription processing and would be missed if set afterwards.
-      pc.ontrack = (event) => {
-        // Use the associated stream if present; otherwise wrap the track directly.
-        const stream = event.streams[0] ?? new MediaStream([event.track]);
-        videoEl.srcObject = stream;
-        videoEl.play().catch(() => {});
-      };
-
-      // Trickle ICE — fire-and-forget; errors non-fatal
-      pc.onicecandidate = ({ candidate }) => {
-        if (candidate && sessionUrl) {
-          fetch(sessionUrl, {
-            method: 'PATCH',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/trickle-ice-sdpfrag' },
-            body: candidate.candidate,
-          }).catch(() => {});
-        }
-      };
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      const res = await fetch('/api/stream/whep', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/sdp' },
-        body: offer.sdp,
-      });
-
-      if (!res.ok) {
-        throw new Error(`WHEP POST failed: ${res.status}`);
-      }
-
-      sessionUrl = res.headers.get('Location');
-      const sdpAnswer = await res.text();
-
-      // ontrack will fire during this call — handler is already set above.
-      await pc.setRemoteDescription({ type: 'answer', sdp: sdpAnswer });
-    } catch (error) {
-      // Clean up on error so component can retry via state change
-      await stopWhep();
-      throw error;
-    }
+    storedVideoEl = videoEl;
+    reconnectDelay = 1000;
+    await connectWhep(videoEl);
   };
 
-  return { startWhep, stopWhep };
+  return { startWhep, stopWhep, isHealthy };
 };
