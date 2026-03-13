@@ -4,6 +4,14 @@ import { ref } from 'vue';
 import BroadcastConsole from './BroadcastConsole.vue';
 import { Role } from '@manlycam/types';
 
+// Mock useSnapshot composable
+const mockTakeSnapshot = vi.fn();
+vi.mock('@/composables/useSnapshot', () => ({
+  useSnapshot: () => ({
+    takeSnapshot: mockTakeSnapshot,
+  }),
+}));
+
 const mockStartStream = vi.fn().mockResolvedValue(undefined);
 const mockStopStream = vi.fn().mockResolvedValue(undefined);
 const mockLogout = vi.fn().mockResolvedValue(undefined);
@@ -157,5 +165,53 @@ describe('BroadcastConsole', () => {
     expect(popoverContent.textContent).toContain('Admin User');
     expect(popoverContent.textContent).not.toContain('Start Stream');
     expect(popoverContent.textContent).not.toContain('Stop Stream');
+  });
+
+  // 7-3: snapshot button tests
+  it('renders snapshot button (not hidden)', () => {
+    wrapper = mountConsole();
+    const buttons = wrapper.findAll('button');
+    // Snapshot button contains Camera icon
+    const snapshotBtn = buttons.find((btn) => btn.html().includes('lucide-camera'));
+    expect(snapshotBtn?.exists()).toBe(true);
+  });
+
+  it('snapshot button is enabled when streamState is live', () => {
+    wrapper = mountConsole({ streamState: 'live' });
+    const buttons = wrapper.findAll('button');
+    const snapshotBtn = buttons.find((btn) => btn.html().includes('lucide-camera'));
+    expect(snapshotBtn?.attributes('disabled')).toBeUndefined();
+  });
+
+  it('snapshot button is disabled when streamState is not live', () => {
+    wrapper = mountConsole({ streamState: 'connecting' });
+    const buttons = wrapper.findAll('button');
+    const snapshotBtn = buttons.find((btn) => btn.html().includes('lucide-camera'));
+    expect(snapshotBtn?.attributes('disabled')).toBeDefined();
+  });
+
+  it('snapshot button shows "Take Snapshot" tooltip when live', () => {
+    wrapper = mountConsole({ streamState: 'live' });
+    const buttons = wrapper.findAll('button');
+    const snapshotBtn = buttons.find((btn) => btn.html().includes('lucide-camera'));
+    expect(snapshotBtn?.attributes('title')).toBe('Take Snapshot');
+  });
+
+  it('snapshot button shows "Stream not live" tooltip when not live', () => {
+    wrapper = mountConsole({ streamState: 'connecting' });
+    const buttons = wrapper.findAll('button');
+    const snapshotBtn = buttons.find((btn) => btn.html().includes('lucide-camera'));
+    expect(snapshotBtn?.attributes('title')).toBe('Stream not live');
+  });
+
+  it('snapshot button calls takeSnapshot when clicked', async () => {
+    const mockVideoElement = { tagName: 'VIDEO' } as HTMLVideoElement;
+    wrapper = mountConsole({ streamState: 'live', videoRef: mockVideoElement });
+
+    const buttons = wrapper.findAll('button');
+    const snapshotBtn = buttons.find((btn) => btn.html().includes('lucide-camera'));
+    await snapshotBtn?.trigger('click');
+
+    expect(mockTakeSnapshot).toHaveBeenCalledWith(mockVideoElement);
   });
 });

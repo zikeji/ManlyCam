@@ -302,12 +302,11 @@ Any operator can bootstrap a Raspberry Pi Zero W 2 as a ManlyCam camera node fro
 
 The web UI shell is redesigned from the hover-overlay model to the Broadcast Console + Atmospheric Void layout approved by the UX designer. All existing functionality (admin toggle, stream start/stop, chat toggle, profile menu) is preserved but relocated into the persistent Broadcast Console strip. Five post-MVP features are delivered alongside: an editable stream title, a client-side snapshot button, an optional PiSugar battery monitor for admin users, and a resizable chat sidebar using Reka-UI Splitter.
 
-**FRs covered:** FR56, FR57, FR58, FR59
+**FRs covered:** FR57, FR58, FR59 *(FR56 deferred per sprint-change-proposal-2026-03-12.md)*
 **Approved via:** sprint-change-proposal-2026-03-12.md
 
 **Stories:**
 - 7-1: UX Shell Redesign — Broadcast Console + Atmospheric Void *(must be first; all others depend on BroadcastConsole existing)*
-- 7-2: Editable Stream Title (Admin/Mod, Live Broadcast)
 - 7-3: Camera Snapshot Button (Client-Side Frame Capture)
 - 7-4: PiSugar Battery Monitor (Server TCP Poller + Admin UI)
 - 7-5: Resizable Chat Sidebar via Reka-UI Splitter

@@ -8,6 +8,12 @@ on:
       - 'apps/web/**'
       - 'packages/types/**'
       - '.github/workflows/server-ci.yml'
+  pull_request:
+    paths:
+      - 'apps/server/**'
+      - 'apps/web/**'
+      - 'packages/types/**'
+      - '.github/workflows/server-ci.yml'
 
 jobs:
   ci:
@@ -82,12 +88,14 @@ jobs:
           color: ${{ steps.extract_coverage.outputs.color }}
 
       - name: Log in to GHCR
+        if: github.ref == 'refs/heads/main'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build and push monolithic image
+        if: github.ref == 'refs/heads/main'
         uses: docker/build-push-action@v6
         with:
           context: .

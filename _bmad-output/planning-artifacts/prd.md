@@ -432,7 +432,7 @@ The upstream server is the **primary application host** — it handles all viewe
 
 ### Stream Title & Snapshot
 
-- **FR56:** The Broadcast Console displays a configurable stream title (flavor text) in the center; the title has a default value and can be updated at runtime by Admin and Moderator users via an inline edit popover; title changes are persisted in server memory and broadcast immediately to all connected viewers via WebSocket so all clients reflect the change without reload
+- ~~**FR56:** The Broadcast Console displays a configurable stream title (flavor text) in the center; the title has a default value and can be updated at runtime by Admin and Moderator users via an inline edit popover; title changes are persisted in server memory and broadcast immediately to all connected viewers via WebSocket so all clients reflect the change without reload~~ *(Deferred - out of current scope per sprint-change-proposal-2026-03-12.md)*
 - **FR57:** All authenticated users can capture the current stream frame as a still image via a snapshot button (camera icon) in the Broadcast Console right flank; the capture is performed client-side using a canvas element and the resulting JPEG downloads to the user's device
 
 ### PiSugar Battery Monitor
