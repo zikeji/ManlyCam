@@ -13,6 +13,7 @@ import {
   handleModerationMuted,
   handleModerationUnmuted,
 } from './usePresence';
+import { setStateFromWs as setPiSugarStateFromWs } from './usePiSugar';
 import type { WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
@@ -80,6 +81,9 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'session:revoked') {
         router.push('/banned');
+      }
+      if (msg.type === 'pisugar:status') {
+        setPiSugarStateFromWs(msg.payload);
       }
     } catch {
       // Ignore malformed messages

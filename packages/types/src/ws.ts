@@ -53,6 +53,10 @@ export interface StreamState {
   adminToggle?: 'live' | 'offline' // present on 'unreachable' to distinguish FR10 states
 }
 
+export type PiSugarStatus =
+  | { connected: true; level: number; plugged: boolean; charging: boolean; chargingRange: [number, number] | null }
+  | { connected: false };
+
 export type WsMessage =
   | { type: 'chat:message';       payload: ChatMessage }
   | { type: 'chat:edit';          payload: ChatEdit }
@@ -67,3 +71,4 @@ export type WsMessage =
   | { type: 'moderation:muted';   payload: { userId: string } }
   | { type: 'moderation:unmuted'; payload: { userId: string } }
   | { type: 'user:update';        payload: UserProfile }
+  | { type: 'pisugar:status';     payload: PiSugarStatus }

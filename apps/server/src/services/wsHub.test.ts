@@ -154,6 +154,57 @@ describe('WsHub', () => {
     });
   });
 
+  describe('broadcastToAdmin', () => {
+    it('sends message only to Admin-role connections', () => {
+      const clientAdmin = makeClient();
+      const clientViewer = makeClient();
+      hub.addClient('conn-admin', clientAdmin, userB); // userB.role === 'Admin'
+      hub.addClient('conn-viewer', clientViewer, baseUser); // baseUser.role === 'ViewerCompany'
+
+      const msg = { type: 'pisugar:status' as const, payload: { connected: false as const } };
+      hub.broadcastToAdmin(msg);
+
+      expect(clientAdmin.send).toHaveBeenCalledWith(JSON.stringify(msg));
+      expect(clientViewer.send).not.toHaveBeenCalled();
+    });
+
+    it('does not send to non-admin connections', () => {
+      const clientA = makeClient();
+      hub.addClient('conn-1', clientA, baseUser); // ViewerCompany, not Admin
+      const msg = { type: 'pisugar:status' as const, payload: { connected: false as const } };
+      hub.broadcastToAdmin(msg);
+      expect(clientA.send).not.toHaveBeenCalled();
+    });
+
+    it('sends to multiple Admin connections', () => {
+      const adminA = makeClient();
+      const adminB = makeClient();
+      hub.addClient('conn-a', adminA, userB);
+      hub.addClient('conn-b', adminB, userB); // same admin, second session
+      const msg = { type: 'pisugar:status' as const, payload: { connected: false as const } };
+      hub.broadcastToAdmin(msg);
+      expect(adminA.send).toHaveBeenCalledWith(JSON.stringify(msg));
+      expect(adminB.send).toHaveBeenCalledWith(JSON.stringify(msg));
+    });
+
+    it('does not throw if an admin client throws on send', () => {
+      const throwing = {
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('socket gone');
+        }),
+        close: vi.fn(),
+      };
+      hub.addClient('conn-1', throwing, userB);
+      const msg = { type: 'pisugar:status' as const, payload: { connected: false as const } };
+      expect(() => hub.broadcastToAdmin(msg)).not.toThrow();
+    });
+
+    it('does not throw when no connections registered', () => {
+      const msg = { type: 'pisugar:status' as const, payload: { connected: false as const } };
+      expect(() => hub.broadcastToAdmin(msg)).not.toThrow();
+    });
+  });
+
   describe('getPresenceList', () => {
     it('returns empty array when no clients', () => {
       expect(hub.getPresenceList()).toEqual([]);
