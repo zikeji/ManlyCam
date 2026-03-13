@@ -103,4 +103,4 @@ development_status:
   7-4-pisugar-battery-monitor-server-tcp-poller-admin-ui: done
   7-4-hotfix-pisugar-frp-host: done # unplanned: pisugar.ts hardcoded 127.0.0.1 instead of env.FRP_HOST; broke TCP connection in Docker where PiSugar manager is on FRP host; fixed connect() call and updated pisugar.test.ts mock accordingly
   7-4-hotfix-battery-indicator-smart-charge: done # unplanned: BatteryIndicator smart-charge state was gated on !charging; moved check above charging, now triggers when plugged + chargingRange set + level within range regardless of charging flag; 2 new edge-case tests added
-  7-5-resizable-chat-sidebar-reka-ui-splitter: backlog
+  7-5-resizable-chat-sidebar-reka-ui-splitter: done # code-review findings: zero critical/high/medium issues. All 10 ACs implemented. 487 tests passing. Done 2026-03-13

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch, computed } from 'vue';
+import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import { useAuth } from '@/composables/useAuth';
 import { useStream } from '@/composables/useStream';
 import { Role } from '@manlycam/types';
@@ -25,6 +26,10 @@ const userManagerOpen = ref(false);
 
 const streamPlayerRef = ref<InstanceType<typeof StreamPlayer> | null>(null);
 const streamVideoRef = computed(() => streamPlayerRef.value?.videoRef ?? null);
+
+const chatPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
+const splitterAnimating = ref(false);
+let splitterAnimateTimer: ReturnType<typeof setTimeout> | null = null;
 
 const mobileSheetOpen = computed({
   get: () => adminPanelOpen.value && !isDesktop.value,
@@ -58,7 +63,30 @@ const isAdmin = computed(() => user.value?.role === Role.Admin);
 
 const handleOpenCameraControls = () => { adminPanelOpen.value = !adminPanelOpen.value; };
 const handleToggleAdminPanel = () => { adminPanelOpen.value = !adminPanelOpen.value; };
-const handleToggleChatSidebar = () => { chatSidebarOpen.value = !chatSidebarOpen.value; };
+
+const handleToggleChatSidebar = () => {
+  if (isDesktop.value && chatPanelRef.value) {
+    if (splitterAnimateTimer !== null) clearTimeout(splitterAnimateTimer);
+    splitterAnimating.value = true;
+    if (chatSidebarOpen.value) {
+      chatPanelRef.value.collapse();
+    } else {
+      chatPanelRef.value.expand();
+    }
+    splitterAnimateTimer = setTimeout(() => { splitterAnimating.value = false; }, 200);
+  } else {
+    chatSidebarOpen.value = !chatSidebarOpen.value;
+  }
+};
+
+const handleSplitterCollapse = () => {
+  chatSidebarOpen.value = false;
+};
+
+const handleSplitterExpand = () => {
+  chatSidebarOpen.value = true;
+  resetUnread();
+};
 
 onMounted(() => {
   initStream();
@@ -109,8 +137,73 @@ onMounted(() => {
       </aside>
     </Transition>
 
-    <!-- Main Column: Stream + Console (when not in landscape right-column) -->
-    <main class="flex-1 min-w-0 flex flex-col bg-black overflow-hidden relative">
+    <!-- DESKTOP: Splitter layout (≥ 1024px) -->
+    <SplitterGroup
+      v-if="isDesktop"
+      direction="horizontal"
+      auto-save-id="manly-chat-sidebar"
+      class="flex-1 min-w-0 flex"
+    >
+      <!-- Panel 1: Main column (stream + console + void) -->
+      <SplitterPanel class="flex flex-col bg-black overflow-hidden relative">
+        <div class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
+          <AtmosphericVoid
+            class="absolute inset-0"
+            :video-ref="streamVideoRef"
+          />
+          <StreamPlayer
+            ref="streamPlayerRef"
+            class="relative z-10 w-full"
+            :streamState="streamState"
+            :chatSidebarOpen="chatSidebarOpen"
+            :unreadCount="unreadCount"
+            :showLandscapeTapToggle="false"
+            @toggle-chat-sidebar="handleToggleChatSidebar"
+          />
+        </div>
+        <BroadcastConsole
+          :isAdmin="isAdmin"
+          :streamState="streamState"
+          :adminPanelOpen="adminPanelOpen"
+          :chatSidebarOpen="chatSidebarOpen"
+          :unreadCount="unreadCount"
+          :isDesktop="isDesktop"
+          :showChatToggle="true"
+          :videoRef="streamVideoRef"
+          @toggle-admin-panel="handleToggleAdminPanel"
+          @toggle-chat-sidebar="handleToggleChatSidebar"
+          @open-user-manager="userManagerOpen = true"
+        />
+      </SplitterPanel>
+
+      <!-- Resize handle -->
+      <SplitterResizeHandle class="w-px bg-[hsl(var(--border))] hover:bg-[hsl(var(--primary)/0.5)] cursor-col-resize transition-colors" />
+
+      <!-- Panel 2: Chat sidebar -->
+      <SplitterPanel
+        ref="chatPanelRef"
+        size-unit="px"
+        :default-size="320"
+        :min-size="240"
+        :max-size="600"
+        collapsible
+        :collapsed-size="0"
+        @collapse="handleSplitterCollapse"
+        @expand="handleSplitterExpand"
+        class="shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))]"
+        :class="{ 'splitter-animating': splitterAnimating }"
+      >
+        <ChatPanel
+          data-chat-panel
+          class="flex-1 flex flex-col min-h-0"
+          @open-camera-controls="handleOpenCameraControls"
+          @open-user-manager="userManagerOpen = true"
+        />
+      </SplitterPanel>
+    </SplitterGroup>
+
+    <!-- NON-DESKTOP: Existing main column (< 1024px) -->
+    <main v-if="!isDesktop" class="flex-1 min-w-0 flex flex-col bg-black overflow-hidden relative">
       <!-- Non-portrait content area: Void + Stream Centered -->
       <div v-if="!isMobilePortrait" class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
         <AtmosphericVoid
@@ -194,17 +287,6 @@ onMounted(() => {
       </div>
     </Transition>
 
-    <!-- Desktop / Tablet Right Sidebar -->
-    <Transition v-if="!isMobilePortrait && !isMobileLandscape" name="sidebar-right">
-      <ChatPanel
-        v-if="chatSidebarOpen"
-        data-chat-panel
-        class="lg:flex-none lg:w-[320px] shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-l border-[hsl(var(--border))] z-30"
-        @open-camera-controls="handleOpenCameraControls"
-        @open-user-manager="userManagerOpen = true"
-      />
-    </Transition>
-
     <!-- Mobile: Sheet drawer for admin controls (< lg only) -->
     <Sheet v-if="isAdmin" v-model:open="mobileSheetOpen">
       <SheetContent side="bottom" class="h-[90vh] p-0">
@@ -217,6 +299,10 @@ onMounted(() => {
 </template>
 
 <style scoped>
+.splitter-animating {
+  transition: flex-grow 200ms ease-in-out;
+}
+
 .sidebar-left-enter-active {
   transition: margin-left 250ms ease-out;
 }

@@ -37,6 +37,8 @@ const {
   mockResetUnread,
   mockIncrementUnread,
   mockIsLoadingHistory,
+  mockCollapse,
+  mockExpand,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const vueModule = require('vue') as typeof import('vue');
@@ -55,6 +57,8 @@ const {
     mockIsLoadingHistory: loadingHistory,
     mockResetUnread: resetFn,
     mockIncrementUnread: incrementFn,
+    mockCollapse: vi.fn(),
+    mockExpand: vi.fn(),
   };
 });
 
@@ -79,6 +83,36 @@ vi.mock('@/composables/useAdminStream', () => ({
     isLoading: ref(false),
     error: ref(null),
   }),
+}));
+
+vi.mock('reka-ui', () => ({
+  SplitterGroup: {
+    name: 'SplitterGroup',
+    props: ['direction', 'autoSaveId'],
+    template: '<div data-splitter-group><slot /></div>',
+  },
+  SplitterPanel: {
+    name: 'SplitterPanel',
+    props: ['sizeUnit', 'defaultSize', 'minSize', 'maxSize', 'collapsible', 'collapsedSize'],
+    emits: ['collapse', 'expand'],
+    methods: {
+      collapse() {
+        mockCollapse();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this as any).$emit('collapse');
+      },
+      expand() {
+        mockExpand();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this as any).$emit('expand');
+      },
+    },
+    template: '<div data-splitter-panel><slot /></div>',
+  },
+  SplitterResizeHandle: {
+    name: 'SplitterResizeHandle',
+    template: '<div data-splitter-resize-handle />',
+  },
 }));
 
 vi.mock('@/components/stream/StreamPlayer.vue', () => ({
@@ -143,6 +177,8 @@ describe('WatchView', () => {
     mockMessages.value = [];
     mockUnreadCount.value = 0;
     mockResetUnread.mockClear();
+    mockCollapse.mockClear();
+    mockExpand.mockClear();
     mockIsDesktop = true;
     mockIsPortrait = false;
 
@@ -186,12 +222,34 @@ describe('WatchView', () => {
       mockIsPortrait = false;
     });
 
+    it('renders SplitterGroup on desktop', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('[data-splitter-group]').exists()).toBe(true);
+    });
+
+    it('SplitterGroup has auto-save-id="manly-chat-sidebar"', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const splitterGroup = wrapper.findComponent({ name: 'SplitterGroup' });
+      expect(splitterGroup.props('autoSaveId')).toBe('manly-chat-sidebar');
+    });
+
+    it('does NOT render main element on desktop', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('main').exists()).toBe(false);
+    });
+
     it('renders content area with absolute AtmosphericVoid inside relative centered flex container', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
-      const main = wrapper.find('main');
-      const contentArea = main.find('div.relative.flex.items-center.justify-center');
+      const splitterGroup = wrapper.find('[data-splitter-group]');
+      const contentArea = splitterGroup.find('div.relative.flex.items-center.justify-center');
       expect(contentArea.exists()).toBe(true);
 
       const voidComp = contentArea.find('[data-atmospheric-void]');
@@ -200,13 +258,19 @@ describe('WatchView', () => {
       expect(voidComp.classes()).toContain('inset-0');
     });
 
-    it('renders BroadcastConsole directly in main below content area', async () => {
+    it('renders BroadcastConsole in desktop splitter layout', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
-      const main = wrapper.find('main');
-      const consoleComp = main.find('[data-broadcast-console]');
-      expect(consoleComp.exists()).toBe(true);
+      const splitterGroup = wrapper.find('[data-splitter-group]');
+      expect(splitterGroup.find('[data-broadcast-console]').exists()).toBe(true);
+    });
+
+    it('renders SplitterResizeHandle between panels', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('[data-splitter-resize-handle]').exists()).toBe(true);
     });
   });
 
@@ -214,6 +278,13 @@ describe('WatchView', () => {
     beforeEach(() => {
       mockIsDesktop = false;
       mockIsPortrait = true;
+    });
+
+    it('does NOT render SplitterGroup on mobile portrait', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('[data-splitter-group]').exists()).toBe(false);
     });
 
     it('stream container is shrink-0 without centering flex', async () => {
@@ -245,6 +316,13 @@ describe('WatchView', () => {
     beforeEach(() => {
       mockIsDesktop = false;
       mockIsPortrait = false;
+    });
+
+    it('does NOT render SplitterGroup on mobile landscape', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('[data-splitter-group]').exists()).toBe(false);
     });
 
     it('renders AtmosphericVoid for letterbox fill', async () => {
@@ -300,10 +378,41 @@ describe('WatchView', () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
       mockResetUnread.mockClear();
-      // Expand (toggle to open)
+      // Expand (toggle to open) — on desktop, calls chatPanelRef.expand() which emits @expand
       await wrapper.find('[data-stream-player]').trigger('dblclick');
       await nextTick();
       expect(mockResetUnread).toHaveBeenCalled();
+    });
+  });
+
+  describe('Desktop Splitter collapse/expand', () => {
+    beforeEach(() => {
+      mockIsDesktop = true;
+      mockIsPortrait = false;
+    });
+
+    it('calls collapse() on SplitterPanel when sidebar is open and toggle triggered', async () => {
+      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'true');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      mockCollapse.mockClear();
+
+      await wrapper.find('[data-stream-player]').trigger('dblclick');
+      await nextTick();
+
+      expect(mockCollapse).toHaveBeenCalled();
+    });
+
+    it('calls expand() on SplitterPanel when sidebar is collapsed and toggle triggered', async () => {
+      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'false');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      mockExpand.mockClear();
+
+      await wrapper.find('[data-stream-player]').trigger('dblclick');
+      await nextTick();
+
+      expect(mockExpand).toHaveBeenCalled();
     });
   });
 });
