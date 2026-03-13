@@ -98,7 +98,7 @@ describe('useSnapshot', () => {
       expect(mockContext?.drawImage).toHaveBeenCalledWith(mockVideo, 0, 0);
     });
 
-    it('converts canvas to JPEG blob with correct MIME type and quality 0.92', async () => {
+    it('converts canvas to JPEG blob with correct MIME type and quality 0.75', async () => {
       const mockVideo = {
         videoWidth: 640,
         videoHeight: 480,

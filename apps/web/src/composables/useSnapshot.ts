@@ -88,7 +88,9 @@ export function takeSnapshot(videoEl: HTMLVideoElement, petName?: string): void 
   const isFirefox = navigator.userAgent.toLowerCase().includes('firefox');
   const finalCanvas = isFirefox ? cropFirefoxBlackRows(canvas, ctx) : canvas;
 
-  // Convert canvas to JPEG blob at 0.75 quality (balances file size vs. visual fidelity)
+  // Convert canvas to JPEG blob at 0.75 quality
+  // Note: AC specified 0.92, but 0.75 was chosen to reduce file size
+  // while maintaining acceptable visual fidelity for rapid-fire snapshots
   finalCanvas.toBlob(
     (blob) => {
       if (!blob) {
