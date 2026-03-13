@@ -1,6 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
 
+vi.mock('../env.js', () => ({
+  env: {
+    FRP_HOST: 'frps',
+  },
+}));
+
 // Mock the net module
 const mockSocket = {
   connect: vi.fn(),
@@ -40,9 +46,9 @@ describe('PiSugarService', () => {
   });
 
   describe('start()', () => {
-    it('calls net.createConnection with configured port and 127.0.0.1', () => {
+    it('calls net.createConnection with configured port and FRP_HOST', () => {
       service.start();
-      expect(net.createConnection).toHaveBeenCalledWith(8424, '127.0.0.1');
+      expect(net.createConnection).toHaveBeenCalledWith(8424, 'frps');
     });
 
     it('does not reconnect if already running', () => {
@@ -53,7 +59,7 @@ describe('PiSugarService', () => {
 
     it('start(port) overrides constructor port', () => {
       service.start(9999);
-      expect(net.createConnection).toHaveBeenCalledWith(9999, '127.0.0.1');
+      expect(net.createConnection).toHaveBeenCalledWith(9999, 'frps');
     });
 
     it('registers connect, data, error, close handlers', () => {

@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import * as net from 'node:net';
 import type { PiSugarStatus } from '@manlycam/types';
+import { env } from '../env.js';
 
 // Module-level EventEmitter — WS hub subscribes to this for admin broadcasts
 export const pisugarStatus = new EventEmitter();
@@ -56,7 +57,7 @@ export class PiSugarService {
 
   private connect(): void {
     this.dataBuffer = '';
-    const socket = net.createConnection(this.port, '127.0.0.1');
+    const socket = net.createConnection(this.port, env.FRP_HOST);
     this.socket = socket;
 
     socket.on('connect', () => {

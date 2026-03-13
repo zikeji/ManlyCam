@@ -101,4 +101,5 @@ development_status:
   7-1-ux-shell-redesign-broadcast-console-atmospheric-void: done
   7-3-camera-snapshot-button-client-side-frame-capture: done
   7-4-pisugar-battery-monitor-server-tcp-poller-admin-ui: done
+  7-4-hotfix-pisugar-frp-host: done # unplanned: pisugar.ts hardcoded 127.0.0.1 instead of env.FRP_HOST; broke TCP connection in Docker where PiSugar manager is on FRP host; fixed connect() call and updated pisugar.test.ts mock accordingly
   7-5-resizable-chat-sidebar-reka-ui-splitter: backlog
