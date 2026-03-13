@@ -99,6 +99,6 @@ development_status:
 
   epic-7: in-progress
   7-1-ux-shell-redesign-broadcast-console-atmospheric-void: done
-  7-3-camera-snapshot-button-client-side-frame-capture: backlog
+  7-3-camera-snapshot-button-client-side-frame-capture: review
   7-4-pisugar-battery-monitor-server-tcp-poller-admin-ui: backlog
   7-5-resizable-chat-sidebar-reka-ui-splitter: backlog

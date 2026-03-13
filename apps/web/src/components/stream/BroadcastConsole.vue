@@ -4,6 +4,7 @@ import { Settings2, Video, VideoOff, Camera, ArrowLeftFromLine, ArrowRightFromLi
 import type { ClientStreamState } from '@/composables/useStream';
 import { useAuth } from '@/composables/useAuth';
 import { useAdminStream } from '@/composables/useAdminStream';
+import { useSnapshot } from '@/composables/useSnapshot';
 // import { Role } from '@manlycam/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,7 @@ const props = withDefaults(defineProps<{
   isDesktop?: boolean;
   showChatToggle?: boolean;
   showViewerCount?: boolean;
+  videoRef?: HTMLVideoElement | null;
 }>(), {
   isAdmin: false,
   adminPanelOpen: false,
@@ -30,6 +32,7 @@ const props = withDefaults(defineProps<{
   isDesktop: true,
   showChatToggle: true,
   showViewerCount: true,
+  videoRef: null,
 });
 
 const emit = defineEmits<{
@@ -40,6 +43,21 @@ const emit = defineEmits<{
 
 const { user, logout } = useAuth();
 const { startStream, stopStream, isLoading, error } = useAdminStream();
+const { takeSnapshot } = useSnapshot();
+
+const handleSnapshot = () => {
+  if (props.videoRef) {
+    takeSnapshot(props.videoRef);
+  }
+};
+
+const snapshotTooltip = computed(() => {
+  return props.streamState === 'live' ? 'Take Snapshot' : 'Stream not live';
+});
+
+const isSnapshotDisabled = computed(() => {
+  return props.streamState !== 'live';
+});
 
 const isPulsing = ref(false);
 let pulseTimer: number | null = null;
@@ -152,12 +170,12 @@ const streamToggleLabel = computed(() => {
     <div class="flex items-center gap-1 flex-1 justify-end">
       <!-- 7-3: snapshot -->
       <Button
-        v-show="false"
         variant="ghost"
         size="icon"
-        class="w-11 h-11 rounded opacity-50"
-        title="Take Snapshot (coming soon)"
-        disabled
+        class="w-11 h-11 rounded"
+        :disabled="isSnapshotDisabled"
+        :title="snapshotTooltip"
+        @click="handleSnapshot"
       >
         <Camera class="w-5 h-5" />
       </Button>
