@@ -26,6 +26,11 @@ const tapOverlayVisible = ref(false);
 let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const { startWhep, stopWhep, isHealthy, clientFrozen } = useWhep();
 
+// When the server reports the stream is back live after an offline state, keep the server-side
+// overlay visible until the WHEP connection is actually healthy (first video frame received).
+// This prevents a jarring swap from the "camera offline" overlay to the "Reconnecting..." spinner.
+const prevStateWasOffline = ref(false);
+
 function handleTap(event: MouseEvent): void {
   // Only activate tap overlay for touch-originated events
   if ((event as PointerEvent).pointerType === 'touch') {
@@ -41,6 +46,7 @@ watch(
   () => props.streamState,
   async (newState, oldState) => {
     if (newState === 'live') {
+      prevStateWasOffline.value = oldState === 'unreachable' || oldState === 'explicit-offline';
       // videoRef may be null when the watch fires immediately on mount (template not yet rendered).
       // nextTick ensures the ref is populated before we try to use it.
       if (!videoRef.value) await nextTick();
@@ -51,12 +57,19 @@ watch(
           // WHEP connection failed
         }
       }
-    } else if (oldState === 'live') {
-      await stopWhep();
+    } else {
+      prevStateWasOffline.value = false;
+      if (oldState === 'live') {
+        await stopWhep();
+      }
     }
   },
   { immediate: true },
 );
+
+watch(isHealthy, (healthy) => {
+  if (healthy) prevStateWasOffline.value = false;
+});
 
 onUnmounted(() => {
   stopWhep();
@@ -90,15 +103,18 @@ defineExpose({ videoRef });
       playsinline
     />
 
-    <!-- Server-reported state overlays -->
+    <!-- Server-reported state overlays, plus while transitioning back from offline to live -->
     <StateOverlay
-      v-if="streamState === 'unreachable' || streamState === 'explicit-offline'"
+      v-if="streamState === 'unreachable' || streamState === 'explicit-offline' || (streamState === 'live' && !isHealthy && prevStateWasOffline)"
       :variant="streamState === 'explicit-offline' ? 'explicit-offline' : 'unreachable'"
     />
 
-    <!-- Client-side loading/reconnecting overlay: shown while waiting for first frame or after connection drop -->
+    <!-- Client-side loading/reconnecting overlay: initial connect or mid-session drop.
+         Not shown when coming back from a server-reported offline state (prevStateWasOffline),
+         since the server overlay stays until healthy in that case. -->
     <div
-      v-if="streamState === 'live' && !isHealthy"
+      v-if="streamState === 'live' && !isHealthy && !prevStateWasOffline"
+      data-client-overlay
       class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90"
     >
       <svg

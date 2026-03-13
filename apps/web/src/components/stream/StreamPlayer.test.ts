@@ -82,7 +82,7 @@ describe('StreamPlayer', () => {
     mockIsHealthy.value = false;
     wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     await wrapper.vm.$nextTick();
-    expect(wrapper.find('.animate-spin').exists()).toBe(true);
+    expect(wrapper.find('[data-client-overlay]').exists()).toBe(true);
     expect(wrapper.find('p').exists()).toBe(false); // no text on initial connect
   });
 
@@ -91,14 +91,37 @@ describe('StreamPlayer', () => {
     mockClientFrozen.value = true;
     wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
     await wrapper.vm.$nextTick();
-    expect(wrapper.find('.animate-spin').exists()).toBe(true);
+    expect(wrapper.find('[data-client-overlay]').exists()).toBe(true);
     expect(wrapper.find('p').text()).toBe('Reconnecting...');
   });
 
   it('does NOT show spinner overlay when live and healthy', () => {
     mockIsHealthy.value = true;
     wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
-    expect(wrapper.find('.animate-spin').exists()).toBe(false);
+    expect(wrapper.find('[data-client-overlay]').exists()).toBe(false);
+  });
+
+  it('keeps unreachable StateOverlay when transitioning from unreachable to live while not healthy', async () => {
+    mockIsHealthy.value = false;
+    wrapper = mount(StreamPlayer, { props: { streamState: 'unreachable' } });
+    await wrapper.setProps({ streamState: 'live' });
+    await flushPromises();
+    // Server overlay stays, spinner does NOT show
+    const overlay = wrapper.findComponent({ name: 'StateOverlay' });
+    expect(overlay.exists()).toBe(true);
+    expect(overlay.props('variant')).toBe('unreachable');
+    expect(wrapper.find('[data-client-overlay]').exists()).toBe(false);
+  });
+
+  it('clears server overlay once healthy after offline→live transition', async () => {
+    mockIsHealthy.value = false;
+    wrapper = mount(StreamPlayer, { props: { streamState: 'unreachable' } });
+    await wrapper.setProps({ streamState: 'live' });
+    await flushPromises();
+    mockIsHealthy.value = true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.findComponent({ name: 'StateOverlay' }).exists()).toBe(false);
+    expect(wrapper.find('[data-client-overlay]').exists()).toBe(false);
   });
 
   it('calls startWhep when streamState transitions to live', async () => {
