@@ -69,7 +69,7 @@ defineExpose({ videoRef });
 <template>
   <div
     data-stream-container
-    class="relative w-full landscape:max-h-full aspect-video bg-black overflow-hidden"
+    class="relative isolate w-full portrait:aspect-video landscape:h-full overflow-hidden"
     @click="handleTap"
   >
     <!-- Connecting: Skeleton -->
@@ -82,7 +82,7 @@ defineExpose({ videoRef });
     <!-- Video element -->
     <video
       ref="videoRef"
-      class="w-full h-full object-cover"
+      class="w-full h-full object-contain"
       role="img"
       :aria-label="`Live stream of ${petName}`"
       autoplay

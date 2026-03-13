@@ -125,11 +125,12 @@ describe('StreamPlayer', () => {
     expect(mockStopWhep).toHaveBeenCalled();
   });
 
-  it('container uses 16:9 aspect ratio', () => {
+  it('container has w-full and overflow-hidden', () => {
     wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
     const container = wrapper.find('[data-stream-container]');
     expect(container.exists()).toBe(true);
-    expect(container.classes().join(' ')).toMatch(/aspect-video/);
+    expect(container.classes()).toContain('w-full');
+    expect(container.classes()).toContain('overflow-hidden');
   });
 
   it('handles startWhep error gracefully without crashing', async () => {
