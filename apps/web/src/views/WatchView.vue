@@ -68,13 +68,17 @@ onMounted(() => {
     isDesktop.value = mqDesktop.matches;
     mqDesktop.addEventListener('change', (e) => { isDesktop.value = e.matches; });
 
-    const mqPortrait = window.matchMedia('(max-width: 1023px) and (orientation: portrait)');
-    isMobilePortrait.value = mqPortrait.matches;
-    mqPortrait.addEventListener('change', (e) => { isMobilePortrait.value = e.matches; });
-
-    const mqLandscape = window.matchMedia('(max-width: 1023px) and (orientation: landscape)');
-    isMobileLandscape.value = mqLandscape.matches;
-    mqLandscape.addEventListener('change', (e) => { isMobileLandscape.value = e.matches; });
+    // Use screen dimensions (not viewport) for orientation so the virtual keyboard
+    // shrinking the viewport doesn't falsely flip portrait ↔ landscape.
+    const updateOrientation = () => {
+      const mobile = !mqDesktop.matches;
+      const landscape = screen.width > screen.height;
+      isMobilePortrait.value = mobile && !landscape;
+      isMobileLandscape.value = mobile && landscape;
+    };
+    updateOrientation();
+    screen.orientation?.addEventListener('change', updateOrientation);
+    mqDesktop.addEventListener('change', updateOrientation);
   }
 
   try {
@@ -110,7 +114,6 @@ onMounted(() => {
       <!-- Non-portrait content area: Void + Stream Centered -->
       <div v-if="!isMobilePortrait" class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
         <AtmosphericVoid
-          v-if="!isMobileLandscape"
           class="absolute inset-0"
           :video-ref="streamVideoRef"
         />
