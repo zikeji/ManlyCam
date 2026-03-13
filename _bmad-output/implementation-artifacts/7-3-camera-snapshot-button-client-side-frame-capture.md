@@ -1,6 +1,6 @@
 # Story 7.3: Camera Snapshot Button (Client-Side Frame Capture)
 
-Status: review
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -77,15 +77,18 @@ so that **I can save and share a memorable moment from the live feed**.
 ### Source Tree Components to Touch
 
 **Files to create:**
+
 - `apps/web/src/composables/useSnapshot.ts` — new composable for snapshot capture
 - `apps/web/src/composables/useSnapshot.test.ts` — tests for snapshot composable
 
 **Files to modify:**
+
 - `apps/web/src/components/stream/BroadcastConsole.vue` — activate snapshot button stub, wire videoRef prop, bind disabled state
 - `apps/web/src/components/stream/BroadcastConsole.test.ts` — add snapshot button tests
 - `apps/web/src/views/WatchView.vue` — pass `streamVideoRef` to BroadcastConsole (computed from `streamPlayerRef.value?.videoRef`)
 
 **Files NOT to touch:**
+
 - `apps/web/src/components/stream/StreamPlayer.vue` — `defineExpose({ videoRef })` already exists from story 7-1
 - `apps/web/src/lib/env.ts` — `getPetName()` and `getSiteName()` already exist
 - All server files — no server involvement is required
@@ -124,6 +127,7 @@ claude-sonnet-4-6
 ### Completion Notes List
 
 Implementation completed 2026-03-12:
+
 - Created `useSnapshot` composable with canvas-based frame capture
 - Implemented `takeSnapshot(videoEl, petName)` function that:
   - Creates off-screen canvas matching video dimensions
