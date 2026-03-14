@@ -4,7 +4,7 @@ import type { ChatMessage, Role } from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import { MicOff } from 'lucide-vue-next';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { renderMarkdownLite } from '@/lib/markdown';
+import { renderMarkdown } from '@/lib/markdown';
 import { formatTime, initials } from '@/lib/dateFormat';
 import {
   ContextMenu,
@@ -48,7 +48,7 @@ const emit = defineEmits<{
 
 const timeLabel = computed(() => formatTime(props.message.createdAt));
 const avatarInitials = computed(() => initials(props.message.displayName));
-const renderedContent = computed(() => renderMarkdownLite(props.message.content));
+const renderedContent = computed(() => renderMarkdown(props.message.content));
 const editedLabel = computed(() =>
   props.message.updatedAt ? formatTime(props.message.updatedAt) : null,
 );
@@ -129,8 +129,8 @@ function executeBan() {
     <ContextMenuTrigger as-child>
       <div ref="rootRef" role="listitem" class="relative group px-3 py-0.5 pl-[52px] hover:bg-white/[.03]">
         <template v-if="!isEditing">
-          <p
-            class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded"
+          <div
+            class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
             v-html="renderedContent"
           />
           <TooltipProvider v-if="message.updatedAt">
@@ -169,8 +169,8 @@ function executeBan() {
     class="relative group px-3 py-0.5 pl-[52px] hover:bg-white/[.03]"
   >
     <template v-if="!isEditing">
-      <p
-        class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded"
+      <div
+        class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
         v-html="renderedContent"
       />
       <TooltipProvider v-if="message.updatedAt">
@@ -249,7 +249,7 @@ function executeBan() {
           </div>
           <template v-if="!isEditing">
             <p
-              class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded"
+              class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
               v-html="renderedContent"
             />
           </template>
@@ -327,8 +327,8 @@ function executeBan() {
         </TooltipProvider>
       </div>
       <template v-if="!isEditing">
-        <p
-          class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded"
+        <div
+          class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
           v-html="renderedContent"
         />
       </template>

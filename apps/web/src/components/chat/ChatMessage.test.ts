@@ -128,9 +128,9 @@ describe('ChatMessage.vue', () => {
     wrapper = mount(ChatMessage, {
       props: { message: { ...baseMessage, content: '[bad](javascript:alert(1))' } },
     });
-    const link = wrapper.find('a');
-    expect(link.attributes('href')).toBe('#');
-    expect(link.attributes('href')).not.toContain('javascript:');
+    // markdown-it internally rejects javascript: links — either no <a> is rendered
+    // or the href is sanitized to '#'. Either way, no executable javascript: href exists.
+    expect(wrapper.html()).not.toContain('href="javascript:');
   });
 
   it('renders userTag when present', () => {
@@ -613,6 +613,84 @@ describe('ChatMessage.vue', () => {
       });
       const timeSpan = wrapper.find('.text-muted-foreground.shrink-0');
       expect(timeSpan.exists()).toBe(true);
+    });
+  });
+
+  describe('new markdown elements (renderMarkdown)', () => {
+    // Task 9.1: code block renders with <pre><code> structure
+    it('renders code block with <pre><code> structure', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { ...baseMessage, content: '```js\nconst x = 1;\n```' },
+        },
+      });
+      expect(wrapper.find('pre').exists()).toBe(true);
+      expect(wrapper.find('code').exists()).toBe(true);
+    });
+
+    // Task 9.2: blockquote renders with <blockquote> element
+    it('renders blockquote with <blockquote> element', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { ...baseMessage, content: '> quoted text' },
+        },
+      });
+      expect(wrapper.find('blockquote').exists()).toBe(true);
+      expect(wrapper.find('blockquote').text()).toContain('quoted text');
+    });
+
+    // Task 9.3: image renders — verify container has max-height CSS class
+    it('renders image and container div has [&_img]:max-h-64 class', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            ...baseMessage,
+            content: '![alt](https://example.com/image.gif)',
+          },
+        },
+      });
+      expect(wrapper.find('img').exists()).toBe(true);
+      expect(wrapper.find('img').attributes('src')).toBe('https://example.com/image.gif');
+      // Verify the container div has the max-height Tailwind class
+      const allDivs = wrapper.findAll('div');
+      const contentHolder = allDivs.find((d) => d.classes().some((c) => c.includes('max-h-64')));
+      expect(contentHolder).toBeTruthy();
+    });
+
+    // Task 9.4: existing bold, inline code, link tests still pass
+    it('still renders bold markdown correctly', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '**bold text**' } },
+      });
+      expect(wrapper.find('strong').exists()).toBe(true);
+      expect(wrapper.find('strong').text()).toBe('bold text');
+    });
+
+    it('still renders inline code markdown correctly', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '`code here`' } },
+      });
+      expect(wrapper.find('code').exists()).toBe(true);
+      expect(wrapper.find('code').text()).toBe('code here');
+    });
+
+    it('still renders link markdown with target=_blank', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '[click here](https://example.com)' } },
+      });
+      const link = wrapper.find('a');
+      expect(link.exists()).toBe(true);
+      expect(link.attributes('href')).toBe('https://example.com');
+      expect(link.attributes('target')).toBe('_blank');
+      expect(link.attributes('rel')).toBe('noopener noreferrer');
+    });
+
+    it('still suppresses javascript: URLs in links', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '[bad](javascript:alert(1))' } },
+      });
+      // markdown-it internally rejects javascript: links — no executable javascript: href
+      expect(wrapper.html()).not.toContain('href="javascript:');
     });
   });
 });
