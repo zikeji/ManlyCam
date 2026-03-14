@@ -49,15 +49,17 @@ function escapeHtml(str: string): string {
     .replace(/"/g, '&quot;');
 }
 
+const COPY_BTN = `<button class="hljs-copy-btn" type="button" onclick="var b=this,c=b.parentElement.querySelector('code');navigator.clipboard.writeText(c.innerText).then(function(){b.textContent='Copied!';b.classList.add('hljs-copy-btn--copied');setTimeout(function(){b.textContent='Copy';b.classList.remove('hljs-copy-btn--copied');},2000)})">Copy</button>`;
+
 function highlight(str: string, lang: string): string {
   if (lang && hljs.getLanguage(lang)) {
     try {
-      return `<pre class="hljs"><code>${hljs.highlight(str, { language: lang, ignoreIllegals: true }).value}</code></pre>`;
+      return `<div class="hljs-wrapper">${COPY_BTN}<pre class="hljs"><code>${hljs.highlight(str, { language: lang, ignoreIllegals: true }).value}</code></pre></div>`;
     } catch {
       /* fallthrough */
     }
   }
-  return `<pre class="hljs"><code>${escapeHtml(str)}</code></pre>`;
+  return `<div class="hljs-wrapper">${COPY_BTN}<pre class="hljs"><code>${escapeHtml(str)}</code></pre></div>`;
 }
 
 export const md = new MarkdownIt({
