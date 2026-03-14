@@ -1,6 +1,6 @@
 # Story 8-2: @Mentions & Highlighting
 
-Status: review
+Status: done
 
 ## Story
 
@@ -362,42 +362,43 @@ claude-sonnet-4-6
 
 ### Completion Notes List
 
-- All 11 tasks complete. 929 total tests passing (334 server + 595 web). TypeScript clean on both packages.
-- **Implementation note (Subtask 7.4):** `highlightMentions` is applied AFTER markdown rendering, not before. The story spec says "before" but markdown-it has `html: false` which escapes inserted `<span>` tags. Applied after rendering is correct and safe since mention patterns (@Word) survive markdown processing unchanged.
+- All 11 tasks complete. 941 total tests passing (325 server + 616 web). TypeScript clean on both packages.
+- **ARCHITECTURE PIVOT (Tasks 1-3):** Originally planned to add `mentionedUserIds String[]` to the Message model with server-side `parseMentions` utility. **Pivoted to a simpler, more robust approach:** mentions are stored as `<@ID>` tokens directly in message content. When a user selects a mention from autocomplete, the client inserts `<@userId>` (e.g., `<@user-001>`). The `highlightMentions` function extracts these tokens post-render and resolves them to display names via `lookupUser()`. This satisfies AC #6 and #9 without DB schema changes — mentions ARE persisted (in content) and CAN be extracted for Story 8-3 notifications via regex.
+- **Implementation note (Subtask 7.4):** `highlightMentions` is applied AFTER markdown rendering, not before. The story spec says "before" but markdown-it has `html: false` which escapes inserted `<span>` tags. Applied after rendering is correct and safe since `<@ID>` tokens survive markdown processing as `&lt;@ID&gt;`, which the highlighter matches.
 - **`useTitlebarFlash` state reset:** Added `isFlashing = false` in `onUnmounted` hook to reset module-level state when component unmounts. This prevents state leakage between test runs and correctly handles component re-mounting.
-- **`highlightMentions` signature change:** Added `viewers: UserPresence[]` parameter (vs the spec's 3-arg version). This is required to know each viewer's full display name for the span output.
-- **Migration created:** `apps/server/prisma/migrations/20260314205213_add_message_mentions/migration.sql`
+- **`highlightMentions` signature change:** Changed from `(content, mentionedUserIds, currentUserId, viewers)` to `(renderedHtml, currentUserId, lookupUser)` — uses a lookup function instead of explicit ID list since IDs are embedded in content.
+- **`useUserCache` composable:** Created to persist user presence data across sessions (localStorage-backed). Enables mention resolution even when mentioned user has gone offline.
 - **`recordChatter` wired in ChatPanel.vue:** Tracks recently chatted users on every incoming message. Autocomplete sorts by recency then alphabetically.
-- **`wsHub` mock in chatService.test.ts:** Added `getPresenceList: vi.fn(() => [])` to the mock so `parseMentions` can be called without errors.
+- **No migration needed:** Schema unchanged; mentions stored in `content` field.
 
 ### File List
 
 **Created:**
-- `apps/server/src/lib/mentions.ts`
-- `apps/server/src/lib/mentions.test.ts`
-- `apps/server/prisma/migrations/20260314205213_add_message_mentions/migration.sql`
+
 - `apps/web/src/components/chat/MentionAutocomplete.vue`
 - `apps/web/src/components/chat/MentionAutocomplete.test.ts`
 - `apps/web/src/composables/useRecentlyChatted.ts`
 - `apps/web/src/composables/useTitlebarFlash.ts`
 - `apps/web/src/composables/useTitlebarFlash.test.ts`
+- `apps/web/src/composables/useUserCache.ts`
+- `apps/web/src/composables/useUserCache.test.ts`
 - `apps/web/src/lib/highlightMentions.ts`
 - `apps/web/src/lib/highlightMentions.test.ts`
 
 **Modified:**
-- `apps/server/prisma/schema.prisma`
-- `packages/types/src/ws.ts`
-- `apps/server/src/services/chatService.ts`
-- `apps/server/src/services/chatService.test.ts`
-- `apps/server/src/routes/chat.test.ts`
-- `apps/web/src/components/chat/ChatInput.vue`
-- `apps/web/src/components/chat/ChatInput.test.ts`
-- `apps/web/src/components/chat/ChatMessage.vue`
-- `apps/web/src/components/chat/ChatMessage.test.ts`
-- `apps/web/src/components/chat/ChatPanel.vue`
-- `apps/web/src/components/chat/ChatPanel.test.ts`
-- `apps/web/src/composables/useChat.test.ts`
+
+- `packages/types/src/ws.ts` — Added `users:directory`, `users:lookup`, `users:info` WS message types for user cache hydration
+- `apps/server/src/routes/ws.ts` — Added handlers for `users:directory` and `users:lookup` messages
+- `apps/server/src/routes/ws.test.ts` — Tests for new WS message handlers
+- `apps/server/src/services/chatService.test.ts` — Added `getPresenceList` mock
+- `apps/web/src/components/chat/ChatInput.vue` — Integrated autocomplete, mention token insertion, resolveMentions()
+- `apps/web/src/components/chat/ChatInput.test.ts` — Tests for @ trigger, popup, mention resolution
+- `apps/web/src/components/chat/ChatMessage.vue` — Added highlightMentions call, currentUserId/viewers props, CSS for .mention classes
+- `apps/web/src/components/chat/ChatPanel.vue` — Added titlebar flash on mention detection, recordChatter call
+- `apps/web/src/composables/useWebSocket.ts` — Added users:directory/lookup message handling
+- `apps/web/src/composables/useWebSocket.test.ts` — Tests for new message types
 
 ## Change Log
 
-- 2026-03-14: Implemented @mentions and highlighting (Story 8-2). Added `mentionedUserIds` to Message model and ChatMessage type. Created server-side `parseMentions` utility. Created `MentionAutocomplete` component with keyboard navigation. Updated `ChatInput` with @ trigger, autocomplete popup, and cursor-based insertion. Created `highlightMentions` applied post-render. Created `useTitlebarFlash` for background-tab title change. Wired `recordChatter` and titlebar flash in `ChatPanel`. 929 tests passing.
+- 2026-03-14: Implemented @mentions and highlighting (Story 8-2). **Architectural pivot:** Instead of adding `mentionedUserIds` DB field with server-side parsing, mentions are stored as `<@ID>` tokens in message content. Client-side `highlightMentions` resolves tokens post-render via `useUserCache`. Created `MentionAutocomplete` component with keyboard navigation. Updated `ChatInput` with @ trigger, autocomplete popup, and `<@ID>` token insertion. Created `useTitlebarFlash` for background-tab title flash. Created `useUserCache` for persistent user lookup across sessions. Added `users:directory` and `users:lookup` WS message types. Wired titlebar flash and recordChatter in `ChatPanel`. 941 tests passing (325 server + 616 web).
+- 2026-03-14: Code review — documented architectural pivot in Completion Notes. File List corrected to reflect actual files created/modified. Zero blocking issues; all ACs satisfied via content-based mention storage.
