@@ -78,6 +78,12 @@ vi.mock('./usePresence', () => ({
   handleModerationUnmuted: mockHandleModerationUnmuted,
 }));
 
+// --- usePiSugar mock ---
+const mockSetPiSugarStateFromWs = vi.hoisted(() => vi.fn());
+vi.mock('./usePiSugar', () => ({
+  setStateFromWs: mockSetPiSugarStateFromWs,
+}));
+
 // --- router mock ---
 const mockRouterPush = vi.hoisted(() => vi.fn());
 vi.mock('@/router', () => ({
@@ -313,6 +319,37 @@ describe('useWebSocket', () => {
       expect(mockHandleTypingStop).toHaveBeenCalledWith(payload);
     });
 
+    it('dispatches chat:message payload to handleChatMessage() and caches sender', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = {
+        id: 'msg-001',
+        userId: 'user-001',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'Admin' as const,
+        userTag: null,
+        content: 'hello',
+        editedAt: null,
+        createdAt: new Date().toISOString(),
+      };
+      expect(() => {
+        mockWsInstance.onmessage?.(
+          new MessageEvent('message', { data: JSON.stringify({ type: 'chat:message', payload }) }),
+        );
+      }).not.toThrow();
+    });
+
+    it('dispatches pisugar:status payload to setPiSugarStateFromWs()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { batteryLevel: 85, isCharging: true };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'pisugar:status', payload }) }),
+      );
+      expect(mockSetPiSugarStateFromWs).toHaveBeenCalledWith(payload);
+    });
+
     it('redirects to /banned on session:revoked message', () => {
       const { connect } = useWebSocket();
       connect();
@@ -322,6 +359,26 @@ describe('useWebSocket', () => {
         }),
       );
       expect(mockRouterPush).toHaveBeenCalledWith('/banned');
+    });
+
+    it('handles users:info message without throwing', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = [
+        {
+          id: 'user-001',
+          displayName: 'Alice',
+          avatarUrl: null,
+          role: 'Admin',
+          isMuted: false,
+          userTag: null,
+        },
+      ];
+      expect(() => {
+        mockWsInstance.onmessage?.(
+          new MessageEvent('message', { data: JSON.stringify({ type: 'users:info', payload }) }),
+        );
+      }).not.toThrow();
     });
   });
 

@@ -6,7 +6,7 @@ type MockWs = { send: ReturnType<typeof vi.fn> };
 type WsHandlerFactory = (c: unknown) => {
   onOpen?: (evt: unknown, ws: MockWs) => void;
   onClose?: (evt: unknown, ws: MockWs) => void;
-  onMessage?: (evt: { data: string }, ws: MockWs) => void;
+  onMessage?: (evt: { data: string }, ws: MockWs) => void | Promise<void>;
 };
 let capturedFactory: WsHandlerFactory | null = null;
 
@@ -31,7 +31,7 @@ vi.mock('../env.js', () => ({
   },
 }));
 
-vi.mock('../db/client.js', () => ({ prisma: {} }));
+vi.mock('../db/client.js', () => ({ prisma: { user: { findMany: vi.fn() } } }));
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-conn-id') }));
 vi.mock('../services/authService.js', () => ({
   initiateOAuth: vi.fn(),
@@ -59,6 +59,7 @@ vi.mock('../services/wsHub.js', () => ({
 import { getSessionUser } from '../services/authService.js';
 import { wsHub } from '../services/wsHub.js';
 import { streamService } from '../services/streamService.js';
+import { prisma } from '../db/client.js';
 import { createApp } from '../app.js';
 
 const mockUser = {
@@ -259,5 +260,93 @@ describe('WS onMessage — typing relay (AC #5)', () => {
     const handlers = capturedFactory!(mockContext);
     handlers.onOpen!(null, mockWs);
     expect(() => handlers.onMessage!({ data: 'not-json{{{' }, mockWs)).not.toThrow();
+  });
+});
+
+const mockDbUser = {
+  id: 'user-001',
+  displayName: 'Test User',
+  avatarUrl: null,
+  role: 'ViewerCompany',
+  mutedAt: null,
+  bannedAt: null,
+  userTagText: null,
+  userTagColor: null,
+  email: 'test@example.com',
+  googleSub: 'google-sub-001',
+  createdAt: new Date(),
+  lastSeenAt: null,
+};
+
+describe('WS onMessage — users:directory and users:lookup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+  });
+
+  it('users:directory queries non-banned users and sends users:info', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([mockDbUser] as never);
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    mockWs.send.mockClear();
+
+    await handlers.onMessage!({ data: JSON.stringify({ type: 'users:directory' }) }, mockWs);
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({ where: { bannedAt: null } });
+    const sent = mockWs.send.mock.calls.map((c) => JSON.parse(c[0] as string));
+    const infoMsg = sent.find((m) => m.type === 'users:info');
+    expect(infoMsg).toBeDefined();
+    expect(infoMsg.payload).toHaveLength(1);
+    expect(infoMsg.payload[0].id).toBe('user-001');
+  });
+
+  it('users:lookup queries specific IDs and sends users:info', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([mockDbUser] as never);
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    mockWs.send.mockClear();
+
+    await handlers.onMessage!(
+      { data: JSON.stringify({ type: 'users:lookup', payload: { ids: ['user-001'] } }) },
+      mockWs,
+    );
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({ where: { id: { in: ['user-001'] } } });
+    const sent = mockWs.send.mock.calls.map((c) => JSON.parse(c[0] as string));
+    const infoMsg = sent.find((m) => m.type === 'users:info');
+    expect(infoMsg).toBeDefined();
+    expect(infoMsg.payload[0].id).toBe('user-001');
+  });
+
+  it('users:lookup with empty ids array does not call prisma', async () => {
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    mockWs.send.mockClear();
+
+    await handlers.onMessage!(
+      { data: JSON.stringify({ type: 'users:lookup', payload: { ids: [] } }) },
+      mockWs,
+    );
+
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
+  it('users:info payload includes isMuted=true for users with mutedAt set', async () => {
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      { ...mockDbUser, mutedAt: new Date() },
+    ] as never);
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    mockWs.send.mockClear();
+
+    await handlers.onMessage!({ data: JSON.stringify({ type: 'users:directory' }) }, mockWs);
+
+    const sent = mockWs.send.mock.calls.map((c) => JSON.parse(c[0] as string));
+    const infoMsg = sent.find((m) => m.type === 'users:info');
+    expect(infoMsg.payload[0].isMuted).toBe(true);
   });
 });

@@ -45,7 +45,6 @@ export async function createMessage(params: {
 }): Promise<ChatMessage> {
   const { userId, content } = params;
   const id = ulid();
-
   const message = await prisma.message.create({
     data: { id, userId, content },
     include: { user: true },

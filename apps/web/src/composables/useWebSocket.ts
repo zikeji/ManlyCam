@@ -13,8 +13,9 @@ import {
   handleModerationMuted,
   handleModerationUnmuted,
 } from './usePresence';
+import { cacheUsers } from './useUserCache';
 import { setStateFromWs as setPiSugarStateFromWs } from './usePiSugar';
-import type { WsMessage } from '@manlycam/types';
+import type { UserPresence, WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
   connect: () => void;
@@ -46,6 +47,18 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'chat:message') {
         useChat().handleChatMessage(msg.payload);
+        // Cache the message sender so their name resolves even when offline
+        const p = msg.payload;
+        cacheUsers([
+          {
+            id: p.userId,
+            displayName: p.displayName,
+            avatarUrl: p.avatarUrl,
+            role: p.authorRole,
+            isMuted: false,
+            userTag: p.userTag,
+          } satisfies UserPresence,
+        ]);
       }
       if (msg.type === 'chat:edit') {
         handleChatEdit(msg.payload);
@@ -57,12 +70,18 @@ export function useWebSocket(): WsInterface {
         handleUserUpdate(msg.payload);
         handlePresenceUserUpdate(msg.payload);
         handleAdminUserUpdate(msg.payload);
+        cacheUsers([msg.payload]);
       }
       if (msg.type === 'presence:seed') {
         handlePresenceSeed(msg.payload);
+        cacheUsers(msg.payload);
       }
       if (msg.type === 'presence:join') {
         handlePresenceJoin(msg.payload);
+        cacheUsers([msg.payload]);
+      }
+      if (msg.type === 'users:info') {
+        cacheUsers(msg.payload);
       }
       if (msg.type === 'presence:leave') {
         handlePresenceLeave(msg.payload);
@@ -98,6 +117,8 @@ export function useWebSocket(): WsInterface {
     socket.onopen = () => {
       isConnected.value = true;
       reconnectDelay = 1000;
+      // Request all known users so the cache is fully populated for autocomplete + mention rendering
+      socket!.send(JSON.stringify({ type: 'users:directory' }));
     };
     socket.onmessage = handleMessage;
     socket.onclose = () => {

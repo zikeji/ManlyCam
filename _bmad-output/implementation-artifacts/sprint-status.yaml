@@ -112,7 +112,7 @@ development_status:
   # Epic 8: Chat Enhancement & Engagement
   epic-8: in-progress
   8-1-expanded-markdown-and-multiline-support: done # code-review: zero critical/high issues. All 12 ACs implemented. 559 tests passing. Done 2026-03-14
-  8-2-mentions-and-highlighting: ready-for-dev
+  8-2-mentions-and-highlighting: review
   8-3-browser-notifications-and-preferences: ready-for-dev
   8-4-programmable-slash-commands: ready-for-dev
   8-5-emoji-picker-component: ready-for-dev

@@ -17,7 +17,7 @@ vi.mock('../db/client.js', () => ({
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => '01HZTEST00000000000000001') }));
 
 vi.mock('./wsHub.js', () => ({
-  wsHub: { broadcast: vi.fn() },
+  wsHub: { broadcast: vi.fn(), getPresenceList: vi.fn(() => []) },
 }));
 
 import { prisma } from '../db/client.js';

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
-import type { ChatMessage, Role } from '@manlycam/types';
+import type { ChatMessage, Role, UserPresence } from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import { MicOff } from 'lucide-vue-next';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { renderMarkdown } from '@/lib/markdown';
+import { highlightMentions } from '@/lib/highlightMentions';
+import { lookupUser } from '@/composables/useUserCache';
 import { formatTime, initials } from '@/lib/dateFormat';
 import {
   ContextMenu,
@@ -36,6 +38,8 @@ const props = defineProps<{
   canModerateDelete?: boolean;
   isAuthorMuted?: boolean;
   currentUserRole?: Role;
+  currentUserId?: string;
+  viewers?: UserPresence[];
 }>();
 
 const emit = defineEmits<{
@@ -48,7 +52,17 @@ const emit = defineEmits<{
 
 const timeLabel = computed(() => formatTime(props.message.createdAt));
 const avatarInitials = computed(() => initials(props.message.displayName));
-const renderedContent = computed(() => renderMarkdown(props.message.content));
+const renderedContent = computed(() => {
+  const html = renderMarkdown(props.message.content);
+  // Build a map from the prop viewers (online / freshly-passed) for fast lookup,
+  // then fall back to the persistent user cache for anyone who has since gone offline.
+  const viewerMap = new Map((props.viewers ?? []).map((v) => [v.id, v]));
+  return highlightMentions(
+    html,
+    props.currentUserId ?? '',
+    (id) => viewerMap.get(id) ?? lookupUser(id),
+  );
+});
 const editedLabel = computed(() =>
   props.message.updatedAt ? formatTime(props.message.updatedAt) : null,
 );
@@ -412,3 +426,20 @@ function executeBan() {
     </AlertDialogContent>
   </AlertDialog>
 </template>
+
+<style scoped>
+:deep(.mention) {
+  background-color: hsl(var(--muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-weight: 500;
+}
+
+:deep(.mention-highlight) {
+  background-color: hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-weight: 600;
+}
+</style>

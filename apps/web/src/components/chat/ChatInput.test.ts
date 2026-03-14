@@ -2,6 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import ChatInput from './ChatInput.vue';
+import type { UserPresence } from '@manlycam/types';
+
+const makeViewer = (id: string, displayName: string): UserPresence => ({
+  id,
+  displayName,
+  avatarUrl: null,
+  role: 'ViewerCompany',
+  isMuted: false,
+  userTag: null,
+});
 
 let wrapper: VueWrapper | null = null;
 
@@ -286,6 +296,137 @@ describe('ChatInput.vue', () => {
       wrapper = mount(ChatInput, { props: { muted: false } });
       const textarea = wrapper.find('textarea');
       expect(textarea.attributes('placeholder')).toBe('Message ManlyCam…');
+    });
+  });
+
+  describe('mention autocomplete', () => {
+    const john = makeViewer('user-001', 'John Smith');
+    const jane = makeViewer('user-002', 'Jane Doe');
+    const viewers = [john, jane];
+
+    it('shows autocomplete popup when @ is typed', async () => {
+      wrapper = mount(ChatInput, { props: { viewers } });
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('@');
+      await textarea.trigger('input');
+      await nextTick();
+      // Autocomplete should be visible (rendered in DOM)
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+    });
+
+    it('hides autocomplete when space is typed after @query', async () => {
+      wrapper = mount(ChatInput, { props: { viewers } });
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('@john ');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    });
+
+    it('hides autocomplete when content does not have @', async () => {
+      wrapper = mount(ChatInput, { props: { viewers } });
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('hello');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    });
+
+    it('clears autocomplete when send is triggered', async () => {
+      wrapper = mount(ChatInput, { props: { viewers } });
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('@john');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+
+      await textarea.trigger('keydown', { key: 'Enter', shiftKey: false });
+      await nextTick();
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    });
+
+    it('renders without viewers prop (no popup for empty list)', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('@john');
+      await textarea.trigger('input');
+      await nextTick();
+      // No viewers → no popup
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+    });
+
+    it('excludes current user from autocomplete list', async () => {
+      wrapper = mount(ChatInput, {
+        props: { viewers, currentUserId: 'user-001' },
+      });
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('@');
+      await textarea.trigger('input');
+      await nextTick();
+      // john (user-001) is current user — only jane should appear
+      const options = wrapper.findAll('[role="option"]');
+      expect(options).toHaveLength(1);
+      expect(options[0].find('.truncate').text()).toBe('Jane Doe');
+    });
+
+    it('selecting an option inserts display @Name into textarea', async () => {
+      wrapper = mount(ChatInput, { props: { viewers } });
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('@');
+      await textarea.trigger('input');
+      await nextTick();
+
+      // Click the first option — viewers sorted alphabetically: Jane Doe before John Smith
+      await wrapper.find('[role="option"]').trigger('mousedown');
+      await nextTick();
+
+      expect((textarea.element as HTMLTextAreaElement).value).toBe('@JaneDoe ');
+    });
+
+    it('closes mention popup on mousedown outside the textarea', async () => {
+      wrapper = mount(ChatInput, { props: { viewers }, attachTo: document.body });
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('@');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(true);
+
+      // Dispatch mousedown on an element outside the textarea — bubbles to document
+      const outside = document.createElement('div');
+      document.body.appendChild(outside);
+      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await nextTick();
+      expect(wrapper.find('[role="listbox"]').exists()).toBe(false);
+      outside.remove();
+    });
+
+    it('does not convert manually typed @Name (not autocompleted) to <@ID>', async () => {
+      wrapper = mount(ChatInput, { props: { viewers } });
+      // Type @alice directly — never selected from autocomplete, so not in mentionMap
+      await wrapper.find('textarea').setValue('@alice');
+      await wrapper.find('button[aria-label="Send message"]').trigger('click');
+      const emitted = wrapper.emitted('send');
+      expect(emitted).toBeTruthy();
+      // @alice is left as-is since it was not autocompleted
+      expect(emitted![0][0]).toBe('@alice');
+    });
+
+    it('send resolves @Name tokens to <@ID> in emitted content', async () => {
+      wrapper = mount(ChatInput, { props: { viewers } });
+      const textarea = wrapper.find('textarea');
+      // Select Jane Doe from autocomplete
+      await textarea.setValue('@');
+      await textarea.trigger('input');
+      await nextTick();
+      await wrapper.find('[role="option"]').trigger('mousedown');
+      await nextTick();
+
+      // Trigger send
+      await wrapper.find('button[aria-label="Send message"]').trigger('click');
+
+      const emitted = wrapper.emitted('send');
+      expect(emitted).toBeTruthy();
+      expect(emitted![0][0]).toBe('<@user-002> ');
     });
   });
 });

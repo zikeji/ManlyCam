@@ -4,6 +4,8 @@ import { useChat } from '@/composables/useChat';
 import { useAuth } from '@/composables/useAuth';
 import { usePresence } from '@/composables/usePresence';
 import { useWebSocket } from '@/composables/useWebSocket';
+import { useTitlebarFlash } from '@/composables/useTitlebarFlash';
+import { recordChatter } from '@/composables/useRecentlyChatted';
 import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
 import { apiFetch } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -26,6 +28,7 @@ const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoad
 const { user } = useAuth();
 const { viewers, typingUsers, mutedUserIds } = usePresence();
 const { sendTypingStart, sendTypingStop } = useWebSocket();
+const { flashTitlebar } = useTitlebarFlash();
 
 const scrollRef = ref<HTMLElement | null>(null);
 const sentinelRef = ref<HTMLElement | null>(null);
@@ -206,6 +209,28 @@ watch(
   { deep: true },
 );
 
+// Track recently chatted users and flash titlebar on mention
+watch(
+  () => messages.value.length,
+  (newLen, oldLen) => {
+    if (newLen <= (oldLen ?? 0)) return;
+    const latestMsg = messages.value[newLen - 1];
+    if (!latestMsg) return;
+
+    // Track recently chatted
+    recordChatter(latestMsg.userId);
+
+    // Flash titlebar if current user is mentioned and tab is hidden
+    if (
+      user.value &&
+      latestMsg.content.includes(`<@${user.value.id}>`)
+    ) {
+      flashTitlebar(`${latestMsg.displayName} mentioned you!`);
+    }
+  },
+  { flush: 'sync' },
+);
+
 async function handleMessageEdit(messageId: string, newContent: string) {
   await editMessage(messageId, newContent);
 }
@@ -325,6 +350,8 @@ async function handleSend(content: string) {
                     :can-moderate-delete="canModerateDeleteMsg(item.data)"
                     :is-author-muted="mutedUserIds.has(item.data.userId)"
                     :current-user-role="user?.role"
+                    :current-user-id="user?.id"
+                    :viewers="viewers"
                     @request-edit="handleMessageEdit"
                     @request-delete="handleMessageDelete"
                     @mute-user="handleMuteUser"
@@ -338,6 +365,8 @@ async function handleSend(content: string) {
             <div class="p-2 pb-0 pt-4 border-t border-[hsl(var(--border))]">
               <ChatInput
                 :muted="isSelfMuted"
+                :viewers="viewers"
+                :current-user-id="user?.id"
                 @send="handleSend"
                 @edit-last="handleEditLast"
                 @typing-start="sendTypingStart"
