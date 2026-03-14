@@ -65,6 +65,7 @@ const canModerate = computed(() => {
 const isEditing = ref(false);
 const editContent = ref('');
 const editTextareaRef = ref<HTMLTextAreaElement | null>(null);
+const editActionsRef = ref<HTMLElement | null>(null);
 const rootRef = ref<HTMLElement | null>(null);
 const canSave = computed(() => editContent.value.trim().length > 0);
 const showDeleteDialog = ref(false);
@@ -89,7 +90,9 @@ function startEdit() {
   nextTick(() => {
     editTextareaRef.value?.focus();
     resizeEditTextarea();
-    rootRef.value?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    requestAnimationFrame(() => {
+      editActionsRef.value?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
+    });
   });
 }
 
@@ -207,7 +210,7 @@ function executeBan() {
         class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px] overflow-y-hidden"
         @keydown="handleEditKeydown"
       />
-      <div class="flex gap-2 mt-1">
+      <div ref="editActionsRef" class="flex gap-2 mt-1">
         <button
           class="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground hover:bg-primary/90"
           @click="submitEdit"
@@ -276,7 +279,7 @@ function executeBan() {
               class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px] overflow-y-hidden"
               @keydown="handleEditKeydown"
             />
-            <div class="flex gap-2 mt-1">
+            <div ref="editActionsRef" class="flex gap-2 mt-1">
               <button
                 :disabled="!canSave"
                 class="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -355,7 +358,7 @@ function executeBan() {
           class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px] overflow-y-hidden"
           @keydown="handleEditKeydown"
         />
-        <div class="flex gap-2 mt-1">
+        <div ref="editActionsRef" class="flex gap-2 mt-1">
           <button
             :disabled="!canSave"
             class="text-xs px-2 py-0.5 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
