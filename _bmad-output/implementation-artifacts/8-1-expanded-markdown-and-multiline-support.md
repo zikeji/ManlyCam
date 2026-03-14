@@ -1,6 +1,6 @@
 # Story 8-1: Expanded Markdown & Multiline Support
 
-Status: review
+Status: done
 
 ## Story
 
@@ -362,3 +362,4 @@ claude-sonnet-4-6
 ### Change Log
 
 - 2026-03-14: Implemented Story 8-1 — expanded markdown rendering with markdown-it + highlight.js, XSS sanitization, newline normalization, strikethrough, images, blockquotes, single-line-break preservation. 555 tests passing.
+- 2026-03-14: Code review passed — zero critical/high issues. All 12 ACs verified implemented. 559 tests passing. Status → done.
