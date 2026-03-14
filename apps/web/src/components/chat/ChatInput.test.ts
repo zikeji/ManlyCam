@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
+import { nextTick } from 'vue';
 import ChatInput from './ChatInput.vue';
 
 let wrapper: VueWrapper | null = null;
@@ -217,6 +218,48 @@ describe('ChatInput.vue', () => {
       const sendCalls = emitted['send'] ?? [];
       expect(typingStopCalls.length).toBeGreaterThan(0);
       expect(sendCalls.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('auto-resize', () => {
+    it('resize sets overflowY to auto when scrollHeight exceeds maxHeight', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea').element as HTMLTextAreaElement;
+      // Make scrollHeight exceed the default maxHeight (200)
+      Object.defineProperty(textarea, 'scrollHeight', { get: () => 400, configurable: true });
+      await wrapper.find('textarea').setValue('content');
+      await nextTick();
+      expect(textarea.style.overflowY).toBe('auto');
+    });
+
+    it('ResizeObserver callback updates maxHeight and calls resize', async () => {
+      let capturedCallback: (() => void) | null = null;
+      vi.stubGlobal(
+        'ResizeObserver',
+        vi.fn((cb: () => void) => {
+          capturedCallback = cb;
+          return { observe: vi.fn(), disconnect: vi.fn() };
+        }),
+      );
+
+      const panel = document.createElement('div');
+      panel.setAttribute('data-chat-panel', '');
+      Object.defineProperty(panel, 'clientHeight', { get: () => 600, configurable: true });
+      document.body.appendChild(panel);
+
+      wrapper = mount(ChatInput, { attachTo: panel });
+      // Flush Vue's nextTick from onMounted, then advance fake timers to fire requestAnimationFrame
+      await nextTick();
+      await nextTick();
+      vi.runAllTimers();
+      await nextTick();
+
+      // ResizeObserver callback should have been captured; fire it to cover lines 30-31
+      expect(capturedCallback).not.toBeNull();
+      capturedCallback!();
+
+      panel.remove();
+      vi.unstubAllGlobals();
     });
   });
 

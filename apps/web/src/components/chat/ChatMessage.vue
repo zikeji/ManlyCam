@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, nextTick } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import type { ChatMessage, Role } from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import { MicOff } from 'lucide-vue-next';
@@ -70,11 +70,25 @@ const canSave = computed(() => editContent.value.trim().length > 0);
 const showDeleteDialog = ref(false);
 const showBanDialog = ref(false);
 
+function resizeEditTextarea() {
+  const el = editTextareaRef.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  const panel = el.closest('[data-chat-panel]') as HTMLElement | null;
+  const maxH = panel ? Math.floor(panel.clientHeight / 2) : 300;
+  const capped = Math.min(el.scrollHeight, maxH);
+  el.style.height = capped + 'px';
+  el.style.overflowY = el.scrollHeight > maxH ? 'auto' : 'hidden';
+}
+
+watch(editContent, () => nextTick(resizeEditTextarea));
+
 function startEdit() {
   isEditing.value = true;
   editContent.value = props.message.content;
   nextTick(() => {
     editTextareaRef.value?.focus();
+    resizeEditTextarea();
     rootRef.value?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' });
   });
 }
@@ -190,7 +204,7 @@ function executeBan() {
         v-model="editContent"
         rows="1"
         maxlength="1000"
-        class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px]"
+        class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px] overflow-y-hidden"
         @keydown="handleEditKeydown"
       />
       <div class="flex gap-2 mt-1">
@@ -259,7 +273,7 @@ function executeBan() {
               v-model="editContent"
               rows="1"
               maxlength="1000"
-              class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px]"
+              class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px] overflow-y-hidden"
               @keydown="handleEditKeydown"
             />
             <div class="flex gap-2 mt-1">
@@ -338,7 +352,7 @@ function executeBan() {
           v-model="editContent"
           rows="1"
           maxlength="1000"
-          class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px]"
+          class="w-full resize-none rounded border border-input bg-background px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[32px] overflow-y-hidden"
           @keydown="handleEditKeydown"
         />
         <div class="flex gap-2 mt-1">

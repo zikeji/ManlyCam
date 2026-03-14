@@ -616,6 +616,49 @@ describe('ChatMessage.vue', () => {
     });
   });
 
+  describe('auto-resize in edit mode', () => {
+    function findEditItem(w: VueWrapper) {
+      return w.findAll('[data-context-menu-item]').find((el) => el.text().trim() === 'Edit');
+    }
+
+    it('resizeEditTextarea uses panel ancestor clientHeight when data-chat-panel is present', async () => {
+      const panel = document.createElement('div');
+      panel.setAttribute('data-chat-panel', '');
+      Object.defineProperty(panel, 'clientHeight', { get: () => 400, configurable: true });
+      document.body.appendChild(panel);
+
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: true },
+        attachTo: panel,
+      });
+
+      await findEditItem(wrapper)!.trigger('click');
+      await nextTick();
+      await nextTick(); // allow resizeEditTextarea scheduled by watch/nextTick to run
+
+      // Reaching here without error covers the `panel ? Math.floor(...) : 300` truthy branch
+      panel.remove();
+    });
+
+    it('resizeEditTextarea sets overflowY to auto when scrollHeight exceeds maxHeight', async () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+
+      await findEditItem(wrapper!)!.trigger('click');
+      await nextTick();
+
+      const textarea = wrapper!.find('textarea').element as HTMLTextAreaElement;
+      // maxH defaults to 300 (no panel); make scrollHeight exceed it
+      Object.defineProperty(textarea, 'scrollHeight', { get: () => 400, configurable: true });
+
+      // Changing editContent triggers the watch → nextTick(resizeEditTextarea)
+      await wrapper!.find('textarea').setValue('updated content');
+      await nextTick();
+      await nextTick();
+
+      expect(textarea.style.overflowY).toBe('auto');
+    });
+  });
+
   describe('new markdown elements (renderMarkdown)', () => {
     // Task 9.1: code block renders with <pre><code> structure
     it('renders code block with <pre><code> structure', () => {

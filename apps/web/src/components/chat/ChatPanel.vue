@@ -271,7 +271,7 @@ async function handleSend(content: string) {
       <div class="flex-1 min-h-0 relative overflow-hidden">
         <Transition :name="slideDirection === 'left' ? 'slide-left' : 'slide-right'">
           <!-- Chat tab -->
-          <div v-if="activeTab === 'chat'" key="chat" class="absolute inset-0 flex flex-col">
+          <div v-if="activeTab === 'chat'" key="chat" class="absolute inset-0 flex flex-col" data-chat-panel>
             <div class="flex-1 min-h-0 overflow-y-auto" ref="scrollRef">
               <div
                 role="log"

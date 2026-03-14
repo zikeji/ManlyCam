@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
 import { SendHorizontal } from 'lucide-vue-next';
 
@@ -8,6 +8,35 @@ defineProps<{ muted?: boolean }>();
 const emit = defineEmits<{ send: [content: string]; editLast: []; typingStart: []; typingStop: [] }>();
 
 const content = ref('');
+const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const maxHeight = ref(200);
+let panelObserver: ResizeObserver | null = null;
+
+function resize() {
+  const el = textareaRef.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  const capped = Math.min(el.scrollHeight, maxHeight.value);
+  el.style.height = capped + 'px';
+  el.style.overflowY = el.scrollHeight > maxHeight.value ? 'auto' : 'hidden';
+}
+
+function initPanelObserver() {
+  const el = textareaRef.value;
+  if (!el) return;
+  const panel = el.closest('[data-chat-panel]') as HTMLElement | null;
+  if (!panel) return;
+  panelObserver = new ResizeObserver(() => {
+    maxHeight.value = Math.floor(panel.clientHeight / 2);
+    resize();
+  });
+  panelObserver.observe(panel);
+  maxHeight.value = Math.floor(panel.clientHeight / 2);
+}
+
+watch(content, () => nextTick(resize));
+
+onMounted(() => nextTick(() => requestAnimationFrame(() => { initPanelObserver(); resize(); })));
 
 const charCount = computed(() => content.value.length);
 const showCounter = computed(() => charCount.value >= 800);
@@ -63,25 +92,28 @@ function send() {
   stopTyping();
   emit('send', content.value);
   content.value = '';
+  nextTick(resize);
 }
 
 onUnmounted(() => {
   if (typingStopTimer) clearTimeout(typingStopTimer);
   if (typingHeartbeatInterval) clearInterval(typingHeartbeatInterval);
+  panelObserver?.disconnect();
 });
 </script>
 
 <template>
-  <div class="flex items-center gap-2">
+  <div class="flex items-end gap-2">
     <div class="relative flex-1">
       <textarea
         v-if="!muted"
+        ref="textareaRef"
         v-model="content"
         aria-label="Message ManlyCam"
         placeholder="Message ManlyCam…"
         rows="1"
         maxlength="1000"
-        class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[120px]"
+        class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] overflow-y-hidden"
         @keydown="handleKeydown"
         @input="handleInput"
       />
