@@ -125,6 +125,10 @@ vi.mock('reka-ui', () => ({
   TabsIndicator: { template: '<div />' },
 }));
 
+vi.mock('@/components/ui/scroll-area', () => ({
+  ScrollArea: { template: '<div><slot /></div>' },
+}));
+
 vi.mock('@/components/ui/popover', () => ({
   Popover: {
     props: ['open', 'modelValue'],

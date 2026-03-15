@@ -13,15 +13,16 @@
         <X class="w-4 h-4" />
       </button>
     </div>
-    <div class="flex-1 overflow-y-auto">
+    <ScrollArea class="flex-1">
       <CameraControls />
-    </div>
+    </ScrollArea>
   </div>
 </template>
 
 <script setup lang="ts">
 import { X } from 'lucide-vue-next';
 import CameraControls from './CameraControls.vue';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 withDefaults(defineProps<{ showClose?: boolean }>(), { showClose: true });
 defineEmits<{ close: [] }>();

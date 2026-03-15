@@ -10,6 +10,7 @@ import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
 import { apiFetch } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { TabsIndicator } from 'reka-ui';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
@@ -31,7 +32,8 @@ const otherTypingUsers = computed(() => typingUsers.value.filter((u) => u.userId
 const { sendTypingStart, sendTypingStop } = useWebSocket();
 const { flashTitlebar } = useTitlebarFlash();
 
-const scrollRef = ref<HTMLElement | null>(null);
+const scrollAreaRef = ref<{ getViewport: () => HTMLElement | null } | null>(null);
+const scrollRef = computed<HTMLElement | null>(() => scrollAreaRef.value?.getViewport() ?? null);
 const sentinelRef = ref<HTMLElement | null>(null);
 
 const TAB_ORDER = ['chat', 'viewers'] as const;
@@ -298,7 +300,7 @@ async function handleSend(content: string) {
         <Transition :name="slideDirection === 'left' ? 'slide-left' : 'slide-right'">
           <!-- Chat tab -->
           <div v-if="activeTab === 'chat'" key="chat" class="absolute inset-0 flex flex-col" data-chat-panel>
-            <div class="flex-1 min-h-0 overflow-y-auto" ref="scrollRef">
+            <ScrollArea ref="scrollAreaRef" class="flex-1 min-h-0">
               <div
                 role="log"
                 aria-live="polite"
@@ -361,7 +363,7 @@ async function handleSend(content: string) {
                   />
                 </template>
               </div>
-            </div>
+            </ScrollArea>
 
             <div class="p-2 pb-0 pt-4 border-t border-[hsl(var(--border))]">
               <ChatInput
@@ -380,7 +382,7 @@ async function handleSend(content: string) {
           </div>
 
           <!-- Viewers tab -->
-          <div v-else key="viewers" class="absolute inset-0 overflow-y-auto">
+          <ScrollArea v-else key="viewers" class="absolute inset-0">
             <PresenceList
               :viewers="viewers"
               :current-user-id="user?.id"
@@ -389,7 +391,7 @@ async function handleSend(content: string) {
               @unmute-user="handleUnmuteUser"
               @ban-user="handleBanUser"
             />
-          </div>
+          </ScrollArea>
         </Transition>
       </div>
     </Tabs>
@@ -397,6 +399,16 @@ async function handleSend(content: string) {
 </template>
 
 <style scoped>
+/*
+ * reka-ui's ScrollAreaViewport wraps slot content in a Primitive div with auto height.
+ * Setting min-height: 100% on that Primitive div ensures that our inner content div's
+ * min-h-full resolves correctly against the viewport height, allowing justify-end to
+ * push messages to the bottom when there are few of them.
+ */
+:deep([data-reka-scroll-area-viewport] > *) {
+  min-height: 100%;
+}
+
 /* Navigating right (Chat → Viewers): new content enters from right, old exits left */
 .slide-left-enter-from,
 .slide-left-leave-to {
