@@ -13,6 +13,16 @@ vi.mock('@/composables/useSnapshot', () => ({
   }),
 }));
 
+// Mock PreferencesDialog to avoid pulling in Dialog/Switch/notification deps
+vi.mock('@/components/preferences/PreferencesDialog.vue', () => ({
+  default: {
+    name: 'PreferencesDialog',
+    template: '<div data-testid="preferences-dialog"></div>',
+    props: ['open'],
+    emits: ['update:open'],
+  },
+}));
+
 const mockStartStream = vi.fn().mockResolvedValue(undefined);
 const mockStopStream = vi.fn().mockResolvedValue(undefined);
 const mockLogout = vi.fn().mockResolvedValue(undefined);
@@ -213,6 +223,34 @@ describe('BroadcastConsole', () => {
     await flushPromises();
 
     expect(mockStartStream).toHaveBeenCalled();
+  });
+
+  // 8-3: Preferences button (AC #2, #3)
+  it('renders Preferences button in profile popover', async () => {
+    wrapper = mountConsole();
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+
+    const body = document.body.innerHTML;
+    expect(body).toContain('Preferences');
+  });
+
+  it('opens preferences dialog when Preferences button is clicked', async () => {
+    wrapper = mountConsole();
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+
+    const prefsBtn = Array.from(document.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Preferences',
+    ) as HTMLButtonElement | undefined;
+    prefsBtn?.click();
+    await flushPromises();
+
+    // PreferencesDialog should now be visible (open prop = true)
+    const dialog = wrapper.findComponent({ name: 'PreferencesDialog' });
+    expect(dialog.props('open')).toBe(true);
   });
 
   // 7-4: BatteryIndicator integration tests (AC #12, #6)

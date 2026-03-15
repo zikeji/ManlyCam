@@ -1,7 +1,13 @@
 import { ref, inject, type InjectionKey, type Ref } from 'vue';
 import { router } from '@/router';
 import { useStream } from './useStream';
-import { useChat, handleUserUpdate, handleChatEdit, handleChatDelete } from './useChat';
+import {
+  useChat,
+  handleUserUpdate,
+  handleChatEdit,
+  handleChatDelete,
+  handleEphemeral,
+} from './useChat';
 import { handleAdminUserUpdate } from './useAdminUsers';
 import {
   handlePresenceSeed,
@@ -13,8 +19,12 @@ import {
   handleModerationMuted,
   handleModerationUnmuted,
 } from './usePresence';
+import { cacheUsers, lookupUser } from './useUserCache';
 import { setStateFromWs as setPiSugarStateFromWs } from './usePiSugar';
-import type { WsMessage } from '@manlycam/types';
+import { useAuth } from './useAuth';
+import { useBrowserNotifications } from './useBrowserNotifications';
+import { useNotificationPreferences } from './useNotificationPreferences';
+import type { UserPresence, WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
   connect: () => void;
@@ -34,6 +44,10 @@ export function useWebSocket(): WsInterface {
   // App-root call: create singleton
   const isConnected = ref(false);
   let socket: WebSocket | null = null;
+  const { user } = useAuth();
+  const { showNotification } = useBrowserNotifications();
+  const { preferences } = useNotificationPreferences();
+  let prevStreamState: string | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectDelay = 1000;
   const MAX_DELAY = 30_000;
@@ -42,10 +56,45 @@ export function useWebSocket(): WsInterface {
     try {
       const msg = JSON.parse(event.data) as WsMessage;
       if (msg.type === 'stream:state') {
+        const before = prevStreamState;
         useStream().setStateFromWs(msg.payload);
+        const after = msg.payload.state;
+        prevStreamState = after;
+        if (before !== null && before !== after && preferences.value.streamState) {
+          const body = after === 'live' ? 'Stream is now live!' : 'Stream has gone offline.';
+          showNotification('Stream Update', { body });
+        }
       }
       if (msg.type === 'chat:message') {
         useChat().handleChatMessage(msg.payload);
+        // Cache the message sender so their name resolves even when offline
+        const p = msg.payload;
+        cacheUsers([
+          {
+            id: p.userId,
+            displayName: p.displayName,
+            avatarUrl: p.avatarUrl,
+            role: p.authorRole,
+            isMuted: false,
+            userTag: p.userTag,
+          } satisfies UserPresence,
+        ]);
+        // Mention/chat notifications — skip own messages (server echoes back to sender)
+        const currentUserId = user.value?.id;
+        if (currentUserId && p.userId !== currentUserId) {
+          const resolvedBody = p.content
+            .replace(/<@([^>]+)>/g, (_, id: string) => `@${lookupUser(id)?.displayName ?? id}`)
+            .trim();
+          if (p.content.includes(`<@${currentUserId}>`)) {
+            if (preferences.value.mentions) {
+              showNotification('You were mentioned', {
+                body: `${p.displayName}: ${resolvedBody}`,
+              });
+            }
+          } else if (preferences.value.chatMessages) {
+            showNotification(p.displayName, { body: resolvedBody });
+          }
+        }
       }
       if (msg.type === 'chat:edit') {
         handleChatEdit(msg.payload);
@@ -57,12 +106,18 @@ export function useWebSocket(): WsInterface {
         handleUserUpdate(msg.payload);
         handlePresenceUserUpdate(msg.payload);
         handleAdminUserUpdate(msg.payload);
+        cacheUsers([msg.payload]);
       }
       if (msg.type === 'presence:seed') {
         handlePresenceSeed(msg.payload);
+        cacheUsers(msg.payload);
       }
       if (msg.type === 'presence:join') {
         handlePresenceJoin(msg.payload);
+        cacheUsers([msg.payload]);
+      }
+      if (msg.type === 'users:info') {
+        cacheUsers(msg.payload);
       }
       if (msg.type === 'presence:leave') {
         handlePresenceLeave(msg.payload);
@@ -85,6 +140,9 @@ export function useWebSocket(): WsInterface {
       if (msg.type === 'pisugar:status') {
         setPiSugarStateFromWs(msg.payload);
       }
+      if (msg.type === 'chat:ephemeral') {
+        handleEphemeral(msg.payload);
+      }
     } catch {
       // Ignore malformed messages
     }
@@ -98,6 +156,8 @@ export function useWebSocket(): WsInterface {
     socket.onopen = () => {
       isConnected.value = true;
       reconnectDelay = 1000;
+      // Request all known users so the cache is fully populated for autocomplete + mention rendering
+      socket!.send(JSON.stringify({ type: 'users:directory' }));
     };
     socket.onmessage = handleMessage;
     socket.onclose = () => {

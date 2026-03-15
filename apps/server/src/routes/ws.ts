@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { wsHub } from '../services/wsHub.js';
+import { prisma } from '../db/client.js';
 import { streamService } from '../services/streamService.js';
 import { pisugarStatus } from '../lib/pisugar.js';
 import { env } from '../env.js';
@@ -9,6 +10,8 @@ import { ulid } from '../lib/ulid.js';
 import { computeUserTag } from '../lib/user-tag.js';
 import type { AppEnv } from '../lib/types.js';
 import type { PiSugarStatus, Role, UserPresence, WsMessage } from '@manlycam/types';
+import { SYSTEM_USER_ID } from '@manlycam/types';
+import type { User } from '@prisma/client';
 import type { createNodeWebSocket } from '@hono/node-ws';
 
 type UpgradeWebSocket = ReturnType<typeof createNodeWebSocket>['upgradeWebSocket'];
@@ -28,6 +31,17 @@ if (env.FRP_PISUGAR_PORT) {
     cachedPiSugarStatus = status;
     wsHub.broadcastToAdmin({ type: 'pisugar:status', payload: status });
   });
+}
+
+function userRowToPresence(user: User): UserPresence {
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl ?? null,
+    role: user.role as Role,
+    isMuted: user.mutedAt !== null,
+    userTag: computeUserTag(user),
+  };
 }
 
 export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
@@ -92,10 +106,10 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
             disposeMap.delete(ws as object);
           }
         },
-        onMessage(evt, _ws) {
+        async onMessage(evt, ws) {
           const raw = typeof evt.data === 'string' ? evt.data : String(evt.data);
           try {
-            const msg = JSON.parse(raw) as { type: string };
+            const msg = JSON.parse(raw) as { type: string; payload?: unknown };
             if (msg.type === 'typing:start') {
               wsHub.broadcastExcept(connectionId, {
                 type: 'typing:start',
@@ -107,6 +121,29 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
                 type: 'typing:stop',
                 payload: { userId: userPresence.id },
               });
+            }
+            if (msg.type === 'users:directory') {
+              const users = await prisma.user.findMany({
+                where: { bannedAt: null, id: { not: SYSTEM_USER_ID } },
+              });
+              const infoMsg: WsMessage = {
+                type: 'users:info',
+                payload: users.map(userRowToPresence),
+              };
+              ws.send(JSON.stringify(infoMsg));
+            }
+            if (msg.type === 'users:lookup') {
+              const ids = (msg.payload as { ids: string[] }).ids;
+              if (Array.isArray(ids) && ids.length > 0) {
+                const users = await prisma.user.findMany({
+                  where: { id: { in: ids, not: SYSTEM_USER_ID } },
+                });
+                const infoMsg: WsMessage = {
+                  type: 'users:info',
+                  payload: users.map(userRowToPresence),
+                };
+                ws.send(JSON.stringify(infoMsg));
+              }
             }
           } catch {
             // Ignore malformed

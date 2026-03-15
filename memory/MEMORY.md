@@ -8,3 +8,9 @@
 
 ## Sprint Status
 - [project_epic7.md](project_epic7.md) — Epic 7 details (added 2026-03-12)
+
+## Architecture Patterns
+- [project_system_user.md](project_system_user.md) — System user (SYSTEM_USER_ID) for slash command authoring
+
+## Feedback
+- [feedback_lint_fix.md](feedback_lint_fix.md) — Use `pnpm run lint --fix`, not `npx eslint --fix`

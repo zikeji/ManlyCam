@@ -3,6 +3,7 @@ export const Role = {
   Moderator: 'Moderator',
   ViewerCompany: 'ViewerCompany',
   ViewerGuest: 'ViewerGuest',
+  System: 'System',
 } as const;
 export type Role = (typeof Role)[keyof typeof Role];
 
@@ -11,6 +12,7 @@ export const ROLE_RANK: Record<Role, number> = {
   Moderator: 2,
   ViewerCompany: 1,
   ViewerGuest: 0,
+  System: -1,
 };
 
 /**

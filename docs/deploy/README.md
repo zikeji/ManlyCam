@@ -344,6 +344,32 @@ manlycam-admin users unban <email>
 
 Roles: `Admin`, `Moderator`, `ViewerCompany`, `ViewerGuest`
 
+## Custom Slash Commands
+
+ManlyCam supports custom slash commands defined as JavaScript files in `apps/server/custom/`. Four examples are included (`/shrug`, `/tableflip`, `/pet`, `/treat`). See [`apps/server/custom/README.md`](../../apps/server/custom/README.md) for the full authoring guide covering ephemeral responses, role-gating, user mentions, and persistent state.
+
+### Docker Volume Mount
+
+To use custom commands in Docker without rebuilding the image, mount the `custom/` folder as a volume:
+
+```yaml
+# In your docker-compose.yml, under the server service:
+services:
+  server:
+    volumes:
+      - ./custom:/repo/apps/server/custom  # Mount custom commands
+```
+
+Or with `docker run`:
+
+```bash
+docker run ... -v /path/to/custom:/repo/apps/server/custom ghcr.io/zikeji/manlycam:latest
+```
+
+> **Note:** Mounting a volume **shadows the entire directory** — the built-in commands baked into the image are no longer visible. Copy any built-ins you want to keep (`shrug.js`, `tableflip.js`, `pet.js`, `treat.js`) from `apps/server/custom/` into your local folder first.
+
+> **Note:** Do not mount with `:ro` (read-only) if any of your commands write files to `__dirname` (e.g. rate-limit state files). The built-in `/pet` and `/treat` commands write `.last-*-timestamp` files to the `custom/` directory and require a writable mount.
+
 ## Deploy File Reference
 
 ```

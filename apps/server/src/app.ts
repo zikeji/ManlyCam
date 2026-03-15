@@ -19,6 +19,7 @@ import { createWsRouter } from './routes/ws.js';
 import { createChatRouter } from './routes/chat.js';
 import { createModerationRouter } from './routes/moderation.js';
 import { createAdminRouter } from './routes/admin.js';
+import { createCommandsRouter } from './routes/commands.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -37,6 +38,7 @@ export function createApp() {
   app.route('/', meRouter);
   app.route('/', streamRouter);
   app.route('/', createChatRouter());
+  app.route('/', createCommandsRouter());
   app.route('/', createModerationRouter());
   app.route('/api/admin', createAdminRouter());
 

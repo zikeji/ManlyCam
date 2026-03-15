@@ -15,6 +15,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 import BatteryIndicator from './BatteryIndicator.vue';
 import { viewers } from '@/composables/usePresence';
+import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue';
 
 const props = withDefaults(defineProps<{
   streamState: ClientStreamState;
@@ -64,6 +65,12 @@ const isSnapshotDisabled = computed(() => {
 const isPulsing = ref(false);
 let pulseTimer: number | null = null;
 const isProfileOpen = ref(false);
+const preferencesOpen = ref(false);
+
+const handleOpenPreferences = () => {
+  isProfileOpen.value = false;
+  preferencesOpen.value = true;
+};
 
 onBeforeUnmount(() => {
   if (pulseTimer !== null) {
@@ -261,6 +268,14 @@ const streamToggleLabel = computed(() => {
           </template>
 
           <button
+            class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
+            @click="handleOpenPreferences"
+          >
+            Preferences
+          </button>
+          <div class="h-px bg-border my-1" />
+
+          <button
             class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground flex items-center gap-2"
             @click="handleLogout"
           >
@@ -292,6 +307,7 @@ const streamToggleLabel = computed(() => {
       </div>
     </div>
   </div>
+  <PreferencesDialog v-model:open="preferencesOpen" />
 </template>
 
 <style scoped>

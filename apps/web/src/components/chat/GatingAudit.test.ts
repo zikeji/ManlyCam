@@ -16,27 +16,30 @@ const mockIntersectionObserver = vi.fn(() => ({
 }));
 vi.stubGlobal('IntersectionObserver', mockIntersectionObserver);
 
-const { mockUseAuth, mockUseChat, mockUsePresence, IconProxy } = vi.hoisted(() => {
-  const GenericIcon = {
-    template: '<svg />',
-  };
-  const MicOffIcon = {
-    template: '<svg aria-label="Muted" />',
-  };
-  return {
-    mockUseAuth: vi.fn(),
-    mockUseChat: vi.fn(),
-    mockUsePresence: vi.fn(),
-    IconProxy: new Proxy(
-      {
-        MicOff: MicOffIcon,
-      },
-      {
-        get: (target, prop) => target[prop as keyof typeof target] || GenericIcon,
-      },
-    ),
-  };
-});
+const { mockUseAuth, mockUseChat, mockUsePresence, IconProxy, mockEphemeralMessages } = vi.hoisted(
+  () => {
+    const GenericIcon = {
+      template: '<svg />',
+    };
+    const MicOffIcon = {
+      template: '<svg aria-label="Muted" />',
+    };
+    return {
+      mockUseAuth: vi.fn(),
+      mockUseChat: vi.fn(),
+      mockUsePresence: vi.fn(),
+      mockEphemeralMessages: { value: [] as import('@manlycam/types').ChatMessage[] },
+      IconProxy: new Proxy(
+        {
+          MicOff: MicOffIcon,
+        },
+        {
+          get: (target, prop) => target[prop as keyof typeof target] || GenericIcon,
+        },
+      ),
+    };
+  },
+);
 
 vi.mock('@/composables/useAuth', () => ({
   useAuth: mockUseAuth,
@@ -44,9 +47,12 @@ vi.mock('@/composables/useAuth', () => ({
 
 vi.mock('@/composables/useChat', () => ({
   useChat: mockUseChat,
+  ephemeralMessages: mockEphemeralMessages,
+  dismissEphemeral: vi.fn(),
   handleUserUpdate: vi.fn(),
   handleChatEdit: vi.fn(),
   handleChatDelete: vi.fn(),
+  handleEphemeral: vi.fn(),
 }));
 
 vi.mock('@/composables/usePresence', () => ({
@@ -123,6 +129,10 @@ vi.mock('@/components/ui/tabs', () => ({
 
 vi.mock('reka-ui', () => ({
   TabsIndicator: { template: '<div />' },
+}));
+
+vi.mock('@/components/ui/scroll-area', () => ({
+  ScrollArea: { template: '<div><slot /></div>' },
 }));
 
 vi.mock('@/components/ui/popover', () => ({

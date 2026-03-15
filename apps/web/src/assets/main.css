@@ -73,6 +73,66 @@
   }
 }
 
+/* highlight.js code block copy button */
+.hljs-wrapper {
+  position: relative;
+}
+
+.hljs-copy-btn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  font-family: inherit;
+  border-radius: 0.25rem;
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+
+.hljs-wrapper:hover .hljs-copy-btn {
+  opacity: 1;
+}
+
+.hljs-copy-btn:hover {
+  color: hsl(var(--foreground));
+}
+
+.hljs-copy-btn--copied {
+  color: hsl(142 70% 45%) !important;
+}
+
+/* Styled scrollbar for code blocks (pre) — matches ShadCN ScrollArea aesthetic */
+pre {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+
+pre::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+pre::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+
+pre::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
 /* Suppress all motion for users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,

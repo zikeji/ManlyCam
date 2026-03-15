@@ -17,7 +17,7 @@ vi.mock('../db/client.js', () => ({
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => '01HZTEST00000000000000001') }));
 
 vi.mock('./wsHub.js', () => ({
-  wsHub: { broadcast: vi.fn() },
+  wsHub: { broadcast: vi.fn(), getPresenceList: vi.fn(() => []) },
 }));
 
 import { prisma } from '../db/client.js';
@@ -59,7 +59,12 @@ describe('chatService.createMessage', () => {
   });
 
   it('inserts a message row into the database', async () => {
-    await createMessage({ userId: 'user-001', content: 'Hello world' });
+    await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: 'Hello world',
+    });
 
     expect(prisma.message.create).toHaveBeenCalledWith({
       data: {
@@ -72,7 +77,12 @@ describe('chatService.createMessage', () => {
   });
 
   it('returns a ChatMessage shape with correct fields', async () => {
-    const result = await createMessage({ userId: 'user-001', content: 'Hello world' });
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: 'Hello world',
+    });
 
     expect(result).toEqual({
       id: '01HZTEST00000000000000001',
@@ -91,7 +101,12 @@ describe('chatService.createMessage', () => {
   });
 
   it('broadcasts a chat:message WS event to all clients', async () => {
-    const result = await createMessage({ userId: 'user-001', content: 'Hello world' });
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: 'Hello world',
+    });
 
     expect(wsHub.broadcast).toHaveBeenCalledWith({
       type: 'chat:message',
@@ -100,8 +115,13 @@ describe('chatService.createMessage', () => {
   });
 
   it('computes userTag as null for ViewerCompany with no tag text', async () => {
-    const result = await createMessage({ userId: 'user-001', content: 'Hi' });
-    expect(result.userTag).toBeNull();
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: 'Hi',
+    });
+    expect(result!.userTag).toBeNull();
   });
 
   it('computes Guest userTag for ViewerGuest with no tag text', async () => {
@@ -110,8 +130,13 @@ describe('chatService.createMessage', () => {
       user: { ...mockUser, role: 'ViewerGuest' },
     } as never);
 
-    const result = await createMessage({ userId: 'user-001', content: 'Hi' });
-    expect(result.userTag).toEqual({ text: 'Guest', color: '#a16207' });
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: 'Hi',
+    });
+    expect(result!.userTag).toEqual({ text: 'Guest', color: '#a16207' });
   });
 
   it('computes custom userTag when userTagText is set', async () => {
@@ -120,8 +145,13 @@ describe('chatService.createMessage', () => {
       user: { ...mockUser, userTagText: 'VIP', userTagColor: '#FF0000' },
     } as never);
 
-    const result = await createMessage({ userId: 'user-001', content: 'Hi' });
-    expect(result.userTag).toEqual({ text: 'VIP', color: '#FF0000' });
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: 'Hi',
+    });
+    expect(result!.userTag).toEqual({ text: 'VIP', color: '#FF0000' });
   });
 
   it('falls back to default color when userTagColor is null', async () => {
@@ -130,8 +160,13 @@ describe('chatService.createMessage', () => {
       user: { ...mockUser, userTagText: 'Pro', userTagColor: null },
     } as never);
 
-    const result = await createMessage({ userId: 'user-001', content: 'Hi' });
-    expect(result.userTag).toEqual({ text: 'Pro', color: '#6b7280' });
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: 'Hi',
+    });
+    expect(result!.userTag).toEqual({ text: 'Pro', color: '#6b7280' });
   });
 });
 

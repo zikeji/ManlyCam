@@ -195,7 +195,12 @@ describe('POST /api/chat/messages', () => {
       body: JSON.stringify({ content: 'Hello world' }),
     });
 
-    expect(createMessage).toHaveBeenCalledWith({ userId: 'user-001', content: 'Hello world' });
+    expect(createMessage).toHaveBeenCalledWith({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany',
+      content: 'Hello world',
+    });
   });
 });
 
