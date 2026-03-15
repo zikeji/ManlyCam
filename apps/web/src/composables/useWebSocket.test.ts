@@ -84,6 +84,53 @@ vi.mock('./usePiSugar', () => ({
   setStateFromWs: mockSetPiSugarStateFromWs,
 }));
 
+// --- useUserCache mock ---
+const mockLookupUser = vi.hoisted(() =>
+  vi.fn<(id: string) => { displayName: string } | undefined>().mockReturnValue(undefined),
+);
+vi.mock('./useUserCache', () => ({
+  cacheUsers: vi.fn(),
+  lookupUser: mockLookupUser,
+}));
+
+// --- useBrowserNotifications mock ---
+const mockShowNotification = vi.hoisted(() => vi.fn());
+vi.mock('./useBrowserNotifications', () => ({
+  useBrowserNotifications: () => ({
+    requestPermission: vi.fn(),
+    showNotification: mockShowNotification,
+  }),
+}));
+
+// --- useNotificationPreferences mock ---
+// Use a plain object to mimic a ref (cannot use vue's ref inside vi.hoisted)
+const mockNotificationPreferences = vi.hoisted(() => ({
+  value: {
+    chatMessages: true,
+    mentions: true,
+    streamState: true,
+    flashTitlebar: true,
+  },
+}));
+vi.mock('./useNotificationPreferences', () => ({
+  useNotificationPreferences: () => ({
+    preferences: mockNotificationPreferences,
+    updatePreference: vi.fn(),
+  }),
+}));
+
+// --- useAuth mock ---
+const mockAuthUser = vi.hoisted(() => ({
+  value: { id: 'user-self', displayName: 'Self' } as { id: string; displayName: string } | null,
+}));
+vi.mock('./useAuth', () => ({
+  useAuth: () => ({
+    user: mockAuthUser,
+    fetchCurrentUser: vi.fn(),
+    logout: vi.fn(),
+  }),
+}));
+
 // --- router mock ---
 const mockRouterPush = vi.hoisted(() => vi.fn());
 vi.mock('@/router', () => ({
@@ -491,6 +538,171 @@ describe('useWebSocket', () => {
       mockWsInstance.readyState = 3;
       mockWsInstance.onclose?.({} as CloseEvent);
       expect(isConnected.value).toBe(false);
+    });
+  });
+
+  describe('stream notification (8-3)', () => {
+    it('shows stream notification when state transitions from connecting to live', () => {
+      const { connect } = useWebSocket();
+      connect();
+
+      // First message — sets prevStreamState = 'connecting', before=null → no notification
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'stream:state', payload: { state: 'connecting' } }),
+        }),
+      );
+      expect(mockShowNotification).not.toHaveBeenCalled();
+
+      // Second message — before='connecting', after='live' → notification fires
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'stream:state', payload: { state: 'live' } }),
+        }),
+      );
+      expect(mockShowNotification).toHaveBeenCalledWith('Stream Update', {
+        body: 'Stream is now live!',
+      });
+    });
+
+    it('shows offline notification when stream goes from live to explicit-offline', () => {
+      const { connect } = useWebSocket();
+      connect();
+
+      // Prime prevStreamState
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'stream:state', payload: { state: 'live' } }),
+        }),
+      );
+
+      mockShowNotification.mockClear();
+
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'stream:state', payload: { state: 'explicit-offline' } }),
+        }),
+      );
+      expect(mockShowNotification).toHaveBeenCalledWith('Stream Update', {
+        body: 'Stream has gone offline.',
+      });
+    });
+
+    it('does not show stream notification when streamState preference is disabled', () => {
+      mockNotificationPreferences.value.streamState = false;
+      const { connect } = useWebSocket();
+      connect();
+
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'stream:state', payload: { state: 'live' } }),
+        }),
+      );
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'stream:state', payload: { state: 'explicit-offline' } }),
+        }),
+      );
+      expect(mockShowNotification).not.toHaveBeenCalled();
+      mockNotificationPreferences.value.streamState = true;
+    });
+  });
+
+  describe('chat notification (8-3)', () => {
+    it('shows chat message notification when chatMessages preference is enabled', () => {
+      const { connect } = useWebSocket();
+      connect();
+
+      const payload = {
+        id: 'msg-002',
+        userId: 'user-other',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany' as const,
+        userTag: null,
+        content: 'hello world',
+        editedAt: null,
+        createdAt: new Date().toISOString(),
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'chat:message', payload }) }),
+      );
+      expect(mockShowNotification).toHaveBeenCalledWith('Alice', { body: 'hello world' });
+    });
+
+    it('shows mention notification when current user is mentioned', () => {
+      const { connect } = useWebSocket();
+      connect();
+
+      // Make lookupUser resolve user-self to 'Self' for token replacement
+      mockLookupUser.mockImplementation((id: string) =>
+        id === 'user-self' ? { displayName: 'Self' } : undefined,
+      );
+
+      const payload = {
+        id: 'msg-003',
+        userId: 'user-other',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany' as const,
+        userTag: null,
+        content: 'hey <@user-self> check this out',
+        editedAt: null,
+        createdAt: new Date().toISOString(),
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'chat:message', payload }) }),
+      );
+      expect(mockShowNotification).toHaveBeenCalledWith(
+        'You were mentioned',
+        expect.objectContaining({ body: 'Alice: hey @Self check this out' }),
+      );
+
+      mockLookupUser.mockReturnValue(undefined);
+    });
+
+    it('does not show chat notification when chatMessages preference is disabled', () => {
+      mockNotificationPreferences.value.chatMessages = false;
+      const { connect } = useWebSocket();
+      connect();
+
+      const payload = {
+        id: 'msg-004',
+        userId: 'user-other',
+        displayName: 'Bob',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany' as const,
+        userTag: null,
+        content: 'hello',
+        editedAt: null,
+        createdAt: new Date().toISOString(),
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'chat:message', payload }) }),
+      );
+      expect(mockShowNotification).not.toHaveBeenCalled();
+      mockNotificationPreferences.value.chatMessages = true;
+    });
+
+    it('does not show notification for own messages', () => {
+      const { connect } = useWebSocket();
+      connect();
+
+      const payload = {
+        id: 'msg-005',
+        userId: 'user-self', // same as mockAuthUser.value.id
+        displayName: 'Self',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany' as const,
+        userTag: null,
+        content: 'my own message',
+        editedAt: null,
+        createdAt: new Date().toISOString(),
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'chat:message', payload }) }),
+      );
+      expect(mockShowNotification).not.toHaveBeenCalled();
     });
   });
 

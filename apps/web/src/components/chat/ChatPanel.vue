@@ -27,6 +27,7 @@ const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoad
   useChat();
 const { user } = useAuth();
 const { viewers, typingUsers, mutedUserIds } = usePresence();
+const otherTypingUsers = computed(() => typingUsers.value.filter((u) => u.userId !== user.value?.id));
 const { sendTypingStart, sendTypingStop } = useWebSocket();
 const { flashTitlebar } = useTitlebarFlash();
 
@@ -375,7 +376,7 @@ async function handleSend(content: string) {
             </div>
 
             <!-- Typing indicator — below input bars, only visible when active -->
-            <TypingIndicator :typing-users="typingUsers" />
+            <TypingIndicator :typing-users="otherTypingUsers" />
           </div>
 
           <!-- Viewers tab -->

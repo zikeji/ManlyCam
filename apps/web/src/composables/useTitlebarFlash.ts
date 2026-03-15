@@ -1,4 +1,7 @@
 import { onMounted, onUnmounted } from 'vue';
+import { useNotificationPreferences } from './useNotificationPreferences';
+
+const { preferences } = useNotificationPreferences();
 
 let originalTitle = '';
 let isFlashing = false;
@@ -17,6 +20,7 @@ function stopFlash() {
 
 export function useTitlebarFlash() {
   function flashTitlebar(message: string): void {
+    if (!preferences.value.flashTitlebar) return;
     if (!document.hidden || isFlashing) return;
     if (!originalTitle) {
       originalTitle = document.title;

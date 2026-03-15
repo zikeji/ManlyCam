@@ -13,8 +13,11 @@ import {
   handleModerationMuted,
   handleModerationUnmuted,
 } from './usePresence';
-import { cacheUsers } from './useUserCache';
+import { cacheUsers, lookupUser } from './useUserCache';
 import { setStateFromWs as setPiSugarStateFromWs } from './usePiSugar';
+import { useAuth } from './useAuth';
+import { useBrowserNotifications } from './useBrowserNotifications';
+import { useNotificationPreferences } from './useNotificationPreferences';
 import type { UserPresence, WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
@@ -35,6 +38,10 @@ export function useWebSocket(): WsInterface {
   // App-root call: create singleton
   const isConnected = ref(false);
   let socket: WebSocket | null = null;
+  const { user } = useAuth();
+  const { showNotification } = useBrowserNotifications();
+  const { preferences } = useNotificationPreferences();
+  let prevStreamState: string | null = null;
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectDelay = 1000;
   const MAX_DELAY = 30_000;
@@ -43,7 +50,14 @@ export function useWebSocket(): WsInterface {
     try {
       const msg = JSON.parse(event.data) as WsMessage;
       if (msg.type === 'stream:state') {
+        const before = prevStreamState;
         useStream().setStateFromWs(msg.payload);
+        const after = msg.payload.state;
+        prevStreamState = after;
+        if (before !== null && before !== after && preferences.value.streamState) {
+          const body = after === 'live' ? 'Stream is now live!' : 'Stream has gone offline.';
+          showNotification('Stream Update', { body });
+        }
       }
       if (msg.type === 'chat:message') {
         useChat().handleChatMessage(msg.payload);
@@ -59,6 +73,22 @@ export function useWebSocket(): WsInterface {
             userTag: p.userTag,
           } satisfies UserPresence,
         ]);
+        // Mention/chat notifications — skip own messages (server echoes back to sender)
+        const currentUserId = user.value?.id;
+        if (currentUserId && p.userId !== currentUserId) {
+          const resolvedBody = p.content
+            .replace(/<@([^>]+)>/g, (_, id: string) => `@${lookupUser(id)?.displayName ?? id}`)
+            .trim();
+          if (p.content.includes(`<@${currentUserId}>`)) {
+            if (preferences.value.mentions) {
+              showNotification('You were mentioned', {
+                body: `${p.displayName}: ${resolvedBody}`,
+              });
+            }
+          } else if (preferences.value.chatMessages) {
+            showNotification(p.displayName, { body: resolvedBody });
+          }
+        }
       }
       if (msg.type === 'chat:edit') {
         handleChatEdit(msg.payload);
