@@ -15,7 +15,8 @@
 /**
  * @typedef {Object} MessageResponse
  * @property {string} content - The message content to post
- * @property {boolean} [ephemeral] - If true, only the invoking user sees it (not persisted)
+ * @property {boolean} [ephemeral] - If true, only the invoking user sees it (not persisted). Mutually exclusive with impersonateUser.
+ * @property {boolean} [impersonateUser] - If true, post as the invoking user instead of the system user. Default false.
  */
 
 /**
@@ -35,6 +36,6 @@ module.exports = {
   handler: (input, _message, _user) => {
     const shrug = '¯\\_(ツ)_/¯';
     const content = input ? `${input} ${shrug}` : shrug;
-    return { content };
+    return { content, impersonateUser: true };
   },
 };

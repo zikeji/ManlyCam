@@ -15,7 +15,7 @@ const { mockEphemeralMessages } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { ref: vueRef } = require('vue') as typeof import('vue');
   return {
-    mockEphemeralMessages: vueRef<{ content: string; createdAt: string }[]>([]),
+    mockEphemeralMessages: vueRef<import('@manlycam/types').ChatMessage[]>([]),
   };
 });
 
@@ -42,6 +42,7 @@ vi.mock('@/composables/useChat', () => ({
     deleteMessage: mockDeleteMessage,
   }),
   ephemeralMessages: mockEphemeralMessages,
+  dismissEphemeral: vi.fn(),
 }));
 
 vi.mock('@/composables/useAuth', () => ({
@@ -135,6 +136,24 @@ const mockMessage: ChatMessage = {
   createdAt: '2026-03-08T10:00:00.000Z',
   userTag: null,
 };
+
+function makeEphemeral(id: string, content: string): ChatMessage {
+  return {
+    id,
+    userId: '015YP4KB00MANLY0CAM0SYSTEM',
+    displayName: 'System',
+    avatarUrl: null,
+    authorRole: 'System' as ChatMessage['authorRole'],
+    content,
+    editHistory: null,
+    updatedAt: null,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: new Date().toISOString(),
+    userTag: null,
+    ephemeral: true,
+  };
+}
 
 describe('ChatPanel.vue', () => {
   let wrapper: VueWrapper | null = null;
@@ -667,18 +686,14 @@ describe('ChatPanel.vue', () => {
 
   describe('ephemeral messages', () => {
     it('displays ephemeral message content in chat', async () => {
-      mockEphemeralMessages.value = [
-        { content: 'Only you see this', createdAt: new Date().toISOString() },
-      ];
+      mockEphemeralMessages.value = [makeEphemeral('e-001', 'Only you see this')];
       wrapper = mount(ChatPanel);
       await flushPromises();
       expect(wrapper.text()).toContain('Only you see this');
     });
 
     it('does not add ephemeral message to the persistent messages ref', async () => {
-      mockEphemeralMessages.value = [
-        { content: 'Ephemeral only', createdAt: new Date().toISOString() },
-      ];
+      mockEphemeralMessages.value = [makeEphemeral('e-001', 'Ephemeral only')];
       wrapper = mount(ChatPanel);
       await flushPromises();
       // Regular messages list is still empty
@@ -687,8 +702,8 @@ describe('ChatPanel.vue', () => {
 
     it('renders multiple ephemeral messages', async () => {
       mockEphemeralMessages.value = [
-        { content: 'First ephemeral', createdAt: new Date().toISOString() },
-        { content: 'Second ephemeral', createdAt: new Date().toISOString() },
+        makeEphemeral('e-001', 'First ephemeral'),
+        makeEphemeral('e-002', 'Second ephemeral'),
       ];
       wrapper = mount(ChatPanel);
       await flushPromises();
@@ -706,13 +721,11 @@ describe('ChatPanel.vue', () => {
 
     it('displays ephemeral messages alongside regular messages', async () => {
       mockMessages.value = [mockMessage];
-      mockEphemeralMessages.value = [
-        { content: 'Shrug ¯\\_(ツ)_/¯', createdAt: new Date().toISOString() },
-      ];
+      mockEphemeralMessages.value = [makeEphemeral('e-001', 'ephemeral alongside regular')];
       wrapper = mount(ChatPanel);
       await flushPromises();
       expect(wrapper.text()).toContain('Hello!');
-      expect(wrapper.text()).toContain('Shrug ¯\\_(ツ)_/¯');
+      expect(wrapper.text()).toContain('ephemeral alongside regular');
     });
   });
 });

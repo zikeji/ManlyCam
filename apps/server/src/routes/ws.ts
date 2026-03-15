@@ -10,6 +10,7 @@ import { ulid } from '../lib/ulid.js';
 import { computeUserTag } from '../lib/user-tag.js';
 import type { AppEnv } from '../lib/types.js';
 import type { PiSugarStatus, Role, UserPresence, WsMessage } from '@manlycam/types';
+import { SYSTEM_USER_ID } from '@manlycam/types';
 import type { User } from '@prisma/client';
 import type { createNodeWebSocket } from '@hono/node-ws';
 
@@ -122,7 +123,9 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
               });
             }
             if (msg.type === 'users:directory') {
-              const users = await prisma.user.findMany({ where: { bannedAt: null } });
+              const users = await prisma.user.findMany({
+                where: { bannedAt: null, id: { not: SYSTEM_USER_ID } },
+              });
               const infoMsg: WsMessage = {
                 type: 'users:info',
                 payload: users.map(userRowToPresence),
@@ -132,7 +135,9 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
             if (msg.type === 'users:lookup') {
               const ids = (msg.payload as { ids: string[] }).ids;
               if (Array.isArray(ids) && ids.length > 0) {
-                const users = await prisma.user.findMany({ where: { id: { in: ids } } });
+                const users = await prisma.user.findMany({
+                  where: { id: { in: ids, not: SYSTEM_USER_ID } },
+                });
                 const infoMsg: WsMessage = {
                   type: 'users:info',
                   payload: users.map(userRowToPresence),

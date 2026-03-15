@@ -28,7 +28,7 @@ const { mockUseAuth, mockUseChat, mockUsePresence, IconProxy, mockEphemeralMessa
       mockUseAuth: vi.fn(),
       mockUseChat: vi.fn(),
       mockUsePresence: vi.fn(),
-      mockEphemeralMessages: { value: [] as { content: string; createdAt: string }[] },
+      mockEphemeralMessages: { value: [] as import('@manlycam/types').ChatMessage[] },
       IconProxy: new Proxy(
         {
           MicOff: MicOffIcon,
@@ -48,6 +48,7 @@ vi.mock('@/composables/useAuth', () => ({
 vi.mock('@/composables/useChat', () => ({
   useChat: mockUseChat,
   ephemeralMessages: mockEphemeralMessages,
+  dismissEphemeral: vi.fn(),
   handleUserUpdate: vi.fn(),
   handleChatEdit: vi.fn(),
   handleChatDelete: vi.fn(),

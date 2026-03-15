@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { SYSTEM_USER_ID } from '@manlycam/types';
 
 // Capture the handler factory passed to upgradeWebSocket so we can invoke
 // onOpen / onClose / onMessage directly in tests without real WS infrastructure.
@@ -293,7 +294,9 @@ describe('WS onMessage — users:directory and users:lookup', () => {
 
     await handlers.onMessage!({ data: JSON.stringify({ type: 'users:directory' }) }, mockWs);
 
-    expect(prisma.user.findMany).toHaveBeenCalledWith({ where: { bannedAt: null } });
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { bannedAt: null, id: { not: SYSTEM_USER_ID } },
+    });
     const sent = mockWs.send.mock.calls.map((c) => JSON.parse(c[0] as string));
     const infoMsg = sent.find((m) => m.type === 'users:info');
     expect(infoMsg).toBeDefined();
@@ -313,7 +316,9 @@ describe('WS onMessage — users:directory and users:lookup', () => {
       mockWs,
     );
 
-    expect(prisma.user.findMany).toHaveBeenCalledWith({ where: { id: { in: ['user-001'] } } });
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { id: { in: ['user-001'], not: SYSTEM_USER_ID } },
+    });
     const sent = mockWs.send.mock.calls.map((c) => JSON.parse(c[0] as string));
     const infoMsg = sent.find((m) => m.type === 'users:info');
     expect(infoMsg).toBeDefined();

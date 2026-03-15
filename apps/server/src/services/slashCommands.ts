@@ -8,6 +8,7 @@ import type {
   MessageResponse,
   Role,
 } from '@manlycam/types';
+import { SYSTEM_USER_ID } from '@manlycam/types';
 import { AppError } from '../lib/errors.js';
 import { logger } from '../lib/logger.js';
 
@@ -83,7 +84,13 @@ interface ExecuteCommandParams {
   mentionedUserIds: string[];
 }
 
-export function executeCommand(params: ExecuteCommandParams): MessageResponse | null {
+export interface CommandResult {
+  response: MessageResponse;
+  /** The user ID to attribute the message to — either the invoking user or the system user. */
+  authorUserId: string;
+}
+
+export function executeCommand(params: ExecuteCommandParams): CommandResult | null {
   const { content, userId, userDisplayName, userRole, mentionedUserIds } = params;
 
   if (!content.startsWith('/')) return null;
@@ -113,12 +120,25 @@ export function executeCommand(params: ExecuteCommandParams): MessageResponse | 
     role: userRole,
   };
 
+  let response: MessageResponse;
   try {
-    return command.handler(input, message, user);
+    response = command.handler(input, message, user);
   } catch (err) {
     logger.error({ err, command: commandName }, 'Slash command handler error');
     throw new AppError('Command execution failed', 'INTERNAL_ERROR', 500);
   }
+
+  // ephemeral and impersonateUser are mutually exclusive — ephemeral wins
+  if (response.ephemeral && response.impersonateUser) {
+    logger.warn(
+      { command: commandName },
+      'Slash command returned both ephemeral and impersonateUser — impersonateUser ignored',
+    );
+  }
+
+  const authorUserId = !response.ephemeral && response.impersonateUser ? userId : SYSTEM_USER_ID;
+
+  return { response, authorUserId };
 }
 
 loadCommands();

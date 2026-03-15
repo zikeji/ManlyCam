@@ -20,7 +20,7 @@ import {
 import { MicOff } from 'lucide-vue-next';
 import { ref } from 'vue';
 import type { UserPresence, Role } from '@manlycam/types';
-import { ROLE_RANK } from '@manlycam/types';
+import { ROLE_RANK, SYSTEM_USER_ID } from '@manlycam/types';
 
 const props = defineProps<{
   viewers: UserPresence[];
@@ -72,14 +72,14 @@ function initials(name: string): string {
 <template>
   <div class="p-3">
     <p
-      v-if="viewers.length === 0"
+      v-if="viewers.filter(v => v.id !== SYSTEM_USER_ID).length === 0"
       class="text-sm text-muted-foreground text-center mt-4"
     >
       Just you for now 👀
     </p>
     <ul v-else class="space-y-2">
       <li
-        v-for="viewer in viewers"
+        v-for="viewer in viewers.filter(v => v.id !== SYSTEM_USER_ID)"
         :key="viewer.id"
         class="flex items-center gap-2"
       >

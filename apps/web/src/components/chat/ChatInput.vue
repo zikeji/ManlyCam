@@ -9,6 +9,7 @@ import { userCache } from '@/composables/useUserCache';
 import { getSiteName } from '@/lib/env';
 import { apiFetch } from '@/lib/api';
 import type { UserPresence } from '@manlycam/types';
+import { SYSTEM_USER_ID } from '@manlycam/types';
 
 interface CommandEntry {
   name: string;
@@ -294,7 +295,9 @@ const sortedViewers = computed(() => {
     merged.set(viewer.id, viewer);
   }
 
-  const allUsers = [...merged.values()].filter((v) => v.id !== props.currentUserId);
+  const allUsers = [...merged.values()].filter(
+    (v) => v.id !== props.currentUserId && v.id !== SYSTEM_USER_ID,
+  );
   const recentIds = recentlyChattedUserIds.value;
 
   return allUsers.sort((a, b) => {

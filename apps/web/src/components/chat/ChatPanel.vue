@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
-import { useChat, ephemeralMessages } from '@/composables/useChat';
+import { useChat, ephemeralMessages, dismissEphemeral } from '@/composables/useChat';
 import { useAuth } from '@/composables/useAuth';
 import { usePresence } from '@/composables/usePresence';
 import { useWebSocket } from '@/composables/useWebSocket';
@@ -16,7 +16,7 @@ import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import PresenceList from './PresenceList.vue';
 import TypingIndicator from './TypingIndicator.vue';
-import { Role, ROLE_RANK } from '@manlycam/types';
+import { Role, ROLE_RANK, SYSTEM_USER_ID } from '@manlycam/types';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 // const emit = defineEmits<{
@@ -24,8 +24,16 @@ import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 //   openUserManager: [];
 // }>();
 
-const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory, editMessage, deleteMessage } =
-  useChat();
+const {
+  messages,
+  sendChatMessage,
+  initHistory,
+  loadMoreHistory,
+  hasMore,
+  isLoadingHistory,
+  editMessage,
+  deleteMessage,
+} = useChat();
 const { user } = useAuth();
 const { viewers, typingUsers, mutedUserIds } = usePresence();
 const otherTypingUsers = computed(() => typingUsers.value.filter((u) => u.userId !== user.value?.id));
@@ -73,6 +81,8 @@ const isSelfMuted = computed(
 function canModerateDeleteMsg(msg: ChatMessageType): boolean {
   if (!user.value || !isPrivileged.value) return false;
   if (msg.userId === user.value.id) return false; // own messages handled by isOwn
+  // System messages can only be deleted by Admin
+  if (msg.userId === SYSTEM_USER_ID) return user.value.role === Role.Admin;
   return (ROLE_RANK[user.value.role] ?? 0) > (ROLE_RANK[msg.authorRole] ?? 0);
 }
 
@@ -210,6 +220,15 @@ watch(
     }
   },
   { deep: true },
+);
+
+// Ephemeral messages are always directed at the current user — always scroll to show them.
+watch(
+  () => ephemeralMessages.value.length,
+  async () => {
+    await nextTick();
+    if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+  },
 );
 
 // Track recently chatted users and flash titlebar on mention
@@ -364,14 +383,20 @@ async function handleSend(content: string) {
                 </template>
 
                 <!-- Ephemeral messages — visible only to the invoking user, not persisted -->
-                <div
-                  v-for="(ephemeral, i) in ephemeralMessages"
-                  :key="`ephemeral-${i}`"
-                  class="px-3 py-1 text-sm italic opacity-60 text-muted-foreground"
-                  aria-live="polite"
-                >
-                  {{ ephemeral.content }}
-                </div>
+                <ChatMessage
+                  v-for="ephemeral in ephemeralMessages"
+                  :key="ephemeral.id"
+                  :message="ephemeral"
+                  :is-continuation="false"
+                  :is-own="false"
+                  :can-moderate-delete="false"
+                  :is-author-muted="false"
+                  :is-ephemeral="true"
+                  :current-user-role="user?.role"
+                  :current-user-id="user?.id"
+                  :viewers="viewers"
+                  @dismiss="dismissEphemeral(ephemeral.id)"
+                />
               </div>
             </ScrollArea>
 

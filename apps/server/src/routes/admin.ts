@@ -4,7 +4,7 @@ import { requireRole } from '../middleware/requireRole.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
 import { AppError } from '../lib/errors.js';
 import type { AppEnv } from '../lib/types.js';
-import { Role } from '@manlycam/types';
+import { Role, SYSTEM_USER_ID } from '@manlycam/types';
 
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -83,6 +83,14 @@ export function createAdminRouter() {
       );
     }
     const actor = c.get('user')!;
+
+    // System user role is immutable
+    if (targetUserId === SYSTEM_USER_ID) {
+      return c.json(
+        { error: { code: 'FORBIDDEN', message: 'The system user role cannot be changed.' } },
+        403,
+      );
+    }
 
     // AC #8: Admin cannot change their own role via web UI
     if (targetUserId === actor.id) {

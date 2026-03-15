@@ -52,6 +52,7 @@ import {
   executeCommand,
   reloadCommands,
 } from './slashCommands.js';
+import { SYSTEM_USER_ID } from '@manlycam/types';
 
 describe('slashCommands.loadCommands', () => {
   afterEach(() => {
@@ -378,7 +379,8 @@ describe('slashCommands.executeCommand', () => {
       userRole: 'ViewerCompany',
       mentionedUserIds: [],
     });
-    expect(result).toEqual({ content: 'shrug result' });
+    expect(result?.response).toEqual({ content: 'shrug result' });
+    expect(result?.authorUserId).toBe(SYSTEM_USER_ID);
   });
 
   it('returns ephemeral result when handler sets ephemeral: true', () => {
@@ -390,7 +392,8 @@ describe('slashCommands.executeCommand', () => {
       userRole: 'ViewerCompany',
       mentionedUserIds: [],
     });
-    expect(result).toEqual({ content: 'Only you', ephemeral: true });
+    expect(result?.response).toEqual({ content: 'Only you', ephemeral: true });
+    expect(result?.authorUserId).toBe(SYSTEM_USER_ID);
   });
 
   it('throws FORBIDDEN when user lacks required role', () => {

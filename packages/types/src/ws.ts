@@ -37,6 +37,7 @@ export interface ChatMessage {
   deletedBy: string | null // differs from userId on mod-initiated deletes
   createdAt: string
   userTag: UserTag | null
+  ephemeral?: boolean // client-only: not persisted, only sent to invoking user
 }
 
 export interface ChatEdit {
@@ -75,4 +76,4 @@ export type WsMessage =
   | { type: 'users:directory' }
   | { type: 'users:lookup';       payload: { ids: string[] } }
   | { type: 'users:info';         payload: UserPresence[] }
-  | { type: 'chat:ephemeral';     payload: { content: string; createdAt: string } }
+  | { type: 'chat:ephemeral';     payload: ChatMessage }
