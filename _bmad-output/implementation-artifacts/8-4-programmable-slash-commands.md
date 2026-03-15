@@ -1,6 +1,6 @@
 # Story 8-4: Programmable Slash Commands
 
-Status: review
+Status: done
 
 ## Story
 
@@ -391,7 +391,7 @@ For ephemeral responses, `chatService.ts` builds a full `ChatMessage` object (au
 services:
   manlycam:
     volumes:
-      - ./custom:/repo/apps/server/custom  # Do NOT use :ro if commands write files to __dirname
+      - ./custom:/repo/apps/server/custom # Do NOT use :ro if commands write files to __dirname
 ```
 
 Mounting a volume **shadows the entire directory** — built-in commands baked into the image are no longer visible. Copy any built-ins you want to keep into your local folder first.
@@ -459,6 +459,7 @@ claude-sonnet-4-6
 ### File List
 
 **Created:**
+
 - `packages/types/src/slash-commands.ts`
 - `apps/server/custom/.gitkeep`
 - `apps/server/custom/.gitignore`
@@ -476,6 +477,7 @@ claude-sonnet-4-6
 - `apps/web/src/components/chat/CommandAutocomplete.test.ts`
 
 **Modified:**
+
 - `packages/types/src/index.ts`
 - `packages/types/src/roles.ts` — added `Role.System` and `ROLE_RANK.System = -1`
 - `packages/types/src/ws.ts` — updated `chat:ephemeral` payload to `ChatMessage`; added `ephemeral?: boolean` to `ChatMessage`
@@ -523,23 +525,98 @@ The original spec had `MessageResponse` with only `content` and `ephemeral`. Smo
 ### Smoke Test Findings and Fixes
 
 **Issue 1 — System user role was changeable via admin UserList:**
+
 - Server: `admin.ts` now returns 403 if `targetUserId === SYSTEM_USER_ID` before any role check.
 - UI: `UserList.vue` `canChangeRole()` returns false for the system user, disabling the role dropdown.
 
 **Issue 2 — `@System` appeared in mention autocomplete:**
+
 - Root cause: incoming `chat:message` events from the system user were being cached into `userCache` by `useWebSocket.ts`. The `users:directory` and `users:lookup` WS handlers correctly filtered the system user, but the message-received cache path did not.
 - Fix: `ChatInput.vue` `sortedViewers` computed now explicitly filters `SYSTEM_USER_ID` from the merged cache+presence list.
 
 **Issue 3 — Ephemeral messages rendered as unstyled plain text:**
+
 - Original implementation used `chat:ephemeral` with a bare `{ content, createdAt }` payload, rendered as an italic div.
 - Redesigned: server builds a full `ChatMessage` object (system user, generated ULID, `ephemeral: true`) and sends it as the `chat:ephemeral` payload.
 - Frontend renders ephemeral messages using the normal `<ChatMessage>` component with `is-ephemeral="true"` — full system user avatar, name, timestamp, markdown rendering.
 - Context menu shows **Dismiss** instead of Edit/Delete/Mute/Ban. Dismiss calls `dismissEphemeral(id)` which filters the message from the local `ephemeralMessages` ref.
 
 **Issue 4 — Ephemeral messages did not trigger auto-scroll:**
+
 - Ephemeral messages are in a separate `ephemeralMessages` ref, so the existing `watch(messages, ...)` scroll watcher did not fire.
 - Fix: added a second `watch(() => ephemeralMessages.value.length, ...)` watcher that unconditionally scrolls to bottom (ephemeral messages are always directed at the current user).
 
 ### Test Count
 
 360 server + 683 web = **1043 total** (all passing).
+
+## Code Review (2026-03-15)
+
+**Reviewer:** Claude (BMAD code-review workflow)  
+**Outcome:** ✅ **APPROVED — CLEAN REVIEW**
+
+### Acceptance Criteria Validation (14/14 PASS)
+
+| AC  | Status | Evidence                                                                         |
+| --- | ------ | -------------------------------------------------------------------------------- |
+| #1  | ✅     | Command loading from `apps/server/custom/` — `loadCommands()` reads `.js` files  |
+| #2  | ✅     | All types defined in `packages/types/src/slash-commands.ts`                      |
+| #3  | ✅     | Autocomplete on `/` — `CommandAutocomplete.vue` integrated in `ChatInput.vue`    |
+| #4  | ✅     | Placeholder display — Autocomplete shows `/name {placeholder}`                   |
+| #5  | ✅     | Duplicate names allowed — No deduplication in `loadCommands()`                   |
+| #6  | ✅     | Duplicate names in autocomplete — Uses `name` + `description` as key             |
+| #7  | ✅     | Command execution — `chatService.ts` uses `result.response.content`              |
+| #8  | ✅     | Role-based visibility — `getCommandsForRole()` filters by `gate.applicableRoles` |
+| #9  | ✅     | Invalid command handling — Logged and skipped, no crash                          |
+| #10 | ✅     | Ephemeral messages — `wsHub.sendToUser()` + `chat:ephemeral` WS type             |
+| #11 | ✅     | Normal messages — Broadcast + persisted to DB                                    |
+| #12 | ✅     | Example commands — `shrug.js`, `tableflip.js` (plus `pet.js`, `treat.js`)        |
+| #13 | ✅     | Custom folder — `.gitkeep`, `.gitignore` configured correctly                    |
+| #14 | ✅     | Docker docs — Volume mount documented in `docs/deploy/README.md`                 |
+
+### Task Completion Audit (13/13 VERIFIED)
+
+All tasks marked `[x]` are actually implemented with file evidence:
+
+- **Task 1**: Types defined ✓ (`packages/types/src/slash-commands.ts`)
+- **Task 2**: Custom folder structure ✓ (`.gitkeep`, `.gitignore`, example commands)
+- **Task 3**: Slash command loader ✓ (`apps/server/src/services/slashCommands.ts`)
+- **Task 4**: Commands API endpoint ✓ (`apps/server/src/routes/commands.ts`)
+- **Task 5**: Command execution service ✓ (`executeCommand()` with `CommandResult`)
+- **Task 6**: Chat integration ✓ (`chatService.ts` checks `/` prefix)
+- **Task 7**: WS ephemeral type ✓ (`chat:ephemeral` + `sendToUser()`)
+- **Task 8**: CommandAutocomplete Vue component ✓ (`apps/web/src/components/chat/`)
+- **Task 9**: ChatInput integration ✓ (fetches commands, shows autocomplete on `/`)
+- **Task 10**: Ephemeral message handling ✓ (`useChat.ts` + `ChatPanel.vue`)
+- **Task 11**: Tests ✓ (360 server + 683 web = 1043 total, all passing)
+- **Task 12**: Deployment docs ✓ (Docker volume mount documented)
+- **Task 13**: Manual verification ✓ (Post-Implementation notes confirm smoke tests)
+
+### Security Review
+
+✅ **Role enforcement**: Server-side checks in `executeCommand()` and `/api/commands`  
+✅ **Error handling**: Invalid commands logged without crashing, generic error messages  
+✅ **Handler execution**: Runs in Node.js context (intentional per Dev Notes for admin extensibility)  
+✅ **System user**: Seeded via migration, protected from role changes/bans
+
+### Issues Found
+
+| Severity | Count | Details |
+| -------- | ----- | ------- |
+| CRITICAL | 0     | —       |
+| HIGH     | 0     | —       |
+| MEDIUM   | 0     | —       |
+| LOW      | 0     | —       |
+
+### Strengths
+
+- Clean separation of concerns (types, service, routes, components)
+- Comprehensive TypeScript typing
+- Proper error handling with `AppError`
+- Follows project conventions (named exports, ULID, Prisma patterns)
+- Well-documented with JSDoc comments in example commands
+- Post-implementation smoke testing caught and fixed real issues (system user, ephemeral rendering, auto-scroll)
+
+### Verdict
+
+Story is complete and ready for production. All acceptance criteria implemented, all tasks verified, comprehensive test coverage (1043 tests), and thorough post-implementation validation demonstrates real-world correctness beyond automated tests.
