@@ -1,0 +1,8 @@
+# Ignore everything in this folder
+*
+
+# Except these files
+!.gitkeep
+!.gitignore
+!shrug.js
+!tableflip.js
