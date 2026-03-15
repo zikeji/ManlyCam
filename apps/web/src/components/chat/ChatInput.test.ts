@@ -4,6 +4,13 @@ import { nextTick } from 'vue';
 import ChatInput from './ChatInput.vue';
 import type { UserPresence } from '@manlycam/types';
 
+// Default: commands fetch returns empty array (won't affect existing tests)
+vi.mock('@/lib/api', () => ({
+  apiFetch: vi.fn().mockResolvedValue({ commands: [] }),
+}));
+
+import { apiFetch } from '@/lib/api';
+
 const makeViewer = (id: string, displayName: string): UserPresence => ({
   id,
   displayName,
@@ -427,6 +434,115 @@ describe('ChatInput.vue', () => {
       const emitted = wrapper.emitted('send');
       expect(emitted).toBeTruthy();
       expect(emitted![0][0]).toBe('<@user-002> ');
+    });
+  });
+
+  describe('command autocomplete', () => {
+    const mockCommands = [
+      { name: 'shrug', description: 'Appends shrug', placeholder: '[message]' },
+      { name: 'tableflip', description: 'Appends tableflip', placeholder: '[message]' },
+    ];
+
+    beforeEach(() => {
+      vi.mocked(apiFetch).mockResolvedValue({ commands: mockCommands });
+    });
+
+    it('does not show command autocomplete when no commands available', async () => {
+      vi.mocked(apiFetch).mockResolvedValue({ commands: [] });
+      wrapper = mount(ChatInput);
+      await nextTick();
+      await nextTick(); // let the fetch promise resolve
+
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('/');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(false);
+    });
+
+    it('shows command autocomplete when / is typed and commands exist', async () => {
+      wrapper = mount(ChatInput);
+      await nextTick();
+      await nextTick(); // let the fetch promise resolve
+
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('/');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(true);
+    });
+
+    it('hides command autocomplete when space is typed (command complete)', async () => {
+      wrapper = mount(ChatInput);
+      await nextTick();
+      await nextTick();
+
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('/shrug ');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(false);
+    });
+
+    it('hides command autocomplete when text does not start with /', async () => {
+      wrapper = mount(ChatInput);
+      await nextTick();
+      await nextTick();
+
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('hello');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(false);
+    });
+
+    it('selects a command and replaces /query with /name ', async () => {
+      wrapper = mount(ChatInput);
+      await nextTick();
+      await nextTick();
+
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('/sh');
+      await textarea.trigger('input');
+      await nextTick();
+
+      const option = wrapper.find('[aria-label="Command suggestions"] [role="option"]');
+      expect(option.exists()).toBe(true);
+      await option.trigger('mousedown');
+      await nextTick();
+
+      expect((textarea.element as HTMLTextAreaElement).value).toBe('/shrug ');
+    });
+
+    it('hides command autocomplete after selection', async () => {
+      wrapper = mount(ChatInput);
+      await nextTick();
+      await nextTick();
+
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('/sh');
+      await textarea.trigger('input');
+      await nextTick();
+
+      await wrapper.find('[aria-label="Command suggestions"] [role="option"]').trigger('mousedown');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(false);
+    });
+
+    it('hides command autocomplete on send', async () => {
+      wrapper = mount(ChatInput);
+      await nextTick();
+      await nextTick();
+
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('/sh');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(true);
+
+      await textarea.trigger('keydown', { key: 'Enter', shiftKey: false });
+      await nextTick();
+      expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(false);
     });
   });
 });

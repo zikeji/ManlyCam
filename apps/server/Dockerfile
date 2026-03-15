@@ -73,6 +73,9 @@ RUN ln -s /repo/apps/server/dist/cli/index.js /usr/local/bin/manlycam-admin
 
 WORKDIR /repo/apps/server
 
+# Copy example slash commands
+COPY apps/server/custom ./custom
+
 # Copy and prepare entrypoint script
 COPY apps/server/docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh

@@ -65,6 +65,18 @@ export class WsHub {
     }
   }
 
+  sendToUser(userId: string, message: WsMessage): void {
+    const data = JSON.stringify(message);
+    for (const conn of this.connections.values()) {
+      if (conn.userId !== userId) continue;
+      try {
+        conn.client.send(data);
+      } catch {
+        // client disconnected
+      }
+    }
+  }
+
   revokeUserSessions(userId: string, reason: string): void {
     const data = JSON.stringify({ type: 'session:revoked', payload: { reason } });
     for (const conn of this.connections.values()) {

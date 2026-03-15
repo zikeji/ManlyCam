@@ -75,3 +75,4 @@ export type WsMessage =
   | { type: 'users:directory' }
   | { type: 'users:lookup';       payload: { ids: string[] } }
   | { type: 'users:info';         payload: UserPresence[] }
+  | { type: 'chat:ephemeral';     payload: { content: string; createdAt: string } }

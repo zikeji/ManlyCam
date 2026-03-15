@@ -3,10 +3,18 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
 import { SendHorizontal } from 'lucide-vue-next';
 import MentionAutocomplete from './MentionAutocomplete.vue';
+import CommandAutocomplete from './CommandAutocomplete.vue';
 import { recentlyChattedUserIds } from '@/composables/useRecentlyChatted';
 import { userCache } from '@/composables/useUserCache';
 import { getSiteName } from '@/lib/env';
+import { apiFetch } from '@/lib/api';
 import type { UserPresence } from '@manlycam/types';
+
+interface CommandEntry {
+  name: string;
+  description: string;
+  placeholder?: string;
+}
 
 const props = defineProps<{ muted?: boolean; viewers?: UserPresence[]; currentUserId?: string }>();
 
@@ -25,6 +33,13 @@ const mentionStartIndex = ref(-1);
 const mentionPosition = ref({ bottom: 0, left: 0 });
 // Maps nameNoSpaces.toLowerCase() → userId for all mentions selected in current draft
 let mentionMap = new Map<string, string>();
+
+// Command autocomplete state
+const commandAutocompleteRef = ref<InstanceType<typeof CommandAutocomplete> | null>(null);
+const commandVisible = ref(false);
+const commandQuery = ref('');
+const commandPosition = ref({ bottom: 0, left: 0 });
+const availableCommands = ref<CommandEntry[]>([]);
 
 function resize() {
   const el = textareaRef.value;
@@ -50,7 +65,13 @@ function initPanelObserver() {
 
 watch(content, () => nextTick(resize));
 
-onMounted(() => nextTick(() => requestAnimationFrame(() => { initPanelObserver(); resize(); })));
+onMounted(() => {
+  nextTick(() => requestAnimationFrame(() => { initPanelObserver(); resize(); }));
+  // Fetch available commands for the current user's role
+  apiFetch<{ commands: CommandEntry[] }>('/api/commands')
+    .then((data) => { availableCommands.value = data.commands; })
+    .catch(() => { /* commands unavailable — silent fail */ });
+});
 
 const charCount = computed(() => content.value.length);
 const showCounter = computed(() => charCount.value >= 800);
@@ -118,11 +139,52 @@ function closeMention() {
   mentionStartIndex.value = -1;
 }
 
+function detectCommandAt(text: string): void {
+  // Only show command autocomplete when text starts with / and no space yet
+  if (!text.startsWith('/')) {
+    closeCommand();
+    return;
+  }
+  const afterSlash = text.slice(1);
+  // If there's a space, the command name is complete — close autocomplete
+  if (afterSlash.includes(' ')) {
+    closeCommand();
+    return;
+  }
+  if (availableCommands.value.length === 0) {
+    closeCommand();
+    return;
+  }
+  commandQuery.value = afterSlash.toLowerCase();
+  commandPosition.value = getPopupPosition();
+  commandVisible.value = true;
+}
+
+function closeCommand() {
+  commandVisible.value = false;
+  commandQuery.value = '';
+}
+
+function selectCommand(cmd: CommandEntry) {
+  content.value = `/${cmd.name} `;
+  closeCommand();
+  nextTick(() => {
+    const textarea = textareaRef.value;
+    if (textarea) {
+      textarea.focus();
+      const pos = content.value.length;
+      textarea.setSelectionRange(pos, pos);
+    }
+    resize();
+  });
+}
+
 function handleInput() {
   const textarea = textareaRef.value;
   if (textarea) {
     detectMentionAt(textarea.selectionStart ?? content.value.length);
   }
+  detectCommandAt(content.value);
 
   // Reset stop timer on every keystroke
   if (typingStopTimer) clearTimeout(typingStopTimer);
@@ -164,7 +226,15 @@ function resolveMentions(text: string): string {
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  // Let autocomplete handle arrow keys, Enter, Tab, Escape when visible
+  // Let command autocomplete handle arrow keys, Enter, Tab, Escape when visible
+  if (commandVisible.value && commandAutocompleteRef.value) {
+    if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
+      commandAutocompleteRef.value.handleKeydown(e);
+      return;
+    }
+  }
+
+  // Let mention autocomplete handle arrow keys, Enter, Tab, Escape when visible
   if (mentionVisible.value && autocompleteRef.value) {
     if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
       autocompleteRef.value.handleKeydown(e);
@@ -187,6 +257,7 @@ function send() {
   if (typingStopTimer) { clearTimeout(typingStopTimer); typingStopTimer = null; }
   stopTyping();
   closeMention();
+  closeCommand();
   emit('send', resolveMentions(content.value));
   content.value = '';
   mentionMap = new Map();
@@ -194,8 +265,9 @@ function send() {
 }
 
 function handleClickOutside(e: MouseEvent) {
-  if (mentionVisible.value && textareaRef.value && !textareaRef.value.contains(e.target as Node)) {
-    closeMention();
+  if (textareaRef.value && !textareaRef.value.contains(e.target as Node)) {
+    if (mentionVisible.value) closeMention();
+    if (commandVisible.value) closeCommand();
   }
 }
 
@@ -243,6 +315,16 @@ const sortedViewers = computed(() => {
 
 <template>
   <div class="flex items-end gap-2 relative">
+    <CommandAutocomplete
+      ref="commandAutocompleteRef"
+      :visible="commandVisible"
+      :query="commandQuery"
+      :commands="availableCommands"
+      :position="commandPosition"
+      @select="selectCommand"
+      @close="closeCommand"
+    />
+
     <MentionAutocomplete
       ref="autocompleteRef"
       :visible="mentionVisible"

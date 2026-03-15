@@ -2,9 +2,15 @@ import { ref, computed } from 'vue';
 import { apiFetch } from '@/lib/api';
 import type { ChatMessage, ChatEdit, UserProfile } from '@manlycam/types';
 
+export interface EphemeralMessage {
+  content: string;
+  createdAt: string;
+}
+
 // Module-level singletons — all callers share the same refs (same pattern as useStream)
 // Exported directly for test reset (do not access via useChat factory in tests)
 export const messages = ref<ChatMessage[]>([]);
+export const ephemeralMessages = ref<EphemeralMessage[]>([]);
 export const hasMore = ref(true);
 export const isLoadingHistory = ref(false);
 
@@ -41,6 +47,10 @@ export const handleChatEdit = (edit: ChatEdit): void => {
 
 export const handleChatDelete = (messageId: string): void => {
   messages.value = messages.value.filter((msg) => msg.id !== messageId);
+};
+
+export const handleEphemeral = (payload: EphemeralMessage): void => {
+  ephemeralMessages.value.push(payload);
 };
 
 export const useChat = () => {
@@ -96,6 +106,7 @@ export const useChat = () => {
 
   return {
     messages,
+    ephemeralMessages,
     sendChatMessage,
     handleChatMessage,
     initHistory,

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
-import { useChat } from '@/composables/useChat';
+import { useChat, ephemeralMessages } from '@/composables/useChat';
 import { useAuth } from '@/composables/useAuth';
 import { usePresence } from '@/composables/usePresence';
 import { useWebSocket } from '@/composables/useWebSocket';
@@ -33,7 +33,7 @@ const { sendTypingStart, sendTypingStop } = useWebSocket();
 const { flashTitlebar } = useTitlebarFlash();
 
 const scrollAreaRef = ref<{ getViewport: () => HTMLElement | null } | null>(null);
-const scrollRef = computed<HTMLElement | null>(() => scrollAreaRef.value?.getViewport() ?? null);
+const scrollRef = computed<HTMLElement | null>(() => scrollAreaRef.value?.getViewport?.() ?? null);
 const sentinelRef = ref<HTMLElement | null>(null);
 
 const TAB_ORDER = ['chat', 'viewers'] as const;
@@ -362,6 +362,16 @@ async function handleSend(content: string) {
                     @ban-user="handleBanUser"
                   />
                 </template>
+
+                <!-- Ephemeral messages — visible only to the invoking user, not persisted -->
+                <div
+                  v-for="(ephemeral, i) in ephemeralMessages"
+                  :key="`ephemeral-${i}`"
+                  class="px-3 py-1 text-sm italic opacity-60 text-muted-foreground"
+                  aria-live="polite"
+                >
+                  {{ ephemeral.content }}
+                </div>
               </div>
             </ScrollArea>
 

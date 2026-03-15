@@ -1,7 +1,13 @@
 import { ref, inject, type InjectionKey, type Ref } from 'vue';
 import { router } from '@/router';
 import { useStream } from './useStream';
-import { useChat, handleUserUpdate, handleChatEdit, handleChatDelete } from './useChat';
+import {
+  useChat,
+  handleUserUpdate,
+  handleChatEdit,
+  handleChatDelete,
+  handleEphemeral,
+} from './useChat';
 import { handleAdminUserUpdate } from './useAdminUsers';
 import {
   handlePresenceSeed,
@@ -133,6 +139,9 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'pisugar:status') {
         setPiSugarStateFromWs(msg.payload);
+      }
+      if (msg.type === 'chat:ephemeral') {
+        handleEphemeral(msg.payload);
       }
     } catch {
       // Ignore malformed messages

@@ -55,6 +55,7 @@ vi.mock('@/composables/useChat', () => ({
   handleUserUpdate: vi.fn(),
   handleChatEdit: mockHandleChatEdit,
   handleChatDelete: mockHandleChatDelete,
+  handleEphemeral: vi.fn(),
 }));
 
 // --- usePresence mock ---

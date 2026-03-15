@@ -4,6 +4,7 @@ import { wsHub } from './wsHub.js';
 import { AppError } from '../lib/errors.js';
 import { canModerateOver } from '../lib/roleUtils.js';
 import { computeUserTag } from '../lib/user-tag.js';
+import { executeCommand } from './slashCommands.js';
 import type { ChatMessage, ChatEdit, Role, WsMessage } from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import type { User } from '@prisma/client';
@@ -41,9 +42,37 @@ function toApiChatMessage(row: MessageRow): ChatMessage {
 
 export async function createMessage(params: {
   userId: string;
+  userDisplayName: string;
+  userRole: Role;
   content: string;
-}): Promise<ChatMessage> {
-  const { userId, content } = params;
+}): Promise<ChatMessage | null> {
+  const { userId, userDisplayName, userRole } = params;
+  let { content } = params;
+
+  // Extract mentioned user IDs from <@ID> tokens in content
+  const mentionedUserIds = Array.from(content.matchAll(/<@([^>]+)>/g), (m) => m[1]);
+
+  // Check for slash command
+  if (content.startsWith('/')) {
+    const response = executeCommand({
+      content,
+      userId,
+      userDisplayName,
+      userRole,
+      mentionedUserIds,
+    });
+    if (response !== null) {
+      if (response.ephemeral) {
+        wsHub.sendToUser(userId, {
+          type: 'chat:ephemeral',
+          payload: { content: response.content, createdAt: new Date().toISOString() },
+        });
+        return null;
+      }
+      content = response.content;
+    }
+  }
+
   const id = ulid();
   const message = await prisma.message.create({
     data: { id, userId, content },
