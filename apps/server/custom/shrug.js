@@ -30,7 +30,7 @@
 /** @type {SlashCommand} */
 module.exports = {
   name: 'shrug',
-  description: 'Appends ¯\\_(ツ)_/¯ to your message',
+  description: 'Appends ¯\\\\_(ツ)_/¯ to your message',
   placeholder: '[message]',
   handler: (input, _message, _user) => {
     const shrug = '¯\\_(ツ)_/¯';
