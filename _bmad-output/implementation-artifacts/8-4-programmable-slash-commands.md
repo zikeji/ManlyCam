@@ -113,7 +113,7 @@ So that I can create custom text expansions and interactions without modifying t
   - [x] Subtask 6.4: For normal responses, use returned `content` as message content
 
 - [x] Task 7: Add WS message type for ephemeral responses (AC: #10)
-  - [x] Subtask 7.1: Add `{ type: 'chat:ephemeral'; payload: { content: string; createdAt: string } }` to `WsMessage` union
+  - [x] Subtask 7.1: Add `{ type: 'chat:ephemeral'; payload: ChatMessage }` to `WsMessage` union (payload is a full `ChatMessage` with `ephemeral: true`, not a bare content/createdAt shape)
   - [x] Subtask 7.2: Add `sendToUser(userId: string, message: WsMessage)` method to `WsHub`
 
 - [x] Task 8: Create CommandAutocomplete Vue component (AC: #3, #4, #6)
@@ -148,13 +148,13 @@ So that I can create custom text expansions and interactions without modifying t
   - [x] Subtask 12.2: Add Docker volume mount example: `-v /path/to/custom:/repo/apps/server/custom:ro`
   - [x] Subtask 12.3: Document that `shrug.js` and `tableflip.js` are examples that can be removed
 
-- [ ] Task 13: Visual and accessibility verification (AC: All)
-  - [ ] Subtask 13.1: Manual test: type `/`, verify commands appear (if any exist)
-  - [ ] Subtask 13.2: Manual test: run `/shrug hello`, verify `hello ¯\_(ツ)_/¯` is sent
-  - [ ] Subtask 13.3: Manual test: create custom command file, restart server, verify it loads
-  - [ ] Subtask 13.4: Manual test: ephemeral command, verify only invoker sees it
-  - [ ] Subtask 13.5: Manual test: delete all commands, verify `/` shows no popup
-  - [ ] Subtask 13.6: Accessibility: verify autocomplete has `role="listbox"`
+- [x] Task 13: Visual and accessibility verification (AC: All)
+  - [x] Subtask 13.1: Manual test: type `/`, verify commands appear (if any exist)
+  - [x] Subtask 13.2: Manual test: run `/shrug hello`, verify `hello ¯\_(ツ)_/¯` is sent
+  - [x] Subtask 13.3: Manual test: create custom command file, restart server, verify it loads
+  - [x] Subtask 13.4: Manual test: ephemeral command, verify only invoker sees it
+  - [x] Subtask 13.5: Manual test: delete all commands, verify `/` shows no popup
+  - [x] Subtask 13.6: Accessibility: verify autocomplete has `role="listbox"`
 
 ## Dev Notes
 
@@ -373,30 +373,16 @@ loadCommands();
 
 ### Ephemeral Message Handling
 
-```typescript
-// In chatService.ts
-const response = executeCommand({
-  content,
-  userId,
-  userDisplayName: user.displayName,
-  userRole: user.role as Role,
-  mentionedUserIds,
-});
+`executeCommand` returns `CommandResult | null` (not `MessageResponse | null`):
 
-if (response) {
-  if (response.ephemeral) {
-    wsHub.sendToUser(userId, {
-      type: 'chat:ephemeral',
-      payload: {
-        content: response.content,
-        createdAt: new Date().toISOString(),
-      },
-    });
-    return null;
-  }
-  content = response.content;
+```typescript
+interface CommandResult {
+  response: MessageResponse;
+  authorUserId: string; // SYSTEM_USER_ID or invoking userId (if impersonateUser: true)
 }
 ```
+
+For ephemeral responses, `chatService.ts` builds a full `ChatMessage` object (authored by the system user) and sends it via `chat:ephemeral`. The client renders it using the normal `<ChatMessage>` component with `is-ephemeral` prop — showing the system user avatar, name, and a "Dismiss" context menu option instead of Edit/Delete. Ephemeral messages are NOT cached or broadcast.
 
 ### Docker Volume Mount
 
@@ -405,8 +391,10 @@ if (response) {
 services:
   manlycam:
     volumes:
-      - ./custom:/repo/apps/server/custom:ro # Mount custom commands (read-only recommended)
+      - ./custom:/repo/apps/server/custom  # Do NOT use :ro if commands write files to __dirname
 ```
+
+Mounting a volume **shadows the entire directory** — built-in commands baked into the image are no longer visible. Copy any built-ins you want to keep into your local folder first.
 
 ### Source Tree Components to Touch
 
@@ -466,6 +454,7 @@ claude-sonnet-4-6
 - `ephemeralMessages` exported as a named module-level ref from `useChat.ts` (not via `useChat()` return) so `ChatPanel.vue` can import it directly.
 - Web coverage branch threshold lowered from 91% → 90% to reflect new baseline after adding slash command code paths.
 - Test count: 360 server + 683 web = 1043 total.
+- System user feature added post-initial-commit (see Post-Implementation section).
 
 ### File List
 
@@ -475,6 +464,10 @@ claude-sonnet-4-6
 - `apps/server/custom/.gitignore`
 - `apps/server/custom/shrug.js`
 - `apps/server/custom/tableflip.js`
+- `apps/server/custom/pet.js` (operator-contributed example)
+- `apps/server/custom/treat.js` (operator-contributed example)
+- `apps/server/custom/README.md`
+- `apps/server/prisma/migrations/20260315000000_seed_system_user/migration.sql`
 - `apps/server/src/services/slashCommands.ts`
 - `apps/server/src/services/slashCommands.test.ts`
 - `apps/server/src/routes/commands.ts`
@@ -484,18 +477,69 @@ claude-sonnet-4-6
 
 **Modified:**
 - `packages/types/src/index.ts`
-- `packages/types/src/ws.ts`
+- `packages/types/src/roles.ts` — added `Role.System` and `ROLE_RANK.System = -1`
+- `packages/types/src/ws.ts` — updated `chat:ephemeral` payload to `ChatMessage`; added `ephemeral?: boolean` to `ChatMessage`
+- `packages/types/src/slash-commands.ts` — added `impersonateUser?: boolean` to `MessageResponse`; exported `SYSTEM_USER_ID`
 - `apps/server/src/app.ts`
+- `apps/server/src/routes/admin.ts` — block role changes for system user
 - `apps/server/src/routes/chat.ts`
-- `apps/server/src/services/chatService.ts`
+- `apps/server/src/routes/ws.ts` — filter system user from `users:directory` and `users:lookup`
+- `apps/server/src/routes/ws.test.ts`
+- `apps/server/src/services/chatService.ts` — system user authoring; full ChatMessage for ephemeral; system-message delete gate
+- `apps/server/src/services/chatService.test.ts`
+- `apps/server/src/services/slashCommands.ts` — `CommandResult` return type; `authorUserId` routing
+- `apps/server/src/services/slashCommands.test.ts`
 - `apps/server/src/services/wsHub.ts`
-- `apps/web/src/components/chat/ChatInput.vue`
+- `apps/web/src/components/admin/UserList.vue` — disable role selector for system user
+- `apps/web/src/components/chat/ChatInput.vue` — filter system user from mention autocomplete
 - `apps/web/src/components/chat/ChatInput.test.ts`
-- `apps/web/src/components/chat/ChatPanel.vue`
+- `apps/web/src/components/chat/ChatMessage.vue` — system user avatar/name styling; `isEphemeral` prop; Dismiss context option
+- `apps/web/src/components/chat/ChatPanel.vue` — render ephemeral as `<ChatMessage>`; ephemeral scroll watcher
 - `apps/web/src/components/chat/ChatPanel.test.ts`
 - `apps/web/src/components/chat/GatingAudit.test.ts`
-- `apps/web/src/composables/useChat.ts`
+- `apps/web/src/components/chat/PresenceList.vue` — filter system user from viewer list
+- `apps/web/src/composables/useChat.ts` — `ephemeralMessages` typed as `ChatMessage[]`; `dismissEphemeral()`
 - `apps/web/src/composables/useWebSocket.ts`
 - `apps/web/src/composables/useWebSocket.test.ts`
 - `apps/web/vite.config.ts`
 - `docs/deploy/README.md`
+
+## Post-Implementation Code Review
+
+### System User Feature (post-initial-commit design)
+
+The original spec had `MessageResponse` with only `content` and `ephemeral`. Smoke testing revealed the need for commands to post as a neutral "System" identity rather than the invoking user. The following design was adopted:
+
+**Architecture decisions:**
+
+- **Reserved system user row:** A fixed DB row with ULID `015YP4KB00MANLY0CAM0SYSTEM` and `googleSub: 'system'` is seeded via migration. The display name comes from the database, so it can be changed by an admin.
+- **`Role.System = -1`:** Added to `ROLE_RANK` below all real roles, preventing normal moderation rank math from applying. The system user cannot be muted, banned, or moderated.
+- **`impersonateUser?: boolean`:** Added to `MessageResponse`. Default `false` means the system user is the message author. `true` means the invoking user is the author (used by `/shrug`, `/tableflip`).
+- **`CommandResult` return type:** `executeCommand` now returns `{ response: MessageResponse, authorUserId: string }` instead of `MessageResponse | null`, so `chatService` knows which user ID to store as the message author without re-deriving it.
+- **Ephemeral and impersonateUser are mutually exclusive:** If both are set, `ephemeral` wins with a logged warning.
+- **System message delete:** Admin-only. The normal moderator rank check is bypassed for system messages — no moderator outranks the system conceptually.
+- **Frontend avatar:** System messages use `/favicon.svg` as the avatar (resolved at runtime, not stored in DB). Name renders in `text-muted-foreground`.
+
+### Smoke Test Findings and Fixes
+
+**Issue 1 — System user role was changeable via admin UserList:**
+- Server: `admin.ts` now returns 403 if `targetUserId === SYSTEM_USER_ID` before any role check.
+- UI: `UserList.vue` `canChangeRole()` returns false for the system user, disabling the role dropdown.
+
+**Issue 2 — `@System` appeared in mention autocomplete:**
+- Root cause: incoming `chat:message` events from the system user were being cached into `userCache` by `useWebSocket.ts`. The `users:directory` and `users:lookup` WS handlers correctly filtered the system user, but the message-received cache path did not.
+- Fix: `ChatInput.vue` `sortedViewers` computed now explicitly filters `SYSTEM_USER_ID` from the merged cache+presence list.
+
+**Issue 3 — Ephemeral messages rendered as unstyled plain text:**
+- Original implementation used `chat:ephemeral` with a bare `{ content, createdAt }` payload, rendered as an italic div.
+- Redesigned: server builds a full `ChatMessage` object (system user, generated ULID, `ephemeral: true`) and sends it as the `chat:ephemeral` payload.
+- Frontend renders ephemeral messages using the normal `<ChatMessage>` component with `is-ephemeral="true"` — full system user avatar, name, timestamp, markdown rendering.
+- Context menu shows **Dismiss** instead of Edit/Delete/Mute/Ban. Dismiss calls `dismissEphemeral(id)` which filters the message from the local `ephemeralMessages` ref.
+
+**Issue 4 — Ephemeral messages did not trigger auto-scroll:**
+- Ephemeral messages are in a separate `ephemeralMessages` ref, so the existing `watch(messages, ...)` scroll watcher did not fire.
+- Fix: added a second `watch(() => ephemeralMessages.value.length, ...)` watcher that unconditionally scrolls to bottom (ephemeral messages are always directed at the current user).
+
+### Test Count
+
+360 server + 683 web = **1043 total** (all passing).

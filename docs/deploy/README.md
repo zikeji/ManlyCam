@@ -346,92 +346,7 @@ Roles: `Admin`, `Moderator`, `ViewerCompany`, `ViewerGuest`
 
 ## Custom Slash Commands
 
-ManlyCam supports custom slash commands defined as JavaScript files. Commands are loaded at startup from `apps/server/custom/` (or `/app/custom` in Docker).
-
-Two example commands are included:
-- `/shrug [message]` — appends `¯\_(ツ)_/¯`
-- `/tableflip [message]` — appends `(╯°□°）╯︵ ┻━┻`
-
-### Adding Commands
-
-Create a `.js` file in the `custom/` folder. Copy the JSDoc block from one of the example commands for editor autocompletion:
-
-```javascript
-// custom/hello.js
-
-/**
- * @typedef {Object} SimplifiedMessage
- * @property {string} content - Full message content including the /command portion
- * @property {string} createdAt - ISO 8601 timestamp when the message was created
- * @property {string[]} mentionedUserIds - User IDs mentioned in the message
- */
-
-/**
- * @typedef {Object} SimplifiedUser
- * @property {string} id - User ULID
- * @property {string} displayName - User's display name
- * @property {'Admin'|'Moderator'|'ViewerCompany'|'ViewerGuest'} role - User's role
- */
-
-/**
- * @typedef {Object} MessageResponse
- * @property {string} content - The message content to post
- * @property {boolean} [ephemeral] - If true, only the invoking user sees it (not persisted)
- */
-
-/**
- * @typedef {Object} SlashCommand
- * @property {string} name - Command name (used as /name in chat)
- * @property {string} description - Short description shown in autocomplete
- * @property {string} [placeholder] - Argument hint shown in autocomplete, e.g. "[message]"
- * @property {(input: string, message: SimplifiedMessage, user: SimplifiedUser) => MessageResponse} handler - Command handler
- * @property {{ applicableRoles?: ('Admin'|'Moderator'|'ViewerCompany'|'ViewerGuest')[] }} [gate] - Role visibility gate
- */
-
-/** @type {SlashCommand} */
-module.exports = {
-  name: 'hello',
-  description: 'Greets you by name',
-  handler: (input, message, user) => {
-    return { content: `Hello, ${user.displayName}!` };
-  },
-};
-```
-
-Restart the server to load new commands.
-
-### Ephemeral Commands
-
-Set `ephemeral: true` in the response to send a message only visible to the invoking user (not broadcast or persisted):
-
-```javascript
-/** @type {SlashCommand} */
-module.exports = {
-  name: 'whoami',
-  description: 'Shows your role (only visible to you)',
-  handler: (input, message, user) => {
-    return { content: `You are ${user.displayName} (${user.role})`, ephemeral: true };
-  },
-};
-```
-
-### Role-Gating Commands
-
-Use `gate.applicableRoles` to restrict a command to specific roles:
-
-```javascript
-/** @type {SlashCommand} */
-module.exports = {
-  name: 'announce',
-  description: 'Admin-only announcement',
-  gate: { applicableRoles: ['Admin'] },
-  handler: (input, message, user) => {
-    return { content: `📢 ${input}` };
-  },
-};
-```
-
-Available roles: `Admin`, `Moderator`, `ViewerCompany`, `ViewerGuest`
+ManlyCam supports custom slash commands defined as JavaScript files in `apps/server/custom/`. Four examples are included (`/shrug`, `/tableflip`, `/pet`, `/treat`). See [`apps/server/custom/README.md`](../../apps/server/custom/README.md) for the full authoring guide covering ephemeral responses, role-gating, user mentions, and persistent state.
 
 ### Docker Volume Mount
 
@@ -442,16 +357,18 @@ To use custom commands in Docker without rebuilding the image, mount the `custom
 services:
   server:
     volumes:
-      - ./custom:/repo/apps/server/custom:ro  # Mount custom commands (read-only recommended)
+      - ./custom:/repo/apps/server/custom  # Mount custom commands
 ```
 
 Or with `docker run`:
 
 ```bash
-docker run ... -v /path/to/custom:/repo/apps/server/custom:ro ghcr.io/.../manlycam:latest
+docker run ... -v /path/to/custom:/repo/apps/server/custom ghcr.io/zikeji/manlycam:latest
 ```
 
-The `shrug.js` and `tableflip.js` examples are included in the image by default. Mount a volume over `custom/` to replace or extend them — the volume contents take precedence. To disable the built-in examples, mount a folder containing only your own commands.
+> **Note:** Mounting a volume **shadows the entire directory** — the built-in commands baked into the image are no longer visible. Copy any built-ins you want to keep (`shrug.js`, `tableflip.js`, `pet.js`, `treat.js`) from `apps/server/custom/` into your local folder first.
+
+> **Note:** Do not mount with `:ro` (read-only) if any of your commands write files to `__dirname` (e.g. rate-limit state files). The built-in `/pet` and `/treat` commands write `.last-*-timestamp` files to the `custom/` directory and require a writable mount.
 
 ## Deploy File Reference
 
