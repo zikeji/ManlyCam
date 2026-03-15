@@ -4,6 +4,8 @@
 # Except these files
 !.gitkeep
 !.gitignore
+!README.md
 !shrug.js
 !tableflip.js
-!README.md
+!pet.js
+!treat.js
