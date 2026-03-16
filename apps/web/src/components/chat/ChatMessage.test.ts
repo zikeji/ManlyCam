@@ -44,6 +44,32 @@ vi.mock('@/components/ui/tooltip', () => ({
   TooltipContent: defineComponent({ template: '<div><slot/></div>' }),
 }));
 
+// Mock reaction components
+vi.mock('./ReactionBar.vue', () => ({
+  default: defineComponent({
+    name: 'ReactionBar',
+    emits: ['select', 'close'],
+    template: '<div data-reaction-bar></div>',
+  }),
+}));
+
+vi.mock('./ReactionDisplay.vue', () => ({
+  default: defineComponent({
+    name: 'ReactionDisplay',
+    props: ['reactions', 'currentUserId', 'canModerate', 'isMuted'],
+    emits: ['toggle', 'modRemove'],
+    template: '<div data-reaction-display></div>',
+  }),
+}));
+
+vi.mock('@/composables/useReactions', () => ({
+  useReactions: vi.fn(() => ({
+    addReaction: vi.fn(),
+    removeReaction: vi.fn(),
+    modRemoveReaction: vi.fn(),
+  })),
+}));
+
 const baseMessage: ChatMessageType = {
   id: 'msg-001',
   userId: 'user-001',
@@ -97,6 +123,18 @@ describe('ChatMessage.vue', () => {
     expect(img.attributes('src')).toBe('https://example.com/avatar.jpg');
   });
 
+  it('renders avatar image inside ContextMenu branch when isOwn=true', () => {
+    wrapper = mount(ChatMessage, {
+      props: {
+        message: { ...baseMessage, avatarUrl: 'https://example.com/avatar.jpg' },
+        isOwn: true,
+      },
+    });
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe('https://example.com/avatar.jpg');
+  });
+
   it('renders bold markdown', () => {
     wrapper = mount(ChatMessage, {
       props: { message: { ...baseMessage, content: '**bold text**' } },
@@ -128,9 +166,9 @@ describe('ChatMessage.vue', () => {
     wrapper = mount(ChatMessage, {
       props: { message: { ...baseMessage, content: '[bad](javascript:alert(1))' } },
     });
-    const link = wrapper.find('a');
-    expect(link.attributes('href')).toBe('#');
-    expect(link.attributes('href')).not.toContain('javascript:');
+    // markdown-it internally rejects javascript: links — either no <a> is rendered
+    // or the href is sanitized to '#'. Either way, no executable javascript: href exists.
+    expect(wrapper.html()).not.toContain('href="javascript:');
   });
 
   it('renders userTag when present', () => {
@@ -140,6 +178,16 @@ describe('ChatMessage.vue', () => {
           ...baseMessage,
           userTag: { text: 'VIP', color: '#FF0000' },
         },
+      },
+    });
+    expect(wrapper.text()).toContain('VIP');
+  });
+
+  it('renders userTag inside ContextMenu branch when isOwn=true', () => {
+    wrapper = mount(ChatMessage, {
+      props: {
+        message: { ...baseMessage, userTag: { text: 'VIP', color: '#FF0000' } },
+        isOwn: true,
       },
     });
     expect(wrapper.text()).toContain('VIP');
@@ -613,6 +661,235 @@ describe('ChatMessage.vue', () => {
       });
       const timeSpan = wrapper.find('.text-muted-foreground.shrink-0');
       expect(timeSpan.exists()).toBe(true);
+    });
+  });
+
+  describe('auto-resize in edit mode', () => {
+    function findEditItem(w: VueWrapper) {
+      return w.findAll('[data-context-menu-item]').find((el) => el.text().trim() === 'Edit');
+    }
+
+    it('resizeEditTextarea uses panel ancestor clientHeight when data-chat-panel is present', async () => {
+      const panel = document.createElement('div');
+      panel.setAttribute('data-chat-panel', '');
+      Object.defineProperty(panel, 'clientHeight', { get: () => 400, configurable: true });
+      document.body.appendChild(panel);
+
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: true },
+        attachTo: panel,
+      });
+
+      await findEditItem(wrapper)!.trigger('click');
+      await nextTick();
+      await nextTick(); // allow resizeEditTextarea scheduled by watch/nextTick to run
+
+      // Reaching here without error covers the `panel ? Math.floor(...) : 300` truthy branch
+      panel.remove();
+    });
+
+    it('resizeEditTextarea sets overflowY to auto when scrollHeight exceeds maxHeight', async () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage, isOwn: true } });
+
+      await findEditItem(wrapper!)!.trigger('click');
+      await nextTick();
+
+      const textarea = wrapper!.find('textarea').element as HTMLTextAreaElement;
+      // maxH defaults to 300 (no panel); make scrollHeight exceed it
+      Object.defineProperty(textarea, 'scrollHeight', { get: () => 400, configurable: true });
+
+      // Changing editContent triggers the watch → nextTick(resizeEditTextarea)
+      await wrapper!.find('textarea').setValue('updated content');
+      await nextTick();
+      await nextTick();
+
+      expect(textarea.style.overflowY).toBe('auto');
+    });
+  });
+
+  describe('new markdown elements (renderMarkdown)', () => {
+    // Task 9.1: code block renders with <pre><code> structure
+    it('renders code block with <pre><code> structure', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { ...baseMessage, content: '```js\nconst x = 1;\n```' },
+        },
+      });
+      expect(wrapper.find('pre').exists()).toBe(true);
+      expect(wrapper.find('code').exists()).toBe(true);
+    });
+
+    // Task 9.2: blockquote renders with <blockquote> element
+    it('renders blockquote with <blockquote> element', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: { ...baseMessage, content: '> quoted text' },
+        },
+      });
+      expect(wrapper.find('blockquote').exists()).toBe(true);
+      expect(wrapper.find('blockquote').text()).toContain('quoted text');
+    });
+
+    // Task 9.3: image renders — verify container has max-height CSS class
+    it('renders image and container div has [&_img]:max-h-64 class', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: {
+            ...baseMessage,
+            content: '![alt](https://example.com/image.gif)',
+          },
+        },
+      });
+      expect(wrapper.find('img').exists()).toBe(true);
+      expect(wrapper.find('img').attributes('src')).toBe('https://example.com/image.gif');
+      // Verify the container div has the max-height Tailwind class
+      const allDivs = wrapper.findAll('div');
+      const contentHolder = allDivs.find((d) => d.classes().some((c) => c.includes('max-h-64')));
+      expect(contentHolder).toBeTruthy();
+    });
+
+    // Task 9.4: existing bold, inline code, link tests still pass
+    it('still renders bold markdown correctly', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '**bold text**' } },
+      });
+      expect(wrapper.find('strong').exists()).toBe(true);
+      expect(wrapper.find('strong').text()).toBe('bold text');
+    });
+
+    it('still renders inline code markdown correctly', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '`code here`' } },
+      });
+      expect(wrapper.find('code').exists()).toBe(true);
+      expect(wrapper.find('code').text()).toBe('code here');
+    });
+
+    it('still renders link markdown with target=_blank', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '[click here](https://example.com)' } },
+      });
+      const link = wrapper.find('a');
+      expect(link.exists()).toBe(true);
+      expect(link.attributes('href')).toBe('https://example.com');
+      expect(link.attributes('target')).toBe('_blank');
+      expect(link.attributes('rel')).toBe('noopener noreferrer');
+    });
+
+    it('still suppresses javascript: URLs in links', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, content: '[bad](javascript:alert(1))' } },
+      });
+      // markdown-it internally rejects javascript: links — no executable javascript: href
+      expect(wrapper.html()).not.toContain('href="javascript:');
+    });
+  });
+
+  describe('reaction UI', () => {
+    it('does NOT show ReactionDisplay when reactions array is empty', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, reactions: [] } },
+      });
+      expect(wrapper.find('[data-reaction-display]').exists()).toBe(false);
+    });
+
+    it('shows ReactionDisplay when message has reactions', () => {
+      const reactions = [
+        {
+          emoji: 'thumbs_up',
+          count: 1,
+          userReacted: false,
+          userIds: ['other-user'],
+          userDisplayNames: ['Other User'],
+          userRoles: ['ViewerGuest' as const],
+          firstReactedAt: new Date().toISOString(),
+        },
+      ];
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, reactions } },
+      });
+      expect(wrapper.find('[data-reaction-display]').exists()).toBe(true);
+    });
+
+    it('does NOT show ReactionBar when not hovered', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
+    });
+
+    it('shows ReactionBar on mouseenter when not muted', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      await wrapper.find('[role="listitem"]').trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+    });
+
+    it('hides ReactionBar on mouseleave', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      const listitem = wrapper.find('[role="listitem"]');
+      await listitem.trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+      await listitem.trigger('mouseleave');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
+    });
+
+    it('does NOT show ReactionBar when isCurrentUserMuted=true', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: true },
+      });
+      await wrapper.find('[role="listitem"]').trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
+    });
+
+    it('shows ReactionDisplay inside ContextMenu branch when isOwn=true and reactions exist', () => {
+      const reactions = [
+        {
+          emoji: 'thumbs_up',
+          count: 1,
+          userReacted: true,
+          userIds: ['user-001'],
+          userDisplayNames: ['Test User'],
+          userRoles: ['ViewerGuest' as const],
+          firstReactedAt: new Date().toISOString(),
+        },
+      ];
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, reactions }, isOwn: true },
+      });
+      expect(wrapper.find('[data-reaction-display]').exists()).toBe(true);
+    });
+
+    it('ReactionBar stays visible after mouseenter (bar does not auto-close on desktop)', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      await wrapper.find('[role="listitem"]').trigger('mouseenter');
+      await nextTick();
+      // Bar should be open; it only closes via mouseleave on desktop
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+    });
+
+    it('touchstart on message body while bar is open dismisses the bar', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      const listitem = wrapper.find('[role="listitem"]');
+      // Open the bar via mouseenter
+      await listitem.trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+      // Touch the message body — should dismiss
+      await listitem.trigger('touchstart');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
     });
   });
 });

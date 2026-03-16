@@ -125,7 +125,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col landscape:flex-row lg:flex-row h-screen w-full overflow-hidden bg-[hsl(var(--background))]">
+  <div class="flex flex-col landscape:flex-row lg:flex-row h-dvh w-full overflow-hidden bg-[hsl(var(--background))]">
     <!-- Left sidebar: admin only, desktop -->
     <Transition name="sidebar-left">
       <aside

@@ -19,6 +19,8 @@ import { createWsRouter } from './routes/ws.js';
 import { createChatRouter } from './routes/chat.js';
 import { createModerationRouter } from './routes/moderation.js';
 import { createAdminRouter } from './routes/admin.js';
+import { createCommandsRouter } from './routes/commands.js';
+import { createReactionsRouter } from './routes/reactions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -37,7 +39,9 @@ export function createApp() {
   app.route('/', meRouter);
   app.route('/', streamRouter);
   app.route('/', createChatRouter());
+  app.route('/', createCommandsRouter());
   app.route('/', createModerationRouter());
+  app.route('/', createReactionsRouter());
   app.route('/api/admin', createAdminRouter());
 
   // WebSocket — createNodeWebSocket must receive the app instance before routes are added
@@ -48,6 +52,11 @@ export function createApp() {
   // SPA catch-all: serve Vue dist in production
   if (env.NODE_ENV === 'production') {
     const distPath = join(__dirname, '../../web/dist');
+    // Emoji SVGs are content-addressed (npm package version) — cache aggressively.
+    app.use('/emojis/*', async (c, next) => {
+      await next();
+      c.header('Cache-Control', 'public, max-age=31536000, immutable');
+    });
     app.use('/*', serveStatic({ root: distPath }));
     app.get('/*', (c) => {
       const indexHtmlPath = join(distPath, 'index.html');

@@ -1,19 +1,22 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed, onMounted, onUnmounted } from 'vue';
-import { useChat } from '@/composables/useChat';
+import { useChat, ephemeralMessages, dismissEphemeral } from '@/composables/useChat';
 import { useAuth } from '@/composables/useAuth';
 import { usePresence } from '@/composables/usePresence';
 import { useWebSocket } from '@/composables/useWebSocket';
+import { useTitlebarFlash } from '@/composables/useTitlebarFlash';
+import { recordChatter } from '@/composables/useRecentlyChatted';
 import { formatDayLabel, isSameDay } from '@/lib/dateFormat';
 import { apiFetch } from '@/lib/api';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { TabsIndicator } from 'reka-ui';
 import ChatMessage from './ChatMessage.vue';
 import ChatInput from './ChatInput.vue';
 import PresenceList from './PresenceList.vue';
 import TypingIndicator from './TypingIndicator.vue';
-import { Role, ROLE_RANK } from '@manlycam/types';
+import { Role, ROLE_RANK, SYSTEM_USER_ID } from '@manlycam/types';
 import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 // const emit = defineEmits<{
@@ -21,13 +24,24 @@ import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 //   openUserManager: [];
 // }>();
 
-const { messages, sendChatMessage, initHistory, loadMoreHistory, hasMore, isLoadingHistory, editMessage, deleteMessage } =
-  useChat();
+const {
+  messages,
+  sendChatMessage,
+  initHistory,
+  loadMoreHistory,
+  hasMore,
+  isLoadingHistory,
+  editMessage,
+  deleteMessage,
+} = useChat();
 const { user } = useAuth();
 const { viewers, typingUsers, mutedUserIds } = usePresence();
+const otherTypingUsers = computed(() => typingUsers.value.filter((u) => u.userId !== user.value?.id));
 const { sendTypingStart, sendTypingStop } = useWebSocket();
+const { flashTitlebar } = useTitlebarFlash();
 
-const scrollRef = ref<HTMLElement | null>(null);
+const scrollAreaRef = ref<{ getViewport: () => HTMLElement | null } | null>(null);
+const scrollRef = computed<HTMLElement | null>(() => scrollAreaRef.value?.getViewport?.() ?? null);
 const sentinelRef = ref<HTMLElement | null>(null);
 
 const TAB_ORDER = ['chat', 'viewers'] as const;
@@ -67,6 +81,8 @@ const isSelfMuted = computed(
 function canModerateDeleteMsg(msg: ChatMessageType): boolean {
   if (!user.value || !isPrivileged.value) return false;
   if (msg.userId === user.value.id) return false; // own messages handled by isOwn
+  // System messages can only be deleted by Admin
+  if (msg.userId === SYSTEM_USER_ID) return user.value.role === Role.Admin;
   return (ROLE_RANK[user.value.role] ?? 0) > (ROLE_RANK[msg.authorRole] ?? 0);
 }
 
@@ -206,6 +222,37 @@ watch(
   { deep: true },
 );
 
+// Ephemeral messages are always directed at the current user — always scroll to show them.
+watch(
+  () => ephemeralMessages.value.length,
+  async () => {
+    await nextTick();
+    if (scrollRef.value) scrollRef.value.scrollTop = scrollRef.value.scrollHeight;
+  },
+);
+
+// Track recently chatted users and flash titlebar on mention
+watch(
+  () => messages.value.length,
+  (newLen, oldLen) => {
+    if (newLen <= (oldLen ?? 0)) return;
+    const latestMsg = messages.value[newLen - 1];
+    if (!latestMsg) return;
+
+    // Track recently chatted
+    recordChatter(latestMsg.userId);
+
+    // Flash titlebar if current user is mentioned and tab is hidden
+    if (
+      user.value &&
+      latestMsg.content.includes(`<@${user.value.id}>`)
+    ) {
+      flashTitlebar(`${latestMsg.displayName} mentioned you!`);
+    }
+  },
+  { flush: 'sync' },
+);
+
 async function handleMessageEdit(messageId: string, newContent: string) {
   await editMessage(messageId, newContent);
 }
@@ -271,8 +318,8 @@ async function handleSend(content: string) {
       <div class="flex-1 min-h-0 relative overflow-hidden">
         <Transition :name="slideDirection === 'left' ? 'slide-left' : 'slide-right'">
           <!-- Chat tab -->
-          <div v-if="activeTab === 'chat'" key="chat" class="absolute inset-0 flex flex-col">
-            <div class="flex-1 min-h-0 overflow-y-auto" ref="scrollRef">
+          <div v-if="activeTab === 'chat'" key="chat" class="absolute inset-0 flex flex-col" data-chat-panel>
+            <ScrollArea ref="scrollAreaRef" class="flex-1 min-h-0">
               <div
                 role="log"
                 aria-live="polite"
@@ -324,7 +371,10 @@ async function handleSend(content: string) {
                     :is-own="user?.id === item.data.userId"
                     :can-moderate-delete="canModerateDeleteMsg(item.data)"
                     :is-author-muted="mutedUserIds.has(item.data.userId)"
+                    :is-current-user-muted="isSelfMuted"
                     :current-user-role="user?.role"
+                    :current-user-id="user?.id"
+                    :viewers="viewers"
                     @request-edit="handleMessageEdit"
                     @request-delete="handleMessageDelete"
                     @mute-user="handleMuteUser"
@@ -332,12 +382,30 @@ async function handleSend(content: string) {
                     @ban-user="handleBanUser"
                   />
                 </template>
+
+                <!-- Ephemeral messages — visible only to the invoking user, not persisted -->
+                <ChatMessage
+                  v-for="ephemeral in ephemeralMessages"
+                  :key="ephemeral.id"
+                  :message="ephemeral"
+                  :is-continuation="false"
+                  :is-own="false"
+                  :can-moderate-delete="false"
+                  :is-author-muted="false"
+                  :is-ephemeral="true"
+                  :current-user-role="user?.role"
+                  :current-user-id="user?.id"
+                  :viewers="viewers"
+                  @dismiss="dismissEphemeral(ephemeral.id)"
+                />
               </div>
-            </div>
+            </ScrollArea>
 
             <div class="p-2 pb-0 pt-4 border-t border-[hsl(var(--border))]">
               <ChatInput
                 :muted="isSelfMuted"
+                :viewers="viewers"
+                :current-user-id="user?.id"
                 @send="handleSend"
                 @edit-last="handleEditLast"
                 @typing-start="sendTypingStart"
@@ -346,11 +414,11 @@ async function handleSend(content: string) {
             </div>
 
             <!-- Typing indicator — below input bars, only visible when active -->
-            <TypingIndicator :typing-users="typingUsers" />
+            <TypingIndicator :typing-users="otherTypingUsers" />
           </div>
 
           <!-- Viewers tab -->
-          <div v-else key="viewers" class="absolute inset-0 overflow-y-auto">
+          <ScrollArea v-else key="viewers" class="absolute inset-0">
             <PresenceList
               :viewers="viewers"
               :current-user-id="user?.id"
@@ -359,7 +427,7 @@ async function handleSend(content: string) {
               @unmute-user="handleUnmuteUser"
               @ban-user="handleBanUser"
             />
-          </div>
+          </ScrollArea>
         </Transition>
       </div>
     </Tabs>
@@ -367,6 +435,16 @@ async function handleSend(content: string) {
 </template>
 
 <style scoped>
+/*
+ * reka-ui's ScrollAreaViewport wraps slot content in a Primitive div with auto height.
+ * Setting min-height: 100% on that Primitive div ensures that our inner content div's
+ * min-h-full resolves correctly against the viewport height, allowing justify-end to
+ * push messages to the bottom when there are few of them.
+ */
+:deep([data-reka-scroll-area-viewport] > *) {
+  min-height: 100%;
+}
+
 /* Navigating right (Chat → Viewers): new content enters from right, old exits left */
 .slide-left-enter-from,
 .slide-left-leave-to {

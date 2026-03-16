@@ -1,9 +1,17 @@
 ---
-stepsCompleted: [step-01-validate-prerequisites, step-02-design-epics, step-03-create-stories, step-04-final-validation]
+stepsCompleted:
+  [
+    step-01-validate-prerequisites,
+    step-02-design-epics,
+    step-03-create-stories,
+    step-04-final-validation,
+    epic-8-planning,
+  ]
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/architecture.md
   - _bmad-output/planning-artifacts/ux-design-specification.md
+  - _bmad-output/implementation-artifacts/epic-7-retro-2026-03-13.md
 ---
 
 # ManlyCam - Epic Breakdown
@@ -17,6 +25,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 ### Functional Requirements
 
 **Authentication & Access Control**
+
 - FR1: Unauthenticated users can view a landing page that explains the stream's private nature and provides a login entry point
 - FR2: Users can authenticate via Google OAuth using their Google account
 - FR3: The system grants stream access to users whose email domain matches a configured domain allowlist
@@ -27,6 +36,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR8: User profile information (display name, avatar) is sourced from Google OAuth; gravatar is used as fallback when no Google avatar is available
 
 **Stream & State Management**
+
 - FR9: Authenticated users can view a live video stream
 - FR10: The stream UI communicates one of four explicit states: live, intentionally offline, unreachable-but-should-be-live, or offline-and-unreachable
 - FR11: Admin users can start and stop the stream from the web UI on any device
@@ -36,6 +46,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR15: Admin users can access camera settings controls from a collapsible sidebar in the web UI
 
 **Chat**
+
 - FR16: Authenticated users can send text messages in a chat sidebar alongside the stream; all chat activity is delivered in real-time to all connected users via WebSocket
 - FR17: Chat messages support basic markdown formatting
 - FR18: The chat sidebar displays the sender's avatar and display name with each message
@@ -48,6 +59,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR25: The chat sidebar supports infinite scroll — scrolling upward loads older messages progressively with clear day-boundary delineators
 
 **Moderation**
+
 - FR26: Moderator and Admin users can delete any user's chat message via a message context menu; deletions are soft-deletes with revision history retained server-side
 - FR27: Moderator and Admin users can mute a user via that user's profile context menu; muted users retain stream access but cannot send chat messages or reactions
 - FR28: Moderator and Admin users can ban a user via that user's profile context menu; banned users have access revoked and active sessions terminated immediately
@@ -56,6 +68,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR31: Non-privileged users see no elevated options on other users' profiles or messages they do not own
 
 **Role & User Management**
+
 - FR32: The system enforces a four-tier role hierarchy: Admin, Moderator, Viewer (Company), Viewer (Guest)
 - FR33: All users are assigned their base viewer tier automatically on first authenticated login based on their allowlist match
 - FR34: Admin role can only be assigned via CLI
@@ -67,12 +80,14 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR40: Admin users can set a custom UserTag color on any user; colors must be theme-compatible and legible in both dark and light mode
 
 **Allowlist & Blocklist Management**
+
 - FR41: Admin users can add or remove domain entries from the allowlist via CLI
 - FR42: Admin users can add or remove individual email addresses from the allowlist via CLI
 - FR43: Admin users can ban or unban individual user accounts via CLI
 - FR44: The allowlist controls registration eligibility only; adding or removing entries does not affect already-authenticated users. Banning a user takes effect immediately, revoking all active sessions via WebSocket signal.
 
 **IoT Agent & Infrastructure**
+
 - FR45: frpc is installed as a systemd service on the Pi and establishes the stream proxy tunnel to the upstream server on boot, with restart-on-failure
 - FR46: frpc is configured with an API proxy tunnel to the upstream server on boot, enabling camera control commands from the backend to reach mediamtx's HTTP API on the Pi
 - FR47: frpc and mediamtx are each managed as independent systemd services with automatic restart-on-failure
@@ -81,19 +96,31 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR51: WiFi configuration is the operator's responsibility; the operator documentation optionally covers wifi-connect as one approach — no custom captive portal is implemented
 
 **Platform & Developer Operations**
+
 - FR52: The web application is a single-page application; all viewer, chat, and admin features are accessible within a single page surface without full navigation
 - FR53: The upstream server detects Pi tunnel disconnection and reflects the appropriate stream state to all connected viewers without crashing or data loss
 - FR54: GitHub Actions CI/CD builds and publishes Docker images for the server and web app; the Go agent workspace and its CI pipeline have been removed from the monorepo; no Pi binary artifact is published
 - FR55: The application is configurable with an instance-specific pet name and site name set at deploy time; no hardcoded references exist in the codebase
 
+**Chat Enhancement (Epic 8)**
+
+- FR60: Chat Emojis & Emoji Picker — full emoji picker with search and categories for chat input; Discord/Slack-style `:emoji_name:` shortcuts with autocomplete; reusable picker architecture for reactions
+- FR61: Message Reactions — users can react to any chat message with an emoji; Moderator/Admin can remove any reaction; muted users see disabled reaction controls
+- FR62: Expanded Markdown Support — code blocks with syntax highlighting (triple backticks), blockquotes, auto-detected links, italics, strikethrough, markdown images with max-height constraint, multiline rendering with spam prevention (consecutive newlines collapsed)
+- FR63: @Mentions — `@Full Name` mentions with autocomplete (spaces ignored in matching), highlighted messages for mentioned users, titlebar flash on mention preference
+- FR64: Browser Notifications — chat message, @mention, and stream state change notifications with granular per-type user preferences; scoped to active browser tabs only (no service worker/push API)
+- FR65: Programmable Slash Commands — admin-defined JavaScript commands with name, description, placeholder, handler, and role-based visibility gate; ephemeral response option; built-in text expansions (`/shrug`, `/tableflip`)
+
 ### NonFunctional Requirements
 
 **Performance**
+
 - NFR1: Stream latency is minimized to the extent permitted by the Pi Zero W 2 hardware, camera pipeline, frp tunnel, and network conditions; no artificial buffering introduced at any layer
 - NFR2: The upstream server introduces no unnecessary encoding or relay delay; stream is proxied to viewers as efficiently as the infrastructure permits
 - NFR3: Chat messages are delivered to all connected clients via WebSocket following established best practices; delivery is bounded only by network conditions
 
 **Security**
+
 - NFR4: All traffic between clients, the upstream server, and the Pi is transmitted over encrypted connections (TLS)
 - NFR5: Google OAuth is validated once at login; the server issues a session cookie for subsequent request authentication; profile data is upserted on each login
 - NFR6: User allowlist and role checks are enforced server-side; access cannot be bypassed by client manipulation
@@ -102,12 +129,14 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - NFR9: Audit log entries for moderation actions are append-only and cannot be modified or deleted by any web UI action
 
 **Reliability**
+
 - NFR10: The Pi frp agent is managed by systemd with automatic restart-on-failure; transient crashes must not require manual intervention to recover
 - NFR11: The upstream server handles Pi tunnel disconnection gracefully — active viewer WebSocket connections remain open and reflect the updated stream state without server error or crash
 - NFR12: The upstream server handles concurrent viewer connections up to 10–20 without stream degradation
 - NFR13: A degraded-but-live stream is always preferable to a clean failure; no component should terminate a live stream silently
 
 **Data**
+
 - NFR14: Chat messages and audit log records are retained indefinitely; no automated expiry or deletion policy is applied by the application
 - NFR15: Chat message edits are stored as revision history; soft-deleted messages retain their server-side record; no user-initiated action results in permanent data loss
 - NFR16: Bulk data management is an administrative database operation performed outside the application UI
@@ -115,6 +144,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 ### Additional Requirements
 
 **Architecture — Starter Template & Monorepo**
+
 - Pnpm monorepo with workspaces: `apps/agent` (Go), `apps/server` (Hono/Node.js), `apps/web` (Vue 3/Vite), `packages/types` (shared TypeScript types)
 - Server scaffolded via `pnpm create hono@latest apps/server --template nodejs`
 - Web SPA scaffolded via `pnpm create vite@latest apps/web -- --template vue-ts`
@@ -122,6 +152,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - This monorepo scaffold is **Epic 1, Story 1** — all other implementation depends on it
 
 **Architecture — Database & IDs**
+
 - PostgreSQL via Prisma 6 ORM with strict snake_case DB column mapping
 - All primary keys use ULID (`CHAR(26)`), server-generated only via `monotonicFactory()` from `ulidx`
 - ULID generation centralized to `src/lib/ulid.ts` — single import point
@@ -129,36 +160,42 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - Ban is atomic: sets `banned_at` + deletes all sessions in a single `prisma.$transaction()`
 
 **Architecture — Stream Pipeline**
+
 - Pi runs `rpicam-vid` subprocess → H.264 MPEG-TS → frp stream tunnel → upstream ffmpeg → HLS (2s segments, 5-segment rolling window)
 - HLS segments written to `HLS_SEGMENT_PATH` env var (default `/tmp/hls`); tmpfs ramdisk recommended in production
 - frp and ffmpeg are separate processes, not managed by Node.js directly
 - Two frp tunnels: stream proxy + API proxy (separate auth layers: frp token for tunnel, `X-Agent-Key` for agent API calls)
 
 **Architecture — WebSocket & Real-time**
+
 - Single WS connection per authenticated session at `GET /ws`
 - In-process `EventEmitter` fan-out (appropriate for 10–20 viewers; Redis seam documented for future horizontal scaling)
 - Typed `WsMessage` discriminated union in `packages/types/src/ws.ts` — 12 message types
 - WS used for: chat messages/edits/deletes, stream state transitions, presence join/leave, typing indicators, session revocation, moderation events, user profile updates
 
 **Architecture — CI/CD**
+
 - Path-filtered GitHub Actions: `agent.yml`, `server.yml`, `web.yml`, `types.yml`
 - Agent: semver tags required (for `--self-update` version comparison); GitHub Releases with ARM artifact
 - Server + Web: rolling Docker deploy (image tagged with commit SHA + `latest`)
 - All CI artifacts must be PII-free
 
 **Architecture — Observability**
+
 - Structured JSON logging via `pino` (server) and `log/slog` (agent)
 - Prometheus metrics via `prom-client` (server) exposed at `GET /metrics`
 - Grafana Cloud: Loki for logs, Prometheus for metrics (via agent scrape)
 
-**UX — Responsive Layout** *(updated Epic 7 — sprint-change-proposal-2026-03-12.md)*
+**UX — Responsive Layout** _(updated Epic 7 — sprint-change-proposal-2026-03-12.md)_
+
 - Mobile-first CSS: base styles for `< 768px`, layer `md:` / `lg:` upward
 - Desktop (`≥ 1024px`): stream top-aligned (approx. 5vh top padding), `<BroadcastConsole>` strip directly below, `<AtmosphericVoid>` fills remaining height; right sidebar (chat + viewers) runs full height alongside; left sidebar (admin camera controls) opened via Console left flank toggle; right sidebar is drag-resizable between a min and max width
 - Mobile portrait (`< 768px`): stream full-width at top, `<BroadcastConsole>` directly below, chat panel fills remaining height; admin controls and viewers as bottom Sheet drawers
 - Mobile landscape: immersive — stream fills full screen; chat panel slides in from right as overlay; `<BroadcastConsole>` elements (live status, viewer count, toggles) integrated into chat sidebar header
 - Sidebar collapse state persisted to `localStorage`; re-hydrated before first paint to prevent flash
 
-**UX — Broadcast Console** *(new — Epic 7; replaces Hover-Reveal Overlay)*
+**UX — Broadcast Console** _(new — Epic 7; replaces Hover-Reveal Overlay)_
+
 - Persistent semi-transparent horizontal strip directly below the stream on desktop and mobile portrait
 - Left flank (admin-only): Camera Controls toggle, Stream Start/Stop toggle, Battery Indicator (if PiSugar configured via `FRP_PISUGAR_PORT`)
 - Center: Stream title / flavor text (editable by Admin/Mod via inline popover; changes broadcast via WS); Live status badge; Viewer count
@@ -167,6 +204,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - Mobile landscape: Console elements move into chat sidebar header; stream is edge-to-edge immersive
 
 **UX — Accessibility**
+
 - WCAG 2.1 AA throughout; AAA for stream status elements
 - `prefers-color-scheme` respected; dark mode is default when no system preference declared
 - Manual dark/light toggle persisted in `localStorage`
@@ -175,6 +213,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - Focus styles always visible (`outline: none` forbidden); ShadCN `focus-visible` styles preserved
 
 **UX — Design System**
+
 - ShadCN-vue (Radix Vue + Tailwind v3 + CSS variable theming) — components scaffolded into repo
 - Tailwind v3 pinned (shadcn-vue does not yet have stable v4 support)
 - Dark palette: warmed toward cozy (reference: Discord `#313338` surface, `#1E1F22` sidebar, warmed)
@@ -184,67 +223,73 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 
 ### FR Coverage Map
 
-| FR | Epic | Description |
-|---|---|---|
-| FR1 | Epic 2 | Unauthenticated landing page |
-| FR2 | Epic 2 | Google OAuth sign-in |
-| FR3 | Epic 2 | Domain allowlist enforcement |
-| FR4 | Epic 2 | Individual email allowlist enforcement |
-| FR5 | Epic 2 | Rejection state post-OAuth |
-| FR6 | Epic 2 | No ghost accounts for rejected users |
-| FR7 | Epic 2 | Persistent session across visits |
-| FR8 | Epic 2 | Avatar from Google OAuth / Gravatar fallback |
-| FR9 | Epic 3 | Authenticated live stream access |
-| FR10 | Epic 3 | 4-state stream UI (live / offline / unreachable-live / unreachable-offline) |
-| FR11 | Epic 3 | Admin stream start/stop from web UI |
-| FR12 | Epic 3 | "Check back soon" state when Pi unreachable + toggle live |
-| FR13 | Epic 3 | Real-time state broadcast to all viewers on admin toggle |
-| FR14 | Epic 3 | Camera settings controls with real-time v4l2-ctl effect |
-| FR15 | Epic 3 | Collapsible camera settings sidebar (admin only) |
-| FR16 | Epic 4 | Real-time chat via WebSocket |
-| FR17 | Epic 4 | Markdown formatting in chat messages |
-| FR18 | Epic 4 | Avatar + display name with each message |
-| FR19 | Epic 4 | Load last 200 messages on page load |
-| FR20 | Epic 4 | Auto-collapse on small screens, auto-expand on large |
-| FR21 | Epic 4 | Unread message count indicator on collapsed sidebar |
-| FR22 | Epic 4 | Manual expand/collapse of chat sidebar |
-| FR23 | Epic 4 | Edit/delete own messages; revision history; soft-delete |
-| FR24 | Epic 4 | Viewer presence list (all authenticated users) |
-| FR25 | Epic 4 | Infinite scroll with day-boundary delineators |
-| FR26 | Epic 5 | Moderator/Admin delete any message; soft-delete |
-| FR27 | Epic 5 | Moderator/Admin mute user (chat-silenced, stream retained) |
-| FR28 | Epic 5 | Moderator/Admin ban user (access revoked + immediate session termination) |
-| FR29 | Epic 5 | Moderator/Admin unmute user |
-| FR30 | Epic 5 | Audit log for all moderation actions |
-| FR31 | Epic 5 | Non-privileged users see no elevated options |
-| FR32 | Epic 5 | Four-tier role hierarchy: Admin > Moderator > Viewer Company > Viewer Guest |
-| FR33 | Epic 5 | Auto-assign base viewer tier on first login from allowlist match |
-| FR34 | Epic 5 | Admin role CLI-only assignment |
-| FR35 | Epic 5 | Admin promote/demote Moderator via web UI |
-| FR36 | Epic 5 | Admin promote/demote any role via CLI |
-| FR37 | Epic 5 | Admin view all users with first-seen / last-seen timestamps |
-| FR38 | Epic 5 | Server-computed UserTag on all user profiles; default Guest UserTag for ViewerGuest |
-| FR39 | Epic 5 | Admin set custom UserTag text on any user |
-| FR40 | Epic 5 | Admin set custom UserTag color on any user |
-| FR41 | Epic 2 | CLI add/remove domain allowlist entries |
-| FR42 | Epic 2 | CLI add/remove individual email allowlist entries |
-| FR43 | Epic 2 | CLI ban/unban user accounts |
-| FR44 | Epic 2 | Immediate active session enforcement on allowlist/blocklist change |
-| FR45 | Epic 6 | frpc systemd service: stream proxy tunnel on boot |
-| FR46 | Epic 6 | frpc systemd service: API proxy tunnel on boot (camera control) |
-| FR47 | Epic 6 | frpc + mediamtx systemd restart-on-failure |
-| FR48 | Epic 6 | frpc.toml + mediamtx.yml: sensitive config in native config files |
-| FR49 | N/A   | REMOVED — no Go binary; no self-update mechanism |
-| FR50 | Epic 6 | Install script + operator README: OS flash → camera verify → frpc/mediamtx setup |
-| FR51 | Epic 6 | WiFi config: operator's choice; wifi-connect optionally documented in README |
-| FR52 | Epic 3 | Single-page application constraint |
-| FR53 | Epic 3 | Graceful Pi tunnel-drop handling (no server crash, state broadcast) |
-| FR54 | Epic 1 | GitHub Actions CI/CD: server + web Docker images; agent CI removed |
-| FR55 | Epic 1 | Deploy-time config: pet name, site name, OAuth creds, DB URL |
-| FR56 | Epic 7 | Editable stream title in Broadcast Console (Admin/Mod); changes broadcast via WS |
-| FR57 | Epic 7 | Snapshot button in Broadcast Console; client-side JPEG frame capture + download |
-| FR58 | Epic 7 | PiSugar battery monitor: server TCP poller + admin-only WS broadcast + UI indicator |
-| FR59 | Epic 7 | Resizable chat sidebar (desktop drag handle); width persisted to localStorage |
+| FR   | Epic   | Description                                                                                                             |
+| ---- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
+| FR1  | Epic 2 | Unauthenticated landing page                                                                                            |
+| FR2  | Epic 2 | Google OAuth sign-in                                                                                                    |
+| FR3  | Epic 2 | Domain allowlist enforcement                                                                                            |
+| FR4  | Epic 2 | Individual email allowlist enforcement                                                                                  |
+| FR5  | Epic 2 | Rejection state post-OAuth                                                                                              |
+| FR6  | Epic 2 | No ghost accounts for rejected users                                                                                    |
+| FR7  | Epic 2 | Persistent session across visits                                                                                        |
+| FR8  | Epic 2 | Avatar from Google OAuth / Gravatar fallback                                                                            |
+| FR9  | Epic 3 | Authenticated live stream access                                                                                        |
+| FR10 | Epic 3 | 4-state stream UI (live / offline / unreachable-live / unreachable-offline)                                             |
+| FR11 | Epic 3 | Admin stream start/stop from web UI                                                                                     |
+| FR12 | Epic 3 | "Check back soon" state when Pi unreachable + toggle live                                                               |
+| FR13 | Epic 3 | Real-time state broadcast to all viewers on admin toggle                                                                |
+| FR14 | Epic 3 | Camera settings controls with real-time v4l2-ctl effect                                                                 |
+| FR15 | Epic 3 | Collapsible camera settings sidebar (admin only)                                                                        |
+| FR16 | Epic 4 | Real-time chat via WebSocket                                                                                            |
+| FR17 | Epic 4 | Markdown formatting in chat messages                                                                                    |
+| FR18 | Epic 4 | Avatar + display name with each message                                                                                 |
+| FR19 | Epic 4 | Load last 200 messages on page load                                                                                     |
+| FR20 | Epic 4 | Auto-collapse on small screens, auto-expand on large                                                                    |
+| FR21 | Epic 4 | Unread message count indicator on collapsed sidebar                                                                     |
+| FR22 | Epic 4 | Manual expand/collapse of chat sidebar                                                                                  |
+| FR23 | Epic 4 | Edit/delete own messages; revision history; soft-delete                                                                 |
+| FR24 | Epic 4 | Viewer presence list (all authenticated users)                                                                          |
+| FR25 | Epic 4 | Infinite scroll with day-boundary delineators                                                                           |
+| FR26 | Epic 5 | Moderator/Admin delete any message; soft-delete                                                                         |
+| FR27 | Epic 5 | Moderator/Admin mute user (chat-silenced, stream retained)                                                              |
+| FR28 | Epic 5 | Moderator/Admin ban user (access revoked + immediate session termination)                                               |
+| FR29 | Epic 5 | Moderator/Admin unmute user                                                                                             |
+| FR30 | Epic 5 | Audit log for all moderation actions                                                                                    |
+| FR31 | Epic 5 | Non-privileged users see no elevated options                                                                            |
+| FR32 | Epic 5 | Four-tier role hierarchy: Admin > Moderator > Viewer Company > Viewer Guest                                             |
+| FR33 | Epic 5 | Auto-assign base viewer tier on first login from allowlist match                                                        |
+| FR34 | Epic 5 | Admin role CLI-only assignment                                                                                          |
+| FR35 | Epic 5 | Admin promote/demote Moderator via web UI                                                                               |
+| FR36 | Epic 5 | Admin promote/demote any role via CLI                                                                                   |
+| FR37 | Epic 5 | Admin view all users with first-seen / last-seen timestamps                                                             |
+| FR38 | Epic 5 | Server-computed UserTag on all user profiles; default Guest UserTag for ViewerGuest                                     |
+| FR39 | Epic 5 | Admin set custom UserTag text on any user                                                                               |
+| FR40 | Epic 5 | Admin set custom UserTag color on any user                                                                              |
+| FR41 | Epic 2 | CLI add/remove domain allowlist entries                                                                                 |
+| FR42 | Epic 2 | CLI add/remove individual email allowlist entries                                                                       |
+| FR43 | Epic 2 | CLI ban/unban user accounts                                                                                             |
+| FR44 | Epic 2 | Immediate active session enforcement on allowlist/blocklist change                                                      |
+| FR45 | Epic 6 | frpc systemd service: stream proxy tunnel on boot                                                                       |
+| FR46 | Epic 6 | frpc systemd service: API proxy tunnel on boot (camera control)                                                         |
+| FR47 | Epic 6 | frpc + mediamtx systemd restart-on-failure                                                                              |
+| FR48 | Epic 6 | frpc.toml + mediamtx.yml: sensitive config in native config files                                                       |
+| FR49 | N/A    | REMOVED — no Go binary; no self-update mechanism                                                                        |
+| FR50 | Epic 6 | Install script + operator README: OS flash → camera verify → frpc/mediamtx setup                                        |
+| FR51 | Epic 6 | WiFi config: operator's choice; wifi-connect optionally documented in README                                            |
+| FR52 | Epic 3 | Single-page application constraint                                                                                      |
+| FR53 | Epic 3 | Graceful Pi tunnel-drop handling (no server crash, state broadcast)                                                     |
+| FR54 | Epic 1 | GitHub Actions CI/CD: server + web Docker images; agent CI removed                                                      |
+| FR55 | Epic 1 | Deploy-time config: pet name, site name, OAuth creds, DB URL                                                            |
+| FR56 | Epic 7 | Editable stream title in Broadcast Console (Admin/Mod); changes broadcast via WS                                        |
+| FR57 | Epic 7 | Snapshot button in Broadcast Console; client-side JPEG frame capture + download                                         |
+| FR58 | Epic 7 | PiSugar battery monitor: server TCP poller + admin-only WS broadcast + UI indicator                                     |
+| FR59 | Epic 7 | Resizable chat sidebar (desktop drag handle); width persisted to localStorage                                           |
+| FR60 | Epic 8 | Chat Emojis & Emoji Picker — full emoji picker with search and categories; `:emoji_name:` shortcuts with autocomplete   |
+| FR61 | Epic 8 | Message Reactions — react to messages with emojis; mod/admin can remove; muted users see disabled controls              |
+| FR62 | Epic 8 | Expanded Markdown — code blocks with syntax highlighting, blockquotes, links, italics, strikethrough, images, multiline |
+| FR63 | Epic 8 | @Mentions — `@Full Name` with autocomplete, highlighted messages, titlebar flash on mention                             |
+| FR64 | Epic 8 | Browser Notifications — chat, mention, stream state notifications with granular preferences                             |
+| FR65 | Epic 8 | Programmable Slash Commands — admin-defined JS commands with role-based visibility, ephemeral option                    |
 
 ## Epic List
 
@@ -302,14 +347,37 @@ Any operator can bootstrap a Raspberry Pi Zero W 2 as a ManlyCam camera node fro
 
 The web UI shell is redesigned from the hover-overlay model to the Broadcast Console + Atmospheric Void layout approved by the UX designer. All existing functionality (admin toggle, stream start/stop, chat toggle, profile menu) is preserved but relocated into the persistent Broadcast Console strip. Five post-MVP features are delivered alongside: an editable stream title, a client-side snapshot button, an optional PiSugar battery monitor for admin users, and a resizable chat sidebar using Reka-UI Splitter.
 
-**FRs covered:** FR57, FR58, FR59 *(FR56 deferred per sprint-change-proposal-2026-03-12.md)*
+**FRs covered:** FR57, FR58, FR59 _(FR56 deferred per sprint-change-proposal-2026-03-12.md)_
 **Approved via:** sprint-change-proposal-2026-03-12.md
 
 **Stories:**
-- 7-1: UX Shell Redesign — Broadcast Console + Atmospheric Void *(must be first; all others depend on BroadcastConsole existing)*
+
+- 7-1: UX Shell Redesign — Broadcast Console + Atmospheric Void _(must be first; all others depend on BroadcastConsole existing)_
 - 7-3: Camera Snapshot Button (Client-Side Frame Capture)
 - 7-4: PiSugar Battery Monitor (Server TCP Poller + Admin UI)
 - 7-5: Resizable Chat Sidebar via Reka-UI Splitter
+
+---
+
+### Epic 8: Chat Enhancement & Engagement
+
+Transform the chat experience from basic messaging into a rich, engaging communication platform with emoji support, reactions, mentions, enhanced markdown formatting, browser notifications, and extensible slash commands.
+
+**FRs covered:** FR60, FR61, FR62, FR63, FR64, FR65
+
+**Dependencies:**
+
+- Story 8-3 depends on 8-2 (notifications include mention triggers)
+- Story 8-6 depends on 8-5 (reactions reuse emoji picker)
+
+**Stories:**
+
+- 8-1: Expanded Markdown & Multiline Support _(no dependencies)_
+- 8-2: @Mentions & Highlighting _(no dependencies)_
+- 8-3: Browser Notifications & Preferences _(depends on 8-2)_
+- 8-4: Programmable Slash Commands _(no dependencies)_
+- 8-5: Emoji Picker Component _(no dependencies)_
+- 8-6: Message Reactions _(depends on 8-5)_
 
 ---
 
@@ -491,10 +559,12 @@ So that I can get the server running in production with my choice of reverse pro
 
 **Note — frps Configuration:**
 This story includes server-side frp (fast reverse proxy) configuration examples at `apps/server/deploy/frps.toml`. The frps server listens for connections from the Pi agent (`frpc`) and exposes two tunnels:
+
 - **Stream tunnel** (port 11935): Pi rpicam-vid output → upstream ffmpeg ingestion
 - **API tunnel** (port 11936): Upstream Hono backend → Pi agent local HTTP server (camera control)
 
 Configuration files provided for:
+
 - Docker Compose variant: `apps/server/deploy/frps.toml`
 - Traefik variant: `apps/server/deploy/traefik/frps.toml` (identical)
 
@@ -613,6 +683,7 @@ So that coverage cannot silently degrade in future stories and the thresholds re
 **Then** both workflows run `vitest run --coverage` (or equivalent) rather than bare `vitest run`, ensuring coverage collection and threshold enforcement occur on every CI run
 
 **Notes:**
+
 - The goal of this story is a meaningful baseline — not a high number. If the audit produces 58% line coverage after covering critical paths, 58% is the right threshold.
 - `@vitest/coverage-v8` is preferred over Istanbul: no instrumentation overhead, accurate branch tracking with native V8.
 - Agent (`apps/agent`) uses `go test`; Go coverage tooling (`-coverprofile`) is out of scope for this story.
@@ -1352,13 +1423,20 @@ So that I can give special members a distinguishing identity badge that appears 
 **Then** `user_tag_text` and `user_tag_color` are set to `NULL`; the effective UserTag reverts to the default logic: `ViewerGuest` → `{ text: 'Guest', color: defaultGuestTagColor }`, all other roles → `null`
 
 **And** the server `effectiveUserTag` computation is a pure function in `apps/server/src/lib/user-tag.ts`:
+
 ```ts
-function computeUserTag(user: { role: Role; userTagText: string | null; userTagColor: string | null }): UserTag {
-  if (user.userTagText) return { text: user.userTagText, color: user.userTagColor ?? DEFAULT_TAG_COLOR };
+function computeUserTag(user: {
+  role: Role;
+  userTagText: string | null;
+  userTagColor: string | null;
+}): UserTag {
+  if (user.userTagText)
+    return { text: user.userTagText, color: user.userTagColor ?? DEFAULT_TAG_COLOR };
   if (user.role === 'ViewerGuest') return { text: 'Guest', color: DEFAULT_GUEST_TAG_COLOR };
   return null;
 }
 ```
+
 This function is called in every code path that returns a `UserProfile` — REST responses, WS `presence:join`, and `user:update` broadcasts
 
 **And** no Vue component or `useX.ts` composable re-implements `computeUserTag` — they receive and render `userTag` as provided
@@ -1581,3 +1659,324 @@ So that I can allocate screen real estate to suit my preference.
 **Then** the sidebar width is restored from `localStorage` — no layout flash occurs
 
 **And** a Vue-compatible drag-resize library is used (not `react-resizable-panels`); sidebar widths are constrained to min/max values to prevent the stream from becoming unusably small
+
+---
+
+## Epic 8: Chat Enhancement & Engagement
+
+Transform the chat experience from basic messaging into a rich, engaging communication platform with emoji support, reactions, mentions, enhanced markdown formatting, browser notifications, and extensible slash commands.
+
+### Story 8-1: Expanded Markdown & Multiline Support
+
+As an **authorized viewer**,
+I want to format my chat messages with rich markdown including code blocks, blockquotes, links, italics, strikethrough, and images,
+So that I can express myself more clearly and share code snippets or relevant content.
+
+**Acceptance Criteria:**
+
+**Given** a message contains a fenced code block starting with triple backticks and an optional language identifier
+**When** the message is rendered
+**Then** the content between the opening and closing triple backticks displays as a code block with syntax highlighting for the specified language
+
+**Given** a message contains a fenced code block with no closing triple backticks
+**When** the message is rendered
+**Then** the code block is assumed to continue until the end of the message and displays with syntax highlighting (or plain if no language specified)
+
+**Given** a message contains lines starting with `>` (blockquote syntax)
+**When** the message is rendered
+**Then** those lines display as blockquotes with appropriate styling
+
+**Given** a message contains a URL like `https://example.com`
+**When** the message is rendered
+**Then** the URL is auto-detected and rendered as a clickable link with `target="_blank"`
+
+**Given** a message contains text wrapped in single asterisks or underscores like `*italic*` or `_italic_`
+**When** the message is rendered
+**Then** the text displays in italics
+
+**Given** a message contains text wrapped in double tildes like `~~strikethrough~~`
+**When** the message is rendered
+**Then** the text displays with a strikethrough line
+
+**Given** a message contains markdown image syntax like `![alt](https://example.com/image.gif)`
+**When** the message is rendered
+**Then** the image displays with a max-height constraint that fits within the chat width
+
+**Given** a message contains multiple consecutive newlines outside of code blocks
+**When** the message is rendered
+**Then** consecutive newlines are collapsed into a single line break (spam prevention)
+
+**Given** a message contains a code block with multiple consecutive newlines
+**When** the message is rendered
+**Then** all newlines within the code block are preserved exactly as typed
+
+**Given** a message contains intentional single line breaks outside of code blocks
+**When** the message is rendered
+**Then** the line break is preserved and rendered as a new line
+
+**And** the markdown renderer sanitizes input to prevent XSS attacks (existing `sanitizeHref` pattern extended for new elements)
+
+**And** the implementation replaces or extends `apps/web/src/lib/markdown.ts` with a library-based solution (e.g., `marked` + `highlight.js` or `markdown-it`)
+
+---
+
+### Story 8-2: @Mentions & Highlighting
+
+As an **authorized viewer**,
+I want to mention other users with `@Full Name` and be notified when someone mentions me,
+So that I can get someone's attention in chat and know when I'm being spoken to.
+
+**Acceptance Criteria:**
+
+**Given** a user types `@` in the chat input
+**When** the autocomplete popup appears
+**Then** it shows all currently connected viewers sorted by most recently chatted (default list)
+
+**Given** a user types `@` followed by characters (e.g., `@John`)
+**When** the autocomplete filters results
+**Then** it filters the list by matching against full names with spaces removed (e.g., "John Smith" matches `@johns`, `@johnsmith`)
+
+**Given** the autocomplete popup is visible
+**When** a user clicks or taps on a name in the list
+**Then** that name is inserted into the chat input at the cursor position
+
+**Given** the autocomplete popup is visible
+**When** a user presses the up/down arrow keys
+**Then** the selection highlight moves through the list items
+
+**Given** the autocomplete popup is visible and a name is highlighted via arrow keys
+**When** the user presses Enter or Tab
+**Then** the highlighted name is inserted into the chat input at the cursor position
+
+**Given** a user sends a message containing a valid `@Full Name`
+**When** the message is stored
+**Then** the mention is persisted with a reference to the mentioned user
+
+**Given** a message contains an `@mention` of the current user
+**When** the message is rendered for that user
+**Then** the mention is visually highlighted (e.g., different background color, pill styling)
+
+**Given** a user is mentioned while the browser tab is in the background
+**When** the message arrives
+**Then** the `window.title` changes to draw attention (e.g., "mentioned you! • ManlyCam")
+**And** the tab title restores to its original value when the tab regains focus
+
+**And** mentioned users are stored server-side for future notification features (Story 8-3)
+
+**Note:** Flash titlebar behavior defaults to enabled. A configurable preference toggle will be added in Story 8-3 (Browser Notifications & Preferences).
+
+---
+
+### Story 8-3: Browser Notifications & Preferences
+
+As an **authorized viewer**,
+I want to receive browser notifications for chat activity and control which notifications I receive,
+So that I can stay informed about activity even when the tab is in the background.
+
+**Acceptance Criteria:**
+
+**Given** a user has not yet granted notification permission
+**When** they toggle on any preference that requires browser notifications in the preferences dialog
+**Then** the browser's native notification permission prompt is displayed
+
+**Given** a user clicks the Avatar button in the Broadcast Console
+**When** the dropdown menu appears
+**Then** a "Preferences" option is visible alongside existing options (Logout, etc.)
+
+**Given** a user clicks "Preferences" from the Avatar dropdown
+**When** the preferences dialog opens
+**Then** a ShadCN modal/dialog displays with notification toggles
+
+**Given** a user grants browser notification permission
+**When** a chat message is sent while the user's tab is hidden
+**Then** a browser notification displays with the sender's name and message preview
+
+**Given** a user grants browser notification permission
+**When** they are mentioned while the tab is hidden
+**Then** a browser notification displays indicating they were mentioned
+
+**Given** the stream state changes (live → offline or offline → live)
+**When** the user's tab is hidden and stream notifications are enabled
+**Then** a browser notification displays the stream state change
+
+**Given** a user has multiple ManlyCam tabs open
+**When** a notification-triggering event occurs
+**Then** only one browser notification is shown (no duplicates across tabs)
+
+**Given** a user views the notification settings in the preferences dialog
+**Then** they see toggles for: Chat messages, @Mentions, Stream state changes
+
+**Given** a user disables a notification type in preferences
+**When** the corresponding event occurs
+**Then** no browser notification is shown for that event type
+
+**Given** a user enables a previously disabled notification type
+**When** the corresponding event occurs
+**Then** browser notifications resume for that event type
+
+**Given** a user toggles the "Flash titlebar on mention" preference
+**When** the preference is saved
+**Then** the titlebar flash behavior from Story 8-2 respects this setting
+
+**And** all notification preferences are persisted per-user and restored on next visit
+
+**And** notifications are scoped to active browser tabs only (no service worker / push API)
+
+---
+
+### Story 8-4: Programmable Slash Commands
+
+As an **admin**,
+I want to define custom slash commands via JavaScript files that users can invoke in chat,
+So that I can create custom text expansions and interactions without modifying the codebase.
+
+**Acceptance Criteria:**
+
+**Given** an admin creates a JavaScript file in the configured slash commands folder
+**When** the server starts
+**Then** the command is loaded and available to users based on its `gate.applicableRoles` setting
+
+**Given** a command file exports the following interface:
+
+```typescript
+interface SlashCommand {
+  name: string; // e.g., "shrug"
+  description: string; // e.g., "Appends ¯\\_(ツ)_/¯"
+  placeholder?: string; // e.g., "[message]" - shown in autocomplete as "/shrug [message]"
+  handler: (input: string, user: SimplifiedUser) => MessageResponse;
+  gate?: { applicableRoles?: Role[] }; // optional visibility gate
+}
+
+interface MessageResponse {
+  content: string;
+  ephemeral?: boolean; // if true, only invoker sees it (not persisted); defaults to false
+}
+```
+
+**When** the command is invoked
+**Then** the handler receives the message text (after the command) and a simplified user object
+
+**Given** a user types `/` in the chat input
+**When** the autocomplete popup appears
+**Then** it shows all commands visible to the user's role with format: `/command-name {placeholder}` (or just `/command-name` if no placeholder)
+
+**Given** a command defines `placeholder: "[message]"`
+**When** the autocomplete popup displays the command
+**Then** it shows as `/shrug [message]` with the description alongside
+
+**Given** an admin creates multiple commands with the same name
+**When** the server loads commands
+**Then** all commands with that name are loaded (no deduplication)
+
+**Given** a user types `/` and multiple commands share the same name
+**When** the autocomplete popup appears
+**Then** all commands with that name are shown (differentiated by description)
+
+**Given** a user types `/shrug` and submits the message
+**When** the command is processed
+**Then** the handler's returned `content` is posted as the chat message instead of the raw input
+
+**Given** a command specifies `gate: { applicableRoles: ['admin', 'moderator'] }`
+**When** a viewer without those roles types `/`
+**Then** that command does not appear in their autocomplete list
+
+**Given** a command file has invalid syntax or missing required fields
+**When** the server loads commands
+**Then** an error is logged and the invalid command is skipped (server does not crash)
+
+**Given** a command handler returns `{ content: "Only you see this", ephemeral: true }`
+**When** the command is processed
+**Then** only the invoking user sees the message via WebSocket (not broadcast to others)
+**And** the message is not persisted to the database
+
+**Given** a command handler returns `{ content: "Everyone sees this" }` or `{ content: "...", ephemeral: false }`
+**When** the command is processed
+**Then** the message is broadcast to all connected users and persisted normally
+
+**And** built-in commands are provided: `/shrug` (appends `¯\\_(ツ)_/¯`), `/tableflip` (appends `(╯°□°）╯︵ ┻━┻`)
+
+**And** the slash commands folder path is configurable via server environment variable
+
+---
+
+### Story 8-5: Emoji Picker Component
+
+As an **authorized viewer**,
+I want to insert emojis into my chat messages using a visual picker or keyboard shortcuts,
+So that I can express emotions and reactions quickly without memorizing emoji codes.
+
+**Acceptance Criteria:**
+
+**Given** a user clicks the emoji button in the chat input area
+**When** the emoji picker opens
+**Then** a searchable, categorized emoji picker displays using Fluent Emoji image assets (consistent cross-platform rendering)
+
+**Given** the emoji picker is open
+**When** a user types in the search field
+**Then** the emoji list filters to show only matching emojis by name or keyword
+
+**Given** the emoji picker is open
+**When** a user clicks an emoji
+**Then** the Fluent Emoji image is inserted at the cursor position in the chat input and the picker remains open
+
+**Given** a user types `:` followed by text (e.g., `:smile`)
+**When** an autocomplete popup appears
+**Then** it shows Fluent Emoji images matching the typed shortcut with their names
+
+**Given** the emoji shortcut autocomplete is visible
+**When** a user clicks/taps or uses arrow keys + Enter to select an emoji
+**Then** the `:shortcut` text is replaced with the Fluent Emoji image in the chat input
+
+**Given** a user presses Escape while the emoji picker or shortcut autocomplete is open
+**When** the picker/popup closes
+**Then** focus returns to the chat input
+
+**And** Fluent Emoji assets are loaded from CDN (`emoji.fluent-cdn.com`) or self-hosted via server configuration
+
+**And** the emoji picker component is reusable for both chat input and message reactions (Story 8-6)
+
+**And** the architecture supports future custom emoji extensibility (not required for this story)
+
+---
+
+### Story 8-6: Message Reactions
+
+As an **authorized viewer**,
+I want to react to chat messages with emojis and see others' reactions,
+So that I can express my feelings about a message without typing a response.
+
+**Acceptance Criteria:**
+
+**Given** a user hovers over or long-presses a chat message
+**When** the reaction UI appears
+**Then** a quick reaction bar displays with commonly used emojis and an option to open the full emoji picker
+
+**Given** a user clicks a quick reaction emoji or selects one from the full picker
+**When** the reaction is added
+**Then** the emoji appears below the message with a count (or the count increments if already present)
+
+**Given** a message has existing reactions
+**When** rendered
+**Then** each unique emoji displays with its count, sorted oldest reaction first (to prevent UI jumping during interaction)
+
+**Given** a user clicks on an existing reaction emoji they previously added
+**When** the click is processed
+**Then** their reaction is removed and the count decrements (or emoji removed if count reaches 0)
+
+**Given** a user clicks on an existing reaction emoji they did NOT add
+**When** the click is processed
+**Then** their reaction is added (toggles on) and the count increments
+
+**Given** a moderator or admin hovers over a reaction
+**When** the reaction detail tooltip appears
+**Then** it includes an option to remove the reaction (moderation capability)
+
+**Given** a muted user views a message with reactions
+**When** the message renders
+**Then** existing reaction buttons appear disabled (visible but non-interactive) and the add reaction UI is disabled
+
+**Given** a user adds or removes a reaction
+**When** the action completes
+**Then** the change is broadcast to all connected clients via WebSocket in real-time
+
+**And** the emoji picker component from Story 8-5 is reused for the full picker option

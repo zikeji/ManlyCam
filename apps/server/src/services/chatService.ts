@@ -4,7 +4,10 @@ import { wsHub } from './wsHub.js';
 import { AppError } from '../lib/errors.js';
 import { canModerateOver } from '../lib/roleUtils.js';
 import { computeUserTag } from '../lib/user-tag.js';
-import type { ChatMessage, ChatEdit, Role, WsMessage } from '@manlycam/types';
+import { executeCommand } from './slashCommands.js';
+import { getReactionsForMessages } from './reactionsService.js';
+import { SYSTEM_USER_ID } from '@manlycam/types';
+import type { ChatMessage, ChatEdit, Reaction, Role, WsMessage } from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import type { User } from '@prisma/client';
 
@@ -22,7 +25,7 @@ type MessageRow = {
   user: User;
 };
 
-function toApiChatMessage(row: MessageRow): ChatMessage {
+function toApiChatMessage(row: MessageRow, reactions?: Reaction[]): ChatMessage {
   return {
     id: row.id,
     userId: row.userId,
@@ -36,18 +39,60 @@ function toApiChatMessage(row: MessageRow): ChatMessage {
     deletedBy: null,
     createdAt: row.createdAt.toISOString(),
     userTag: computeUserTag(row.user),
+    reactions: reactions ?? [],
   };
 }
 
 export async function createMessage(params: {
   userId: string;
+  userDisplayName: string;
+  userRole: Role;
   content: string;
-}): Promise<ChatMessage> {
-  const { userId, content } = params;
-  const id = ulid();
+}): Promise<ChatMessage | null> {
+  const { userId, userDisplayName, userRole } = params;
+  let { content } = params;
 
+  // Extract mentioned user IDs from <@ID> tokens in content
+  const mentionedUserIds = Array.from(content.matchAll(/<@([^>]+)>/g), (m) => m[1]);
+
+  // Check for slash command
+  let messageAuthorId = userId;
+  if (content.startsWith('/')) {
+    const result = executeCommand({
+      content,
+      userId,
+      userDisplayName,
+      userRole,
+      mentionedUserIds,
+    });
+    if (result !== null) {
+      if (result.response.ephemeral) {
+        const ephemeralMsg: ChatMessage = {
+          id: ulid(),
+          userId: SYSTEM_USER_ID,
+          displayName: 'System',
+          avatarUrl: null,
+          authorRole: 'System' as Role,
+          content: result.response.content,
+          editHistory: null,
+          updatedAt: null,
+          deletedAt: null,
+          deletedBy: null,
+          createdAt: new Date().toISOString(),
+          userTag: null,
+          ephemeral: true,
+        };
+        wsHub.sendToUser(userId, { type: 'chat:ephemeral', payload: ephemeralMsg });
+        return null;
+      }
+      content = result.response.content;
+      messageAuthorId = result.authorUserId;
+    }
+  }
+
+  const id = ulid();
   const message = await prisma.message.create({
-    data: { id, userId, content },
+    data: { id, userId: messageAuthorId, content },
     include: { user: true },
   });
 
@@ -62,6 +107,7 @@ export async function createMessage(params: {
 export async function getHistory(params: {
   limit?: number;
   before?: string;
+  userId?: string;
 }): Promise<{ messages: ChatMessage[]; hasMore: boolean }> {
   const fetchLimit = Math.min(Math.max(params.limit ?? 50, 1), 100);
 
@@ -76,9 +122,13 @@ export async function getHistory(params: {
   });
 
   const hasMore = rows.length > fetchLimit;
-  const messages = rows
-    .slice(0, fetchLimit)
-    .map((row) => toApiChatMessage(row as MessageRow))
+  const pageRows = rows.slice(0, fetchLimit);
+
+  const messageIds = pageRows.map((r) => r.id);
+  const reactionsMap = await getReactionsForMessages(messageIds, params.userId);
+
+  const messages = pageRows
+    .map((row) => toApiChatMessage(row as MessageRow, reactionsMap.get(row.id) ?? []))
     .reverse();
 
   return { messages, hasMore };
@@ -139,16 +189,23 @@ export async function deleteMessage(params: {
       data: { deletedAt: new Date(), deletedBy: userId },
     });
   } else {
-    // Moderator-initiated delete
-    if (ROLE_RANK[callerRole] < ROLE_RANK.Moderator) {
-      throw new AppError('Insufficient permissions.', 'FORBIDDEN', 403);
-    }
-    if (!canModerateOver(callerRole, existing.user.role as Role)) {
-      throw new AppError(
-        'Cannot delete messages from users with equal or higher role.',
-        'INSUFFICIENT_ROLE',
-        403,
-      );
+    // System messages: Admin-only delete
+    if (existing.userId === SYSTEM_USER_ID) {
+      if (callerRole !== 'Admin') {
+        throw new AppError('Only admins can delete system messages.', 'INSUFFICIENT_ROLE', 403);
+      }
+    } else {
+      // Moderator-initiated delete
+      if (ROLE_RANK[callerRole] < ROLE_RANK.Moderator) {
+        throw new AppError('Insufficient permissions.', 'FORBIDDEN', 403);
+      }
+      if (!canModerateOver(callerRole, existing.user.role as Role)) {
+        throw new AppError(
+          'Cannot delete messages from users with equal or higher role.',
+          'INSUFFICIENT_ROLE',
+          403,
+        );
+      }
     }
     await prisma.message.update({
       where: { id: messageId },

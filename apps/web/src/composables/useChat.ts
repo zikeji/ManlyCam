@@ -5,6 +5,7 @@ import type { ChatMessage, ChatEdit, UserProfile } from '@manlycam/types';
 // Module-level singletons — all callers share the same refs (same pattern as useStream)
 // Exported directly for test reset (do not access via useChat factory in tests)
 export const messages = ref<ChatMessage[]>([]);
+export const ephemeralMessages = ref<ChatMessage[]>([]);
 export const hasMore = ref(true);
 export const isLoadingHistory = ref(false);
 
@@ -41,6 +42,14 @@ export const handleChatEdit = (edit: ChatEdit): void => {
 
 export const handleChatDelete = (messageId: string): void => {
   messages.value = messages.value.filter((msg) => msg.id !== messageId);
+};
+
+export const handleEphemeral = (payload: ChatMessage): void => {
+  ephemeralMessages.value.push(payload);
+};
+
+export const dismissEphemeral = (id: string): void => {
+  ephemeralMessages.value = ephemeralMessages.value.filter((m) => m.id !== id);
 };
 
 export const useChat = () => {
@@ -96,6 +105,7 @@ export const useChat = () => {
 
   return {
     messages,
+    ephemeralMessages,
     sendChatMessage,
     handleChatMessage,
     initHistory,

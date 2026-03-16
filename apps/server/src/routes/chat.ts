@@ -30,7 +30,16 @@ export function createChatRouter() {
     if (user.mutedAt !== null) {
       throw new AppError('You are muted and cannot send messages.', 'USER_MUTED', 403);
     }
-    const message = await createMessage({ userId: user.id, content });
+    const message = await createMessage({
+      userId: user.id,
+      userDisplayName: user.displayName,
+      userRole: user.role as Role,
+      content,
+    });
+    if (message === null) {
+      // Ephemeral command response — already sent via WS, no HTTP body needed
+      return c.body(null, 204);
+    }
     return c.json({ message }, 201);
   });
 
@@ -41,7 +50,8 @@ export function createChatRouter() {
     const limit = limitParam !== undefined ? parseInt(limitParam, 10) : 50;
     const clampedLimit = Math.min(Math.max(isNaN(limit) ? 50 : limit, 1), 100);
 
-    const result = await getHistory({ limit: clampedLimit, before });
+    const user = c.get('user')!;
+    const result = await getHistory({ limit: clampedLimit, before, userId: user.id });
     return c.json(result, 200);
   });
 

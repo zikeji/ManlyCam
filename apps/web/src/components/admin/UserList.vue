@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ChevronDown } from 'lucide-vue-next';
-import { Role } from '@manlycam/types';
+import { Role, SYSTEM_USER_ID } from '@manlycam/types';
 import { USER_TAG_PALETTE } from '@/lib/userTagPalette';
 import type { AdminUser } from '@/composables/useAdminUsers';
 
@@ -114,7 +114,7 @@ const getRoleBadgeClass = (role: Role) => {
 };
 
 const canChangeRole = (user: AdminUser) => {
-  return user.id !== currentUser.value?.id && user.role !== Role.Admin;
+  return user.id !== currentUser.value?.id && user.role !== Role.Admin && user.id !== SYSTEM_USER_ID;
 };
 
 const ROLES_OPTIONS = [Role.Moderator, Role.ViewerCompany, Role.ViewerGuest];
