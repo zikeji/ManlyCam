@@ -64,6 +64,9 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
 
       return {
         onOpen(_evt, ws) {
+          // Check BEFORE adding — determines if user is already present
+          const isFirstConnection = !wsHub.hasUserConnections(userPresence.id);
+
           const dispose = wsHub.addClient(
             connectionId,
             {
@@ -74,8 +77,10 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
           );
           disposeMap.set(ws as object, { dispose, connectionId, userId: userPresence.id });
 
-          // Broadcast join to all OTHER clients
-          wsHub.broadcastExcept(connectionId, { type: 'presence:join', payload: userPresence });
+          // Only broadcast join if this is the user's first active connection
+          if (isFirstConnection) {
+            wsHub.broadcastExcept(connectionId, { type: 'presence:join', payload: userPresence });
+          }
 
           // Send presence seed to new client
           try {
@@ -102,7 +107,10 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
           const entry = disposeMap.get(ws as object);
           if (entry) {
             entry.dispose();
-            wsHub.broadcast({ type: 'presence:leave', payload: { userId: entry.userId } });
+            // Only broadcast leave if user has no remaining connections
+            if (!wsHub.hasUserConnections(entry.userId)) {
+              wsHub.broadcast({ type: 'presence:leave', payload: { userId: entry.userId } });
+            }
             disposeMap.delete(ws as object);
           }
         },

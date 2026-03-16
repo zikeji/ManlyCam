@@ -9,7 +9,7 @@ const petName = getPetName()
   <main class="flex min-h-screen items-center justify-center bg-background">
     <div class="flex w-full max-w-md flex-col items-center gap-6 rounded-lg border border-border bg-card p-10 pt-4 shadow-lg">
       <div class="flex flex-col items-center gap-2 text-center">
-        <img src="/favicon.svg" alt="" aria-hidden="true" class="h-32 w-32" />
+        <img src="/favicon.svg" alt="" class="h-32 w-32" />
         <h1 class="text-2xl font-semibold text-foreground">
           {{ siteName }}
         </h1>

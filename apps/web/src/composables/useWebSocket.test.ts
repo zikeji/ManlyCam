@@ -204,9 +204,24 @@ describe('useWebSocket', () => {
       expect(isConnected.value).toBe(true);
     });
 
-    it('calls refreshCommands on socket open', () => {
+    it('does NOT call refreshCommands on initial connect', () => {
       const { connect } = useWebSocket();
       connect();
+      mockWsInstance.onopen?.(new Event('open'));
+      expect(mockRefreshCommands).not.toHaveBeenCalled();
+    });
+
+    it('calls refreshCommands on reconnect (not first connect)', () => {
+      const { connect } = useWebSocket();
+      // First connect
+      connect();
+      mockWsInstance.onopen?.(new Event('open'));
+      expect(mockRefreshCommands).not.toHaveBeenCalled();
+
+      // Simulate disconnect + reconnect
+      mockWsInstance.readyState = 3; // CLOSED
+      mockWsInstance.onclose?.({} as CloseEvent);
+      vi.advanceTimersByTime(1000); // trigger backoff reconnect
       mockWsInstance.onopen?.(new Event('open'));
       expect(mockRefreshCommands).toHaveBeenCalledOnce();
     });

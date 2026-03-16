@@ -36,6 +36,6 @@ describe('LoginView', () => {
     const wrapper = mount(LoginView);
     const img = wrapper.find('img[src="/favicon.svg"]');
     expect(img.exists()).toBe(true);
-    expect(img.attributes('aria-hidden')).toBe('true');
+    expect(img.attributes('alt')).toBe('');
   });
 });

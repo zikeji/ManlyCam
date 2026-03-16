@@ -52,6 +52,25 @@ describe('useCommands', () => {
     expect(availableCommands.value).toEqual(second);
   });
 
+  it('concurrent calls to loadCommands share one in-flight request', async () => {
+    let resolve!: (value: unknown) => void;
+    const pending = new Promise((r) => {
+      resolve = r;
+    });
+    vi.mocked(apiFetch).mockReturnValueOnce(pending as Promise<{ commands: never[] }>);
+
+    const { loadCommands } = await import('./useCommands');
+
+    // Fire two concurrent calls before the fetch resolves
+    const p1 = loadCommands();
+    const p2 = loadCommands();
+
+    resolve({ commands: [] });
+    await Promise.all([p1, p2]);
+
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
   it('loadCommands silently fails on network error', async () => {
     vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
 

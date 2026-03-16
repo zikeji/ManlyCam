@@ -10,33 +10,39 @@ import { apiFetch, ApiFetchError } from '@/lib/api';
  * to be shared across multiple components. Tests use vi.resetModules()
  * to isolate each test's state.
  */
-const user = ref<MeResponse | null>(null);
-const authLoading = ref(true);
+export const user = ref<MeResponse | null>(null);
+export const authLoading = ref(true);
 let _fetchPromise: Promise<void> | null = null;
+
+/**
+ * Fetch the current user once. Subsequent calls while the fetch is in flight
+ * return the same promise (dedup). Once loaded (authLoading === false), this
+ * is a no-op — call again by resetting authLoading to true first (e.g. after logout).
+ */
+export async function fetchCurrentUser(): Promise<void> {
+  if (!authLoading.value) return; // Already loaded — skip
+  if (_fetchPromise !== null) return _fetchPromise; // In-flight — join existing request
+  _fetchPromise = (async () => {
+    try {
+      user.value = await apiFetch<MeResponse>('/api/me');
+    } catch (err) {
+      // Distinguish between auth errors (401) and network errors
+      const isAuthError = err instanceof ApiFetchError && err.code === 'UNAUTHORIZED';
+      if (isAuthError) {
+        user.value = null;
+      } else {
+        console.warn('Failed to fetch user:', err);
+      }
+    } finally {
+      authLoading.value = false;
+      _fetchPromise = null;
+    }
+  })();
+  return _fetchPromise;
+}
 
 export const useAuth = () => {
   const router = useRouter();
-
-  const fetchCurrentUser = async (): Promise<void> => {
-    if (_fetchPromise !== null) return _fetchPromise;
-    _fetchPromise = (async () => {
-      try {
-        user.value = await apiFetch<MeResponse>('/api/me');
-      } catch (err) {
-        // Distinguish between auth errors (401) and network errors
-        const isAuthError = err instanceof ApiFetchError && err.code === 'UNAUTHORIZED';
-        if (isAuthError) {
-          user.value = null;
-        } else {
-          console.warn('Failed to fetch user:', err);
-        }
-      } finally {
-        authLoading.value = false;
-        _fetchPromise = null;
-      }
-    })();
-    return _fetchPromise;
-  };
 
   const logout = async (): Promise<void> => {
     try {
@@ -51,6 +57,7 @@ export const useAuth = () => {
       return;
     }
     user.value = null;
+    authLoading.value = true; // Reset so the next fetchCurrentUser() re-fetches
     // Lazy import to avoid test environment issues (window undefined)
     const { invalidateRouterCache } = await import('@/router');
     invalidateRouterCache();
