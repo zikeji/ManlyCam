@@ -120,6 +120,14 @@ vi.mock('./useNotificationPreferences', () => ({
   }),
 }));
 
+// --- useCommands mock ---
+const mockRefreshCommands = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('./useCommands', () => ({
+  availableCommands: { value: [] },
+  loadCommands: vi.fn().mockResolvedValue(undefined),
+  refreshCommands: mockRefreshCommands,
+}));
+
 // --- useAuth mock ---
 const mockAuthUser = vi.hoisted(() => ({
   value: { id: 'user-self', displayName: 'Self' } as { id: string; displayName: string } | null,
@@ -194,6 +202,13 @@ describe('useWebSocket', () => {
 
       mockWsInstance.onopen?.(new Event('open'));
       expect(isConnected.value).toBe(true);
+    });
+
+    it('calls refreshCommands on socket open', () => {
+      const { connect } = useWebSocket();
+      connect();
+      mockWsInstance.onopen?.(new Event('open'));
+      expect(mockRefreshCommands).toHaveBeenCalledOnce();
     });
   });
 

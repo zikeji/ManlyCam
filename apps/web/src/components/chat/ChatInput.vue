@@ -10,16 +10,11 @@ import { recentlyChattedUserIds } from '@/composables/useRecentlyChatted';
 import { userCache } from '@/composables/useUserCache';
 import { insertEmoji, replaceEmojiQuery } from '@/composables/useEmoji';
 import { getSiteName } from '@/lib/env';
-import { apiFetch } from '@/lib/api';
+import { availableCommands, loadCommands } from '@/composables/useCommands';
+import type { CommandEntry } from '@/composables/useCommands';
 import type { UserPresence } from '@manlycam/types';
 import { SYSTEM_USER_ID } from '@manlycam/types';
 import type { Emoji } from '@/lib/emoji-data';
-
-interface CommandEntry {
-  name: string;
-  description: string;
-  placeholder?: string;
-}
 
 const props = defineProps<{ muted?: boolean; viewers?: UserPresence[]; currentUserId?: string }>();
 
@@ -49,7 +44,6 @@ const commandAutocompleteRef = ref<InstanceType<typeof CommandAutocomplete> | nu
 const commandVisible = ref(false);
 const commandQuery = ref('');
 const commandPosition = ref({ bottom: 0, left: 0 });
-const availableCommands = ref<CommandEntry[]>([]);
 
 // Emoji picker state
 const emojiPickerVisible = ref(false);
@@ -96,14 +90,7 @@ onMounted(() => {
       resize();
     }),
   );
-  // Fetch available commands for the current user's role
-  apiFetch<{ commands: CommandEntry[] }>('/api/commands')
-    .then((data) => {
-      availableCommands.value = data.commands;
-    })
-    .catch(() => {
-      /* commands unavailable — silent fail */
-    });
+  void loadCommands();
 });
 
 const charCount = computed(() => content.value.length);

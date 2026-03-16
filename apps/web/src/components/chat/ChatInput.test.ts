@@ -4,12 +4,18 @@ import { nextTick } from 'vue';
 import ChatInput from './ChatInput.vue';
 import type { UserPresence } from '@manlycam/types';
 
-// Default: commands fetch returns empty array (won't affect existing tests)
-vi.mock('@/lib/api', () => ({
-  apiFetch: vi.fn().mockResolvedValue({ commands: [] }),
-}));
+// Mock useCommands — keep real availableCommands ref so tests can set it directly;
+// override loadCommands/refreshCommands to prevent actual API fetches.
+vi.mock('@/composables/useCommands', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/composables/useCommands')>();
+  return {
+    ...actual,
+    loadCommands: vi.fn().mockResolvedValue(undefined),
+    refreshCommands: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
-import { apiFetch } from '@/lib/api';
+import { availableCommands } from '@/composables/useCommands';
 
 const makeViewer = (id: string, displayName: string): UserPresence => ({
   id,
@@ -444,14 +450,16 @@ describe('ChatInput.vue', () => {
     ];
 
     beforeEach(() => {
-      vi.mocked(apiFetch).mockResolvedValue({ commands: mockCommands });
+      availableCommands.value = mockCommands;
+    });
+
+    afterEach(() => {
+      availableCommands.value = [];
     });
 
     it('does not show command autocomplete when no commands available', async () => {
-      vi.mocked(apiFetch).mockResolvedValue({ commands: [] });
+      availableCommands.value = [];
       wrapper = mount(ChatInput);
-      await nextTick();
-      await nextTick(); // let the fetch promise resolve
 
       const textarea = wrapper.find('textarea');
       await textarea.setValue('/');
@@ -462,8 +470,6 @@ describe('ChatInput.vue', () => {
 
     it('shows command autocomplete when / is typed and commands exist', async () => {
       wrapper = mount(ChatInput);
-      await nextTick();
-      await nextTick(); // let the fetch promise resolve
 
       const textarea = wrapper.find('textarea');
       await textarea.setValue('/');
@@ -474,8 +480,6 @@ describe('ChatInput.vue', () => {
 
     it('hides command autocomplete when space is typed (command complete)', async () => {
       wrapper = mount(ChatInput);
-      await nextTick();
-      await nextTick();
 
       const textarea = wrapper.find('textarea');
       await textarea.setValue('/shrug ');
@@ -486,8 +490,6 @@ describe('ChatInput.vue', () => {
 
     it('hides command autocomplete when text does not start with /', async () => {
       wrapper = mount(ChatInput);
-      await nextTick();
-      await nextTick();
 
       const textarea = wrapper.find('textarea');
       await textarea.setValue('hello');
@@ -498,8 +500,6 @@ describe('ChatInput.vue', () => {
 
     it('selects a command and replaces /query with /name ', async () => {
       wrapper = mount(ChatInput);
-      await nextTick();
-      await nextTick();
 
       const textarea = wrapper.find('textarea');
       await textarea.setValue('/sh');
@@ -516,8 +516,6 @@ describe('ChatInput.vue', () => {
 
     it('hides command autocomplete after selection', async () => {
       wrapper = mount(ChatInput);
-      await nextTick();
-      await nextTick();
 
       const textarea = wrapper.find('textarea');
       await textarea.setValue('/sh');
@@ -531,8 +529,6 @@ describe('ChatInput.vue', () => {
 
     it('hides command autocomplete on send', async () => {
       wrapper = mount(ChatInput);
-      await nextTick();
-      await nextTick();
 
       const textarea = wrapper.find('textarea');
       await textarea.setValue('/sh');
