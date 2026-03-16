@@ -1,6 +1,6 @@
 # Custom Slash Commands
 
-Drop a `.js` file here and restart the server — it's automatically loaded as a `/commandname` in chat.
+Drop a `.cjs` file here and restart the server — it's automatically loaded as a `/commandname` in chat.
 
 ## Included Examples
 
@@ -13,10 +13,10 @@ Drop a `.js` file here and restart the server — it's automatically loaded as a
 
 ## Quick Start
 
-Create a `.js` file in this directory. Copy the JSDoc block below for editor autocompletion:
+Create a `.cjs` file in this directory. Copy the JSDoc block below for editor autocompletion:
 
 ```javascript
-// custom/hello.js
+// custom/hello.cjs
 const fs = require('fs');
 const path = require('path');
 
