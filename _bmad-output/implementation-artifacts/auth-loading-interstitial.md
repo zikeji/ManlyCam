@@ -1,6 +1,6 @@
 # Story: Auth Loading Interstitial — Suppress Login Flash on Page Load
 
-Status: review
+Status: done
 
 ## Story
 
@@ -57,6 +57,7 @@ so that the login page doesn't flash briefly before the app determines I'm alrea
 ### Exact template logic (App.vue)
 
 Current:
+
 ```vue
 <RouterView v-if="$route.path !== '/'" />
 <WatchView v-else-if="user" />
@@ -64,10 +65,14 @@ Current:
 ```
 
 After:
+
 ```vue
 <RouterView v-if="$route.path !== '/'" />
 <WatchView v-else-if="user" />
-<div v-else-if="authLoading" class="flex items-center justify-center h-dvh bg-[hsl(var(--background))]">
+<div
+  v-else-if="authLoading"
+  class="flex items-center justify-center h-dvh bg-[hsl(var(--background))]"
+>
   <!-- spinner SVG -->
 </div>
 <LoginView v-else />
@@ -76,9 +81,11 @@ After:
 Order matters: `user` check comes first so an already-resolved user skips the spinner entirely (fast path). `authLoading` only activates when `user` is null AND we haven't resolved yet.
 
 ### Why `finally` not `then`/`catch`
+
 `fetchCurrentUser()` already has a try/catch that swallows errors (it logs but doesn't rethrow). Using `finally` ensures `authLoading` is cleared even if future error handling changes.
 
 ### `useAuth.test.ts` isolation note
+
 Tests use `vi.resetModules()` to isolate module-level state. The new `authLoading` ref is module-level, so existing test isolation already covers it — tests just need to assert the expected `authLoading` values.
 
 ---
@@ -94,22 +101,26 @@ Tests use `vi.resetModules()` to isolate module-level state. The new `authLoadin
 ## Dev Agent Record
 
 ### Implementation Plan
+
 Added `authLoading = ref(true)` at module level in `useAuth.ts`. Added `finally { authLoading.value = false }` to `fetchCurrentUser()`. Exported from return value. Added spinner branch in `App.vue` between `WatchView` and `LoginView` checks.
 
 ### Completion Notes
+
 - `authLoading` starts `true`, cleared in `finally` block covering both success and error paths
 - `App.vue` template order: `RouterView` → `WatchView` (user set) → spinner (loading) → `LoginView`
 - 4 new tests in `useAuth.test.ts`: authLoading initial=true, cleared on success, cleared on 401, cleared on network error
 - 874 web + 390 server tests passing; lint and typecheck clean
 
 ### Debug Log
+
 _No issues._
 
 ---
 
 ## Change Log
 
-| Date | Change |
-|------|--------|
-| 2026-03-16 | Story created |
+| Date       | Change                                            |
+| ---------- | ------------------------------------------------- |
+| 2026-03-16 | Story created                                     |
 | 2026-03-16 | Implemented — all tasks complete, status → review |
+| 2026-03-16 | Code review complete — zero issues. Status → done |

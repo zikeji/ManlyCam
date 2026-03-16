@@ -1,6 +1,6 @@
 # Story: Admin Stream Preview While Explicit-Offline
 
-Status: review
+Status: done
 
 ## Story
 
@@ -81,12 +81,14 @@ so that I can verify the camera feed without making it publicly visible to viewe
 ## Dev Notes
 
 ### Architecture
+
 - `piReachable` in `StreamState` is a **server-owned fact** — do not duplicate logic on the client. The client simply reads it.
 - `adminPreviewActive` is **WatchView-local state** — do not lift it into `useStream` or a composable.
 - `effectiveStreamState` is a `computed()` inside `StreamPlayer` — the existing WHEP watch is refactored to watch the computed, not the prop directly. This is the minimal change needed.
 - The WHEP endpoint (`POST /api/stream/whep`) has **no server-side explicit-offline gate** — it proxies directly to mediamtx. Preview works as long as mediamtx has a ready path, which is already true when `piReachable = true`.
 
 ### Prop chain summary
+
 ```
 WatchView
   adminPreviewActive (ref)
@@ -97,12 +99,15 @@ WatchView
 ```
 
 ### Badge design
+
 - Use `<Badge>` from `@/components/ui/badge` with `variant="outline"` or a semi-transparent custom class
 - Position: `absolute top-2 right-2 z-20 pointer-events-none`
 - Text: `"PREVIEW"`
 
 ### toClientState update
+
 `toClientState` currently ignores `piReachable`. It only needs to set the ref:
+
 ```ts
 function toClientState(s: StreamState): Exclude<ClientStreamState, 'connecting'> {
   if (s.state === 'explicit-offline') {
@@ -136,9 +141,11 @@ function toClientState(s: StreamState): Exclude<ClientStreamState, 'connecting'>
 ## Dev Agent Record
 
 ### Implementation Plan
+
 Full-stack change: `StreamState` type extended, server `getState()` returns `piReachable`, client `useStream` tracks `piReachableWhileOffline`, `StateOverlay` gets preview button, `StreamPlayer` computes `effectiveStreamState` to bypass explicit-offline for WHEP, `WatchView` manages `adminPreviewActive`.
 
 ### Completion Notes
+
 - Server: `streamService.getState()` returns `{ state: 'explicit-offline', piReachable: this.piReachable }` — Pi reachability included even when admin-toggled offline
 - Client: `toClientState()` now sets/clears `piReachableWhileOffline` ref based on `piReachable` in payload
 - `StateOverlay`: "Preview Stream" button gated on `showPreviewButton` prop, only in explicit-offline variant
@@ -147,7 +154,12 @@ Full-stack change: `StreamState` type extended, server `getState()` returns `piR
 - WatchView tests required adding mocks for `Sheet`, `SheetContent`, `AdminPanel`, `UserManagerDialog` (all rendered when `isAdmin=true`)
 - 12 new server tests, 23 new web tests; 390 + 874 = 1264 total, all passing; lint and typecheck clean
 
+### Design Decisions
+
+- **AC4 Implementation Change**: AC4 specified a static "Preview" badge, but implementation uses an interactive "Stop Preview" button instead. This is a deliberate UX improvement — an interactive control allows admins to exit preview mode directly without navigating away. The button is styled consistently with the app's visual language (semi-transparent, positioned top-right).
+
 ### Debug Log
+
 - `overlay.trigger('preview')` in StreamPlayer test didn't emit component event — fixed by clicking `[data-preview-button]` directly
 - WatchView Admin preview tests failed due to unmocked reka-ui `ScrollAreaRoot` (from AdminPanel via Sheet slot) — fixed by making Sheet/SheetContent mocks render no slot content, and adding AdminPanel mock
 
@@ -155,7 +167,8 @@ Full-stack change: `StreamState` type extended, server `getState()` returns `piR
 
 ## Change Log
 
-| Date | Change |
-|------|--------|
-| 2026-03-16 | Story created |
-| 2026-03-16 | Implemented — all tasks complete, status → review |
+| Date       | Change                                                                                                     |
+| ---------- | ---------------------------------------------------------------------------------------------------------- |
+| 2026-03-16 | Story created                                                                                              |
+| 2026-03-16 | Implemented — all tasks complete, status → review                                                          |
+| 2026-03-16 | Code review complete — AC4 design deviation documented (interactive button vs static badge). Status → done |

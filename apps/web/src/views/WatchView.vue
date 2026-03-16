@@ -11,7 +11,13 @@ import AdminPanel from '@/components/admin/AdminPanel.vue';
 import UserManagerDialog from '@/components/admin/UserManagerDialog.vue';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { messages, unreadCount, resetUnread, incrementUnread, isLoadingHistory } from '@/composables/useChat';
+import {
+  messages,
+  unreadCount,
+  resetUnread,
+  incrementUnread,
+  isLoadingHistory,
+} from '@/composables/useChat';
 
 const { user } = useAuth();
 const { streamState, piReachableWhileOffline, initStream } = useStream();
@@ -33,7 +39,9 @@ let splitterAnimateTimer: ReturnType<typeof setTimeout> | null = null;
 
 const mobileSheetOpen = computed({
   get: () => adminPanelOpen.value && !isDesktop.value,
-  set: (val: boolean) => { adminPanelOpen.value = val; },
+  set: (val: boolean) => {
+    adminPanelOpen.value = val;
+  },
 });
 
 watch(adminPanelOpen, (newValue) => {
@@ -41,7 +49,9 @@ watch(adminPanelOpen, (newValue) => {
     if (typeof localStorage !== 'undefined' && localStorage) {
       localStorage.setItem('manlycam:admin-panel-open', newValue ? 'true' : 'false');
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 });
 
 watch(chatSidebarOpen, (open) => {
@@ -50,14 +60,20 @@ watch(chatSidebarOpen, (open) => {
     if (typeof localStorage !== 'undefined' && localStorage) {
       localStorage.setItem('manlycam:chat-sidebar-open', open ? 'true' : 'false');
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 });
 
-watch(() => messages.value.length, (newLen, oldLen) => {
-  if (!chatSidebarOpen.value && !isLoadingHistory.value && newLen > (oldLen ?? 0)) {
-    incrementUnread();
-  }
-}, { flush: 'sync' });
+watch(
+  () => messages.value.length,
+  (newLen, oldLen) => {
+    if (!chatSidebarOpen.value && !isLoadingHistory.value && newLen > (oldLen ?? 0)) {
+      incrementUnread();
+    }
+  },
+  { flush: 'sync' },
+);
 
 const isAdmin = computed(() => user.value?.role === Role.Admin);
 
@@ -71,10 +87,18 @@ watch(streamState, (state) => {
   }
 });
 
-const handleOpenCameraControls = () => { adminPanelOpen.value = !adminPanelOpen.value; };
-const handleToggleAdminPanel = () => { adminPanelOpen.value = !adminPanelOpen.value; };
-const handleStartPreview = () => { adminPreviewActive.value = true; };
-const handleStopPreview = () => { adminPreviewActive.value = false; };
+const handleOpenCameraControls = () => {
+  adminPanelOpen.value = !adminPanelOpen.value;
+};
+const handleToggleAdminPanel = () => {
+  adminPanelOpen.value = !adminPanelOpen.value;
+};
+const handleStartPreview = () => {
+  adminPreviewActive.value = true;
+};
+const handleStopPreview = () => {
+  adminPreviewActive.value = false;
+};
 
 const handleToggleChatSidebar = () => {
   if (isDesktop.value && chatPanelRef.value) {
@@ -85,7 +109,9 @@ const handleToggleChatSidebar = () => {
     } else {
       chatPanelRef.value.expand();
     }
-    splitterAnimateTimer = setTimeout(() => { splitterAnimating.value = false; }, 200);
+    splitterAnimateTimer = setTimeout(() => {
+      splitterAnimating.value = false;
+    }, 200);
   } else {
     chatSidebarOpen.value = !chatSidebarOpen.value;
   }
@@ -106,7 +132,9 @@ onMounted(() => {
   if (typeof window.matchMedia === 'function') {
     const mqDesktop = window.matchMedia('(min-width: 1024px)');
     isDesktop.value = mqDesktop.matches;
-    mqDesktop.addEventListener('change', (e) => { isDesktop.value = e.matches; });
+    mqDesktop.addEventListener('change', (e) => {
+      isDesktop.value = e.matches;
+    });
 
     // Use screen dimensions (not viewport) for orientation so the virtual keyboard
     // shrinking the viewport doesn't falsely flip portrait ↔ landscape.
@@ -132,12 +160,16 @@ onMounted(() => {
         chatSidebarOpen.value = isDesktop.value;
       }
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 });
 </script>
 
 <template>
-  <div class="flex flex-col landscape:flex-row lg:flex-row h-dvh w-full overflow-hidden bg-[hsl(var(--background))]">
+  <div
+    class="flex flex-col landscape:flex-row lg:flex-row h-dvh w-full overflow-hidden bg-[hsl(var(--background))]"
+  >
     <!-- Left sidebar: admin only, desktop -->
     <Transition name="sidebar-left">
       <aside
@@ -159,10 +191,7 @@ onMounted(() => {
       <!-- Panel 1: Main column (stream + console + void) -->
       <SplitterPanel class="flex flex-col bg-black overflow-hidden relative">
         <div class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
-          <AtmosphericVoid
-            class="absolute inset-0"
-            :video-ref="streamVideoRef"
-          />
+          <AtmosphericVoid class="absolute inset-0" :video-ref="streamVideoRef" />
           <StreamPlayer
             ref="streamPlayerRef"
             class="relative z-10 w-full"
@@ -174,7 +203,7 @@ onMounted(() => {
             :adminPreview="adminPreviewActive"
             @toggle-chat-sidebar="handleToggleChatSidebar"
             @start-preview="handleStartPreview"
-          @stop-preview="handleStopPreview"
+            @stop-preview="handleStopPreview"
           />
         </div>
         <BroadcastConsole
@@ -193,7 +222,9 @@ onMounted(() => {
       </SplitterPanel>
 
       <!-- Resize handle -->
-      <SplitterResizeHandle class="w-px bg-[hsl(var(--border))] hover:bg-[hsl(var(--primary)/0.5)] cursor-col-resize transition-colors" />
+      <SplitterResizeHandle
+        class="w-px bg-[hsl(var(--border))] hover:bg-[hsl(var(--primary)/0.5)] cursor-col-resize transition-colors"
+      />
 
       <!-- Panel 2: Chat sidebar -->
       <SplitterPanel
@@ -221,11 +252,11 @@ onMounted(() => {
     <!-- NON-DESKTOP: Existing main column (< 1024px) -->
     <main v-if="!isDesktop" class="flex-1 min-w-0 flex flex-col bg-black overflow-hidden relative">
       <!-- Non-portrait content area: Void + Stream Centered -->
-      <div v-if="!isMobilePortrait" class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
-        <AtmosphericVoid
-          class="absolute inset-0"
-          :video-ref="streamVideoRef"
-        />
+      <div
+        v-if="!isMobilePortrait"
+        class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden"
+      >
+        <AtmosphericVoid class="absolute inset-0" :video-ref="streamVideoRef" />
         <StreamPlayer
           ref="streamPlayerRef"
           class="relative z-10 w-full"
