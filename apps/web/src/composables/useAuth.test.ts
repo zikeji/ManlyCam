@@ -85,4 +85,40 @@ describe('useAuth', () => {
     expect(authLoading.value).toBe(false);
     expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch user:', networkError);
   });
+
+  it('concurrent calls to fetchCurrentUser result in only one network request', async () => {
+    let resolveFirst!: (value: Response) => void;
+    const firstFetchPromise = new Promise<Response>((resolve) => {
+      resolveFirst = resolve;
+    });
+
+    const mockUser = {
+      id: 'u1',
+      displayName: 'Alice',
+      email: 'alice@example.com',
+      role: 'ViewerCompany',
+      avatarUrl: null,
+      bannedAt: null,
+      mutedAt: null,
+    };
+
+    global.fetch = vi.fn().mockReturnValueOnce(firstFetchPromise);
+
+    const { useAuth } = await import('./useAuth');
+    const { fetchCurrentUser } = withRouter(() => useAuth());
+
+    // Fire two concurrent calls
+    const p1 = fetchCurrentUser();
+    const p2 = fetchCurrentUser();
+
+    // Resolve the single pending fetch
+    resolveFirst({
+      ok: true,
+      json: () => Promise.resolve(mockUser),
+    } as Response);
+
+    await Promise.all([p1, p2]);
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
 });

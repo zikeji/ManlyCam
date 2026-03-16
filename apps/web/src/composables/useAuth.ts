@@ -12,24 +12,30 @@ import { apiFetch, ApiFetchError } from '@/lib/api';
  */
 const user = ref<MeResponse | null>(null);
 const authLoading = ref(true);
+let _fetchPromise: Promise<void> | null = null;
 
 export const useAuth = () => {
   const router = useRouter();
 
   const fetchCurrentUser = async (): Promise<void> => {
-    try {
-      user.value = await apiFetch<MeResponse>('/api/me');
-    } catch (err) {
-      // Distinguish between auth errors (401) and network errors
-      const isAuthError = err instanceof ApiFetchError && err.code === 'UNAUTHORIZED';
-      if (isAuthError) {
-        user.value = null;
-      } else {
-        console.warn('Failed to fetch user:', err);
+    if (_fetchPromise !== null) return _fetchPromise;
+    _fetchPromise = (async () => {
+      try {
+        user.value = await apiFetch<MeResponse>('/api/me');
+      } catch (err) {
+        // Distinguish between auth errors (401) and network errors
+        const isAuthError = err instanceof ApiFetchError && err.code === 'UNAUTHORIZED';
+        if (isAuthError) {
+          user.value = null;
+        } else {
+          console.warn('Failed to fetch user:', err);
+        }
+      } finally {
+        authLoading.value = false;
+        _fetchPromise = null;
       }
-    } finally {
-      authLoading.value = false;
-    }
+    })();
+    return _fetchPromise;
   };
 
   const logout = async (): Promise<void> => {
