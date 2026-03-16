@@ -1,6 +1,6 @@
 # Story 8-5: Emoji Picker Component
 
-Status: review
+Status: done
 
 ## Story
 
@@ -579,6 +579,7 @@ None — all issues resolved during implementation.
 ### File List
 
 **New files:**
+
 - `apps/web/src/lib/emoji-data.ts` — Emoji metadata (~260 emojis), `EMOJI_LIST`, `EMOJI_MAP`, `EMOJI_CATEGORIES`, `searchEmojis()`
 - `apps/web/src/lib/emoji-data.test.ts` — 22 tests for emoji data and search utilities
 - `apps/web/src/components/chat/EmojiPicker.vue` — Full emoji picker with search, category tabs, grid, keyboard nav
@@ -587,8 +588,10 @@ None — all issues resolved during implementation.
 - `apps/web/src/components/chat/EmojiAutocomplete.test.ts` — 19 tests
 - `apps/web/src/composables/useEmoji.ts` — `insertEmoji()` and `replaceEmojiQuery()` utilities
 - `apps/web/src/composables/useEmoji.test.ts` — 11 tests
+- `apps/web/src/types/vendor.d.ts` — Ambient type declarations for `unicode-emoji-json` package
 
 **Modified files:**
+
 - `apps/web/src/components/chat/ChatInput.vue` — Emoji button, picker integration, autocomplete integration
 - `apps/web/src/components/chat/ChatInput.test.ts` — 17 new tests (emoji picker + autocomplete sections)
 - `apps/web/src/lib/markdown.ts` — `renderEmojiShortcodes()` export + post-processing in `renderMarkdown()`
@@ -596,11 +599,13 @@ None — all issues resolved during implementation.
 - `apps/web/src/assets/main.css` — `.emoji-inline` (20px) and `.emoji-large` (32px) CSS classes
 - `apps/web/src/components/ui/scroll-area/ScrollArea.vue` — added `horizontal` boolean prop for opt-in horizontal scroll track
 - `apps/web/vite.config.ts` — added `emojiCacheHeadersPlugin` for dev-server cache headers on `/emojis/*`; excluded `emoji-data.ts` from V8 function coverage
+- `apps/web/package.json` — added `emojilib`, `unicode-emoji-json`, `@lobehub/fluent-emoji-modern`, `vite-plugin-static-copy` dependencies
 - `apps/server/src/app.ts` — added `Cache-Control: immutable` middleware for `/emojis/*` in production
 
 ## Change Log
 
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| 2026-03-15 | 1.0 | Story implemented: emoji picker, autocomplete, shortcode rendering, useEmoji composable | claude-sonnet-4-6 |
-| 2026-03-15 | 1.1 | Post-review: ScrollArea integration, emoji size/large, emoji filtering, cache flash fix, jsdom scrollTo guard, coverage exclusion | claude-sonnet-4-6 |
+| Date       | Version | Description                                                                                                                                                                                                  | Author            |
+| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------- |
+| 2026-03-15 | 1.0     | Story implemented: emoji picker, autocomplete, shortcode rendering, useEmoji composable                                                                                                                      | claude-sonnet-4-6 |
+| 2026-03-15 | 1.1     | Post-review: ScrollArea integration, emoji size/large, emoji filtering, cache flash fix, jsdom scrollTo guard, coverage exclusion                                                                            | claude-sonnet-4-6 |
+| 2026-03-16 | 1.2     | Code review: zero critical/high issues. File list updated to document `package.json` and `vendor.d.ts`. All 10 ACs verified implemented, all 46 subtasks verified complete. 792 tests passing. Status → done | claude-sonnet-4-6 |
