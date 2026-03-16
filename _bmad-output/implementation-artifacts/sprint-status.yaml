@@ -110,7 +110,7 @@ development_status:
   epic-7-retrospective: done # Completed 2026-03-13
 
   # Epic 8: Chat Enhancement & Engagement
-  epic-8: in-progress
+  epic-8: done # Retrospective completed 2026-03-16
   8-1-expanded-markdown-and-multiline-support: done # code-review: zero critical/high issues. All 12 ACs implemented. 559 tests passing. Done 2026-03-14
   8-2-mentions-and-highlighting: done # code-review: zero critical/high issues. Architectural pivot: mentions stored as <@ID> tokens in content instead of DB field. All 10 ACs satisfied. 941 tests passing. Done 2026-03-14
   8-3-browser-notifications-and-preferences: done # code-review: 2 findings documented (default prefs intentional, file list updated). All 13 ACs implemented. 654 tests passing. Done 2026-03-15
@@ -118,7 +118,7 @@ development_status:
   8-4-programmable-slash-commands: done # code-review: zero critical/high/medium/low issues. All 14 ACs implemented, all 13 tasks verified. Custom slash command loader, role-based API, CommandAutocomplete UI, ephemeral message routing, system user feature. 1043 tests passing. Done 2026-03-15
   8-5-emoji-picker-component: done # Code review: zero critical/high issues. File list updated. All 10 ACs implemented, all 46 subtasks verified. 792 tests passing. Done 2026-03-16
   8-6-message-reactions: done # Code review: zero critical/high/medium/low issues. All 10 ACs implemented, all 11 tasks verified. 389 server + 850 web tests passing. Done 2026-03-16
-  epic-8-retrospective: optional
+  epic-8-retrospective: done # Completed 2026-03-16
 
   # Post-MVP / Phase 2 (Deferred)
   pm-1-admin-audit-log-viewer: backlog
