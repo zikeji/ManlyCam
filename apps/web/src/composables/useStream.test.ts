@@ -12,6 +12,12 @@ describe('useStream', () => {
     expect(streamState.value).toBe('connecting');
   });
 
+  it('piReachableWhileOffline starts as false', async () => {
+    const { useStream } = await import('./useStream');
+    const { piReachableWhileOffline } = useStream();
+    expect(piReachableWhileOffline.value).toBe(false);
+  });
+
   it('initStream sets state to live when server returns live', async () => {
     vi.stubGlobal(
       'fetch',
@@ -47,14 +53,31 @@ describe('useStream', () => {
       'fetch',
       vi.fn().mockResolvedValue({
         ok: true,
-        json: () => Promise.resolve({ state: 'explicit-offline' }),
+        json: () => Promise.resolve({ state: 'explicit-offline', piReachable: false }),
       } as Response),
     );
 
     const { useStream } = await import('./useStream');
-    const { streamState, initStream } = useStream();
+    const { streamState, piReachableWhileOffline, initStream } = useStream();
     await initStream();
     expect(streamState.value).toBe('explicit-offline');
+    expect(piReachableWhileOffline.value).toBe(false);
+  });
+
+  it('initStream sets piReachableWhileOffline=true when explicit-offline + piReachable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ state: 'explicit-offline', piReachable: true }),
+      } as Response),
+    );
+
+    const { useStream } = await import('./useStream');
+    const { streamState, piReachableWhileOffline, initStream } = useStream();
+    await initStream();
+    expect(streamState.value).toBe('explicit-offline');
+    expect(piReachableWhileOffline.value).toBe(true);
   });
 
   it('initStream keeps state as connecting on fetch error', async () => {
@@ -94,6 +117,37 @@ describe('useStream', () => {
     const { streamState, setStateFromWs } = useStream();
     setStateFromWs({ state: 'explicit-offline' });
     expect(streamState.value).toBe('explicit-offline');
+  });
+
+  it('setStateFromWs sets piReachableWhileOffline=true when explicit-offline + piReachable', async () => {
+    const { useStream } = await import('./useStream');
+    const { piReachableWhileOffline, setStateFromWs } = useStream();
+    setStateFromWs({ state: 'explicit-offline', piReachable: true });
+    expect(piReachableWhileOffline.value).toBe(true);
+  });
+
+  it('setStateFromWs sets piReachableWhileOffline=false when explicit-offline + piReachable false', async () => {
+    const { useStream } = await import('./useStream');
+    const { piReachableWhileOffline, setStateFromWs } = useStream();
+    setStateFromWs({ state: 'explicit-offline', piReachable: false });
+    expect(piReachableWhileOffline.value).toBe(false);
+  });
+
+  it('setStateFromWs clears piReachableWhileOffline when transitioning to live', async () => {
+    const { useStream } = await import('./useStream');
+    const { piReachableWhileOffline, setStateFromWs } = useStream();
+    setStateFromWs({ state: 'explicit-offline', piReachable: true });
+    expect(piReachableWhileOffline.value).toBe(true);
+    setStateFromWs({ state: 'live' });
+    expect(piReachableWhileOffline.value).toBe(false);
+  });
+
+  it('setStateFromWs clears piReachableWhileOffline when transitioning to unreachable', async () => {
+    const { useStream } = await import('./useStream');
+    const { piReachableWhileOffline, setStateFromWs } = useStream();
+    setStateFromWs({ state: 'explicit-offline', piReachable: true });
+    setStateFromWs({ state: 'unreachable', adminToggle: 'live' });
+    expect(piReachableWhileOffline.value).toBe(false);
   });
 
   it('setStateFromWs updates streamState from WS payload (unreachable)', async () => {

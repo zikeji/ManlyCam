@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { ChevronLeft } from 'lucide-vue-next';
 import type { ClientStreamState } from '@/composables/useStream';
 import { useWhep } from '@/composables/useWhep';
@@ -14,10 +14,13 @@ const props = defineProps<{
   chatSidebarOpen?: boolean;
   unreadCount?: number;
   showLandscapeTapToggle?: boolean;
+  showPreviewButton?: boolean;
+  adminPreview?: boolean;
 }>();
 
 const emit = defineEmits<{
   toggleChatSidebar: [];
+  startPreview: [];
 }>();
 
 const petName = getPetName();
@@ -25,6 +28,11 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const tapOverlayVisible = ref(false);
 let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const { startWhep, stopWhep, isHealthy, clientFrozen } = useWhep();
+
+// Admin preview: treat explicit-offline as live for WHEP connection when preview is active
+const effectiveStreamState = computed<ClientStreamState>(() =>
+  props.adminPreview && props.streamState === 'explicit-offline' ? 'live' : props.streamState,
+);
 
 // When the server reports the stream is back live after an offline state, keep the server-side
 // overlay visible until the WHEP connection is actually healthy (first video frame received).
@@ -43,7 +51,7 @@ function handleTap(event: MouseEvent): void {
 }
 
 watch(
-  () => props.streamState,
+  effectiveStreamState,
   async (newState, oldState) => {
     if (newState === 'live') {
       prevStateWasOffline.value = oldState === 'unreachable' || oldState === 'explicit-offline';
@@ -87,7 +95,7 @@ defineExpose({ videoRef });
   >
     <!-- Connecting: Skeleton -->
     <div
-      v-if="streamState === 'connecting'"
+      v-if="effectiveStreamState === 'connecting'"
       data-skeleton
       class="absolute inset-0 animate-pulse bg-[hsl(var(--surface))]"
     />
@@ -105,15 +113,27 @@ defineExpose({ videoRef });
 
     <!-- Server-reported state overlays, plus while transitioning back from offline to live -->
     <StateOverlay
-      v-if="streamState === 'unreachable' || streamState === 'explicit-offline' || (streamState === 'live' && !isHealthy && prevStateWasOffline)"
-      :variant="streamState === 'explicit-offline' ? 'explicit-offline' : 'unreachable'"
+      v-if="effectiveStreamState === 'unreachable' || effectiveStreamState === 'explicit-offline' || (effectiveStreamState === 'live' && !isHealthy && prevStateWasOffline)"
+      :variant="effectiveStreamState === 'explicit-offline' ? 'explicit-offline' : 'unreachable'"
+      :show-preview-button="showPreviewButton"
+      @preview="emit('startPreview')"
     />
+
+    <!-- Admin preview mode badge -->
+    <Badge
+      v-if="adminPreview && streamState === 'explicit-offline'"
+      data-preview-badge
+      variant="outline"
+      class="absolute top-2 right-2 z-20 pointer-events-none border-white/40 text-white/80 bg-black/50"
+    >
+      PREVIEW
+    </Badge>
 
     <!-- Client-side loading/reconnecting overlay: initial connect or mid-session drop.
          Not shown when coming back from a server-reported offline state (prevStateWasOffline),
          since the server overlay stays until healthy in that case. -->
     <div
-      v-if="streamState === 'live' && !isHealthy && !prevStateWasOffline"
+      v-if="effectiveStreamState === 'live' && !isHealthy && !prevStateWasOffline"
       data-client-overlay
       class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90"
     >

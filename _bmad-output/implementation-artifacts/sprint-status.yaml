@@ -120,6 +120,9 @@ development_status:
   8-6-message-reactions: done # Code review: zero critical/high/medium/low issues. All 10 ACs implemented, all 11 tasks verified. 389 server + 850 web tests passing. Done 2026-03-16
   epic-8-retrospective: done # Completed 2026-03-16
 
+  auth-loading-interstitial: review # suppress login flash on page load
+  admin-stream-preview: review # admin preview button when explicit-offline but Pi reachable
+
   # Post-MVP / Phase 2 (Deferred)
   pm-1-admin-audit-log-viewer: backlog
   pm-2-resizable-sidebars-drag-gutter: done # Implemented as Story 7-5

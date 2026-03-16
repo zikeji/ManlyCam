@@ -43,13 +43,28 @@ describe('StreamService state machine', () => {
     expect(service.getState()).toEqual({ state: 'unreachable', adminToggle: 'live' });
   });
 
-  it('setAdminToggle offline → explicit-offline', async () => {
+  it('setAdminToggle offline → explicit-offline (piReachable: false when Pi not yet polled)', async () => {
     await service.setAdminToggle('offline');
-    expect(service.getState()).toEqual({ state: 'explicit-offline' });
+    expect(service.getState()).toEqual({ state: 'explicit-offline', piReachable: false });
     expect(vi.mocked(wsHub.broadcast)).toHaveBeenCalledWith({
       type: 'stream:state',
-      payload: { state: 'explicit-offline' },
+      payload: { state: 'explicit-offline', piReachable: false },
     });
+  });
+
+  it('explicit-offline includes piReachable: true when Pi is reachable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+    await service.setAdminToggle('offline');
+    expect(service.getState()).toEqual({ state: 'explicit-offline', piReachable: true });
+    expect(vi.mocked(wsHub.broadcast)).toHaveBeenLastCalledWith({
+      type: 'stream:state',
+      payload: { state: 'explicit-offline', piReachable: true },
+    });
+    vi.unstubAllGlobals();
   });
 
   it('setAdminToggle live while piReachable=false → unreachable', async () => {

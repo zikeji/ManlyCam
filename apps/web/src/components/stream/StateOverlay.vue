@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { getPetName } from '@/lib/env';
 import StreamStatusBadge from './StreamStatusBadge.vue';
+import { Button } from '@/components/ui/button';
 
 defineProps<{
   variant: 'unreachable' | 'explicit-offline';
+  showPreviewButton?: boolean;
+}>();
+
+const emit = defineEmits<{
+  preview: [];
 }>();
 
 const petName = getPetName();
@@ -53,5 +59,15 @@ const petName = getPetName();
     <div class="mt-1">
       <StreamStatusBadge state="explicit-offline" />
     </div>
+    <Button
+      v-if="showPreviewButton"
+      variant="outline"
+      size="sm"
+      class="mt-3"
+      data-preview-button
+      @click="emit('preview')"
+    >
+      Preview Stream
+    </Button>
   </div>
 </template>

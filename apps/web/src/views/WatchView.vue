@@ -14,7 +14,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { messages, unreadCount, resetUnread, incrementUnread, isLoadingHistory } from '@/composables/useChat';
 
 const { user } = useAuth();
-const { streamState, initStream } = useStream();
+const { streamState, piReachableWhileOffline, initStream } = useStream();
 
 const isDesktop = ref(false);
 const isMobilePortrait = ref(false);
@@ -61,8 +61,19 @@ watch(() => messages.value.length, (newLen, oldLen) => {
 
 const isAdmin = computed(() => user.value?.role === Role.Admin);
 
+const adminPreviewActive = ref(false);
+const showPreviewButton = computed(() => isAdmin.value && piReachableWhileOffline.value);
+
+// Reset preview when the stream is no longer explicit-offline
+watch(streamState, (state) => {
+  if (state !== 'explicit-offline') {
+    adminPreviewActive.value = false;
+  }
+});
+
 const handleOpenCameraControls = () => { adminPanelOpen.value = !adminPanelOpen.value; };
 const handleToggleAdminPanel = () => { adminPanelOpen.value = !adminPanelOpen.value; };
+const handleStartPreview = () => { adminPreviewActive.value = true; };
 
 const handleToggleChatSidebar = () => {
   if (isDesktop.value && chatPanelRef.value) {
@@ -158,7 +169,10 @@ onMounted(() => {
             :chatSidebarOpen="chatSidebarOpen"
             :unreadCount="unreadCount"
             :showLandscapeTapToggle="false"
+            :showPreviewButton="showPreviewButton"
+            :adminPreview="adminPreviewActive"
             @toggle-chat-sidebar="handleToggleChatSidebar"
+            @start-preview="handleStartPreview"
           />
         </div>
         <BroadcastConsole
@@ -217,7 +231,10 @@ onMounted(() => {
           :chatSidebarOpen="chatSidebarOpen"
           :unreadCount="unreadCount"
           :showLandscapeTapToggle="isMobileLandscape && !chatSidebarOpen"
+          :showPreviewButton="showPreviewButton"
+          :adminPreview="adminPreviewActive"
           @toggle-chat-sidebar="handleToggleChatSidebar"
+          @start-preview="handleStartPreview"
         />
       </div>
 
@@ -230,7 +247,10 @@ onMounted(() => {
           :chatSidebarOpen="chatSidebarOpen"
           :unreadCount="unreadCount"
           :showLandscapeTapToggle="false"
+          :showPreviewButton="showPreviewButton"
+          :adminPreview="adminPreviewActive"
           @toggle-chat-sidebar="handleToggleChatSidebar"
+          @start-preview="handleStartPreview"
         />
       </div>
 
