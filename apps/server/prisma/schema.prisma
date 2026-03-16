@@ -25,6 +25,7 @@ model User {
   messages        Message[]
   deletedMessages Message[] @relation("MessageDeleter")
   auditActions    AuditLog[]
+  reactions       Reaction[]
 
   @@map("users")
 }
@@ -61,12 +62,28 @@ model Message {
   deletedBy   String?   @db.Char(26) @map("deleted_by")
   createdAt   DateTime  @default(now()) @db.Timestamptz @map("created_at")
 
-  user    User  @relation(fields: [userId], references: [id])
-  deleter User? @relation("MessageDeleter", fields: [deletedBy], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+  deleter   User?      @relation("MessageDeleter", fields: [deletedBy], references: [id])
+  reactions Reaction[]
 
   @@index([userId])
   @@index([deletedBy])
   @@map("messages")
+}
+
+model Reaction {
+  id        String   @id @db.Char(26)
+  messageId String   @map("message_id") @db.Char(26)
+  userId    String   @map("user_id") @db.Char(26)
+  emoji     String
+  createdAt DateTime @default(now()) @db.Timestamptz @map("created_at")
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@map("reactions")
 }
 
 model AuditLog {

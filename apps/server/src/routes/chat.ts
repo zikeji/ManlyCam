@@ -50,7 +50,8 @@ export function createChatRouter() {
     const limit = limitParam !== undefined ? parseInt(limitParam, 10) : 50;
     const clampedLimit = Math.min(Math.max(isNaN(limit) ? 50 : limit, 1), 100);
 
-    const result = await getHistory({ limit: clampedLimit, before });
+    const user = c.get('user')!;
+    const result = await getHistory({ limit: clampedLimit, before, userId: user.id });
     return c.json(result, 200);
   });
 

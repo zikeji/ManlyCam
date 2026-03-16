@@ -44,6 +44,32 @@ vi.mock('@/components/ui/tooltip', () => ({
   TooltipContent: defineComponent({ template: '<div><slot/></div>' }),
 }));
 
+// Mock reaction components
+vi.mock('./ReactionBar.vue', () => ({
+  default: defineComponent({
+    name: 'ReactionBar',
+    emits: ['select', 'close'],
+    template: '<div data-reaction-bar></div>',
+  }),
+}));
+
+vi.mock('./ReactionDisplay.vue', () => ({
+  default: defineComponent({
+    name: 'ReactionDisplay',
+    props: ['reactions', 'currentUserId', 'canModerate', 'isMuted'],
+    emits: ['toggle', 'modRemove'],
+    template: '<div data-reaction-display></div>',
+  }),
+}));
+
+vi.mock('@/composables/useReactions', () => ({
+  useReactions: vi.fn(() => ({
+    addReaction: vi.fn(),
+    removeReaction: vi.fn(),
+    modRemoveReaction: vi.fn(),
+  })),
+}));
+
 const baseMessage: ChatMessageType = {
   id: 'msg-001',
   userId: 'user-001',
@@ -97,6 +123,18 @@ describe('ChatMessage.vue', () => {
     expect(img.attributes('src')).toBe('https://example.com/avatar.jpg');
   });
 
+  it('renders avatar image inside ContextMenu branch when isOwn=true', () => {
+    wrapper = mount(ChatMessage, {
+      props: {
+        message: { ...baseMessage, avatarUrl: 'https://example.com/avatar.jpg' },
+        isOwn: true,
+      },
+    });
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe('https://example.com/avatar.jpg');
+  });
+
   it('renders bold markdown', () => {
     wrapper = mount(ChatMessage, {
       props: { message: { ...baseMessage, content: '**bold text**' } },
@@ -140,6 +178,16 @@ describe('ChatMessage.vue', () => {
           ...baseMessage,
           userTag: { text: 'VIP', color: '#FF0000' },
         },
+      },
+    });
+    expect(wrapper.text()).toContain('VIP');
+  });
+
+  it('renders userTag inside ContextMenu branch when isOwn=true', () => {
+    wrapper = mount(ChatMessage, {
+      props: {
+        message: { ...baseMessage, userTag: { text: 'VIP', color: '#FF0000' } },
+        isOwn: true,
       },
     });
     expect(wrapper.text()).toContain('VIP');
@@ -734,6 +782,112 @@ describe('ChatMessage.vue', () => {
       });
       // markdown-it internally rejects javascript: links — no executable javascript: href
       expect(wrapper.html()).not.toContain('href="javascript:');
+    });
+  });
+
+  describe('reaction UI', () => {
+    it('does NOT show ReactionDisplay when reactions array is empty', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, reactions: [] } },
+      });
+      expect(wrapper.find('[data-reaction-display]').exists()).toBe(false);
+    });
+
+    it('shows ReactionDisplay when message has reactions', () => {
+      const reactions = [
+        {
+          emoji: 'thumbs_up',
+          count: 1,
+          userReacted: false,
+          userIds: ['other-user'],
+          userDisplayNames: ['Other User'],
+          firstReactedAt: new Date().toISOString(),
+        },
+      ];
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, reactions } },
+      });
+      expect(wrapper.find('[data-reaction-display]').exists()).toBe(true);
+    });
+
+    it('does NOT show ReactionBar when not hovered', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
+    });
+
+    it('shows ReactionBar on mouseenter when not muted', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      await wrapper.find('[role="listitem"]').trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+    });
+
+    it('hides ReactionBar on mouseleave', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      const listitem = wrapper.find('[role="listitem"]');
+      await listitem.trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+      await listitem.trigger('mouseleave');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
+    });
+
+    it('does NOT show ReactionBar when isCurrentUserMuted=true', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: true },
+      });
+      await wrapper.find('[role="listitem"]').trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
+    });
+
+    it('shows ReactionDisplay inside ContextMenu branch when isOwn=true and reactions exist', () => {
+      const reactions = [
+        {
+          emoji: 'thumbs_up',
+          count: 1,
+          userReacted: true,
+          userIds: ['user-001'],
+          userDisplayNames: ['Test User'],
+          firstReactedAt: new Date().toISOString(),
+        },
+      ];
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, reactions }, isOwn: true },
+      });
+      expect(wrapper.find('[data-reaction-display]').exists()).toBe(true);
+    });
+
+    it('ReactionBar stays visible after mouseenter (bar does not auto-close on desktop)', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      await wrapper.find('[role="listitem"]').trigger('mouseenter');
+      await nextTick();
+      // Bar should be open; it only closes via mouseleave on desktop
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+    });
+
+    it('touchstart on message body while bar is open dismisses the bar', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      const listitem = wrapper.find('[role="listitem"]');
+      // Open the bar via mouseenter
+      await listitem.trigger('mouseenter');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
+      // Touch the message body — should dismiss
+      await listitem.trigger('touchstart');
+      await nextTick();
+      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
     });
   });
 });

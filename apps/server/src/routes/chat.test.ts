@@ -244,7 +244,7 @@ describe('GET /api/chat/history', () => {
       headers: { cookie: 'session_id=valid-session' },
     });
 
-    expect(getHistory).toHaveBeenCalledWith({ limit: 50, before: undefined });
+    expect(getHistory).toHaveBeenCalledWith({ limit: 50, before: undefined, userId: 'user-001' });
   });
 
   it('passes before cursor to getHistory when provided', async () => {
@@ -255,7 +255,7 @@ describe('GET /api/chat/history', () => {
       headers: { cookie: 'session_id=valid-session' },
     });
 
-    expect(getHistory).toHaveBeenCalledWith({ limit: 50, before: 'CURSOR001' });
+    expect(getHistory).toHaveBeenCalledWith({ limit: 50, before: 'CURSOR001', userId: 'user-001' });
   });
 
   it('passes custom limit to getHistory', async () => {
@@ -266,7 +266,7 @@ describe('GET /api/chat/history', () => {
       headers: { cookie: 'session_id=valid-session' },
     });
 
-    expect(getHistory).toHaveBeenCalledWith({ limit: 20, before: undefined });
+    expect(getHistory).toHaveBeenCalledWith({ limit: 20, before: undefined, userId: 'user-001' });
   });
 
   it('clamps limit to max 100', async () => {
@@ -277,7 +277,7 @@ describe('GET /api/chat/history', () => {
       headers: { cookie: 'session_id=valid-session' },
     });
 
-    expect(getHistory).toHaveBeenCalledWith({ limit: 100, before: undefined });
+    expect(getHistory).toHaveBeenCalledWith({ limit: 100, before: undefined, userId: 'user-001' });
   });
 
   it('returns hasMore true in response when service returns true', async () => {
