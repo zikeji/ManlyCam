@@ -5,8 +5,9 @@ import { AppError } from '../lib/errors.js';
 import { canModerateOver } from '../lib/roleUtils.js';
 import { computeUserTag } from '../lib/user-tag.js';
 import { executeCommand } from './slashCommands.js';
+import { getReactionsForMessages } from './reactionsService.js';
 import { SYSTEM_USER_ID } from '@manlycam/types';
-import type { ChatMessage, ChatEdit, Role, WsMessage } from '@manlycam/types';
+import type { ChatMessage, ChatEdit, Reaction, Role, WsMessage } from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import type { User } from '@prisma/client';
 
@@ -24,7 +25,7 @@ type MessageRow = {
   user: User;
 };
 
-function toApiChatMessage(row: MessageRow): ChatMessage {
+function toApiChatMessage(row: MessageRow, reactions?: Reaction[]): ChatMessage {
   return {
     id: row.id,
     userId: row.userId,
@@ -38,6 +39,7 @@ function toApiChatMessage(row: MessageRow): ChatMessage {
     deletedBy: null,
     createdAt: row.createdAt.toISOString(),
     userTag: computeUserTag(row.user),
+    reactions: reactions ?? [],
   };
 }
 
@@ -105,6 +107,7 @@ export async function createMessage(params: {
 export async function getHistory(params: {
   limit?: number;
   before?: string;
+  userId?: string;
 }): Promise<{ messages: ChatMessage[]; hasMore: boolean }> {
   const fetchLimit = Math.min(Math.max(params.limit ?? 50, 1), 100);
 
@@ -119,9 +122,13 @@ export async function getHistory(params: {
   });
 
   const hasMore = rows.length > fetchLimit;
-  const messages = rows
-    .slice(0, fetchLimit)
-    .map((row) => toApiChatMessage(row as MessageRow))
+  const pageRows = rows.slice(0, fetchLimit);
+
+  const messageIds = pageRows.map((r) => r.id);
+  const reactionsMap = await getReactionsForMessages(messageIds, params.userId);
+
+  const messages = pageRows
+    .map((row) => toApiChatMessage(row as MessageRow, reactionsMap.get(row.id) ?? []))
     .reverse();
 
   return { messages, hasMore };

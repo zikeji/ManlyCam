@@ -20,6 +20,7 @@ import { createChatRouter } from './routes/chat.js';
 import { createModerationRouter } from './routes/moderation.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createCommandsRouter } from './routes/commands.js';
+import { createReactionsRouter } from './routes/reactions.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -40,6 +41,7 @@ export function createApp() {
   app.route('/', createChatRouter());
   app.route('/', createCommandsRouter());
   app.route('/', createModerationRouter());
+  app.route('/', createReactionsRouter());
   app.route('/api/admin', createAdminRouter());
 
   // WebSocket — createNodeWebSocket must receive the app instance before routes are added

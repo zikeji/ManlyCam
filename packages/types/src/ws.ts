@@ -24,6 +24,25 @@ export interface UserProfile {
 // presence:join sends the same shape as a user profile
 export type UserPresence = UserProfile
 
+export interface Reaction {
+  emoji: string        // shortcode without colons, e.g. "thumbs_up"
+  count: number
+  userReacted: boolean // whether the viewing user has this reaction
+  userIds: string[]    // all user IDs who added this reaction (for mod detail panel)
+  userDisplayNames: string[] // parallel array of display names for userIds
+  userRoles: Role[]    // parallel array of roles for userIds (for per-reactor mod × gating)
+  firstReactedAt: string // ISO timestamp of first reaction (for sort stability)
+}
+
+export interface ReactionPayload {
+  messageId: string
+  userId: string
+  displayName: string
+  role: Role
+  emoji: string
+  createdAt: string
+}
+
 export interface ChatMessage {
   id: string
   userId: string
@@ -37,6 +56,7 @@ export interface ChatMessage {
   deletedBy: string | null // differs from userId on mod-initiated deletes
   createdAt: string
   userTag: UserTag | null
+  reactions?: Reaction[]  // undefined = not loaded, [] = loaded but empty
   ephemeral?: boolean // client-only: not persisted, only sent to invoking user
 }
 
@@ -77,3 +97,5 @@ export type WsMessage =
   | { type: 'users:lookup';       payload: { ids: string[] } }
   | { type: 'users:info';         payload: UserPresence[] }
   | { type: 'chat:ephemeral';     payload: ChatMessage }
+  | { type: 'reaction:add';       payload: ReactionPayload }
+  | { type: 'reaction:remove';    payload: { messageId: string; userId: string; emoji: string } }

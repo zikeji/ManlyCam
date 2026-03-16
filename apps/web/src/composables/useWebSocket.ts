@@ -21,6 +21,7 @@ import {
 } from './usePresence';
 import { cacheUsers, lookupUser } from './useUserCache';
 import { setStateFromWs as setPiSugarStateFromWs } from './usePiSugar';
+import { handleReactionAdd, handleReactionRemove } from './useReactions';
 import { useAuth } from './useAuth';
 import { useBrowserNotifications } from './useBrowserNotifications';
 import { useNotificationPreferences } from './useNotificationPreferences';
@@ -142,6 +143,12 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'chat:ephemeral') {
         handleEphemeral(msg.payload);
+      }
+      if (msg.type === 'reaction:add') {
+        handleReactionAdd(msg.payload, user.value?.id);
+      }
+      if (msg.type === 'reaction:remove') {
+        handleReactionRemove(msg.payload, user.value?.id);
       }
     } catch {
       // Ignore malformed messages

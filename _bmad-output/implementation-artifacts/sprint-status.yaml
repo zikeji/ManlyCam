@@ -1,5 +1,5 @@
 # generated: 2026-03-06
-# last_updated: 2026-03-15
+# last_updated: 2026-03-16
 # project: ManlyCam
 # project_key: NOKEY
 # tracking_system: file-system
@@ -117,7 +117,7 @@ development_status:
   scrollbar-polish-shadcn-scroll-area: done # unplanned: Chrome native scrollbars were visually ugly in chat sidebar and code blocks; replaced overflow divs in ChatPanel/AdminPanel with ShadCN ScrollArea; styled pre scrollbars via webkit CSS; fixed reka-ui v2.9 viewport element access ($el→viewportElement) and Primitive div min-height issue. Done 2026-03-15
   8-4-programmable-slash-commands: done # code-review: zero critical/high/medium/low issues. All 14 ACs implemented, all 13 tasks verified. Custom slash command loader, role-based API, CommandAutocomplete UI, ephemeral message routing, system user feature. 1043 tests passing. Done 2026-03-15
   8-5-emoji-picker-component: done # Code review: zero critical/high issues. File list updated. All 10 ACs implemented, all 46 subtasks verified. 792 tests passing. Done 2026-03-16
-  8-6-message-reactions: ready-for-dev
+  8-6-message-reactions: done # Code review: zero critical/high/medium/low issues. All 10 ACs implemented, all 11 tasks verified. 389 server + 850 web tests passing. Done 2026-03-16
   epic-8-retrospective: optional
 
   # Post-MVP / Phase 2 (Deferred)

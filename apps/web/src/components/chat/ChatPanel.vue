@@ -371,6 +371,7 @@ async function handleSend(content: string) {
                     :is-own="user?.id === item.data.userId"
                     :can-moderate-delete="canModerateDeleteMsg(item.data)"
                     :is-author-muted="mutedUserIds.has(item.data.userId)"
+                    :is-current-user-muted="isSelfMuted"
                     :current-user-role="user?.role"
                     :current-user-id="user?.id"
                     :viewers="viewers"

@@ -8,6 +8,9 @@ vi.mock('../db/client.js', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    reaction: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     auditLog: {
       create: vi.fn(),
     },
@@ -97,6 +100,7 @@ describe('chatService.createMessage', () => {
       deletedBy: null,
       createdAt: '2026-03-08T10:00:00.000Z',
       userTag: null,
+      reactions: [],
     });
   });
 
@@ -283,6 +287,7 @@ describe('chatService.getHistory', () => {
       deletedBy: null,
       createdAt: '2026-03-08T10:00:00.000Z',
       userTag: null,
+      reactions: [],
     });
   });
 });
