@@ -48,7 +48,7 @@ describe('handleReactionAdd', () => {
       messageId: 'msg-001',
       userId: 'user-002',
       displayName: 'User Two',
-      role: 'Viewer' as const,
+      role: 'ViewerGuest' as const,
       emoji: 'thumbs_up',
       createdAt: new Date().toISOString(),
     };
@@ -60,7 +60,7 @@ describe('handleReactionAdd', () => {
     expect(messages.value[0].reactions![0].count).toBe(1);
     expect(messages.value[0].reactions![0].userIds).toEqual(['user-002']);
     expect(messages.value[0].reactions![0].userDisplayNames).toEqual(['User Two']);
-    expect(messages.value[0].reactions![0].userRoles).toEqual(['Viewer']);
+    expect(messages.value[0].reactions![0].userRoles).toEqual(['ViewerGuest']);
   });
 
   it('increments count when emoji already exists on message', () => {
@@ -79,7 +79,7 @@ describe('handleReactionAdd', () => {
       messageId: 'msg-001',
       userId: 'user-new',
       displayName: 'New User',
-      role: 'Viewer' as const,
+      role: 'ViewerGuest' as const,
       emoji: 'thumbs_up',
       createdAt: new Date().toISOString(),
     });
@@ -89,7 +89,7 @@ describe('handleReactionAdd', () => {
     expect(messages.value[0].reactions![0].userIds).toContain('user-existing');
     expect(messages.value[0].reactions![0].userDisplayNames).toContain('New User');
     expect(messages.value[0].reactions![0].userDisplayNames).toContain('Existing User');
-    expect(messages.value[0].reactions![0].userRoles).toContain('Viewer');
+    expect(messages.value[0].reactions![0].userRoles).toContain('ViewerGuest');
     expect(messages.value[0].reactions![0].userRoles).toContain('ViewerCompany');
   });
 
@@ -109,7 +109,7 @@ describe('handleReactionAdd', () => {
       messageId: 'msg-001',
       userId: 'user-new',
       displayName: 'New User',
-      role: 'Viewer' as const,
+      role: 'ViewerGuest' as const,
       emoji: 'thumbs_up',
       createdAt: new Date().toISOString(),
     });
@@ -127,7 +127,7 @@ describe('handleReactionAdd', () => {
       messageId: 'msg-001',
       userId: 'user-002',
       displayName: 'User Two',
-      role: 'Viewer' as const,
+      role: 'ViewerGuest' as const,
       emoji: 'thumbs_up',
       createdAt: new Date().toISOString(),
     });
@@ -143,7 +143,7 @@ describe('handleReactionAdd', () => {
       userReacted: false,
       userIds: ['user-002'],
       userDisplayNames: ['User Two'],
-      userRoles: ['Viewer'],
+      userRoles: ['ViewerGuest' as const],
       firstReactedAt: new Date().toISOString(),
     };
     messages.value = [makeMessage('msg-001', [existing])];
@@ -152,7 +152,7 @@ describe('handleReactionAdd', () => {
       messageId: 'msg-001',
       userId: 'user-002',
       displayName: 'User Two',
-      role: 'Viewer' as const,
+      role: 'ViewerGuest' as const,
       emoji: 'thumbs_up',
       createdAt: new Date().toISOString(),
     });
@@ -170,7 +170,7 @@ describe('handleReactionAdd', () => {
         messageId: 'msg-001',
         userId: 'current-user',
         displayName: 'Me',
-        role: 'Viewer' as const,
+        role: 'ViewerGuest' as const,
         emoji: 'red_heart',
         createdAt: new Date().toISOString(),
       },
@@ -188,7 +188,7 @@ describe('handleReactionAdd', () => {
         messageId: 'msg-001',
         userId: 'other-user',
         displayName: 'Other',
-        role: 'Viewer' as const,
+        role: 'ViewerGuest' as const,
         emoji: 'red_heart',
         createdAt: new Date().toISOString(),
       },
@@ -205,7 +205,7 @@ describe('handleReactionAdd', () => {
       messageId: 'msg-UNKNOWN',
       userId: 'user-002',
       displayName: 'User',
-      role: 'Viewer' as const,
+      role: 'ViewerGuest' as const,
       emoji: 'thumbs_up',
       createdAt: new Date().toISOString(),
     });
@@ -227,7 +227,7 @@ describe('handleReactionRemove', () => {
       userReacted: false,
       userIds: ['user-001', 'user-002'],
       userDisplayNames: ['User One', 'User Two'],
-      userRoles: ['Viewer', 'ViewerCompany'],
+      userRoles: ['ViewerGuest', 'ViewerCompany'],
       firstReactedAt: new Date().toISOString(),
     };
     messages.value = [makeMessage('msg-001', [existing])];
@@ -239,7 +239,7 @@ describe('handleReactionRemove', () => {
     expect(messages.value[0].reactions![0].userIds).toContain('user-002');
     expect(messages.value[0].reactions![0].userDisplayNames).not.toContain('User One');
     expect(messages.value[0].reactions![0].userDisplayNames).toContain('User Two');
-    expect(messages.value[0].reactions![0].userRoles).not.toContain('Viewer');
+    expect(messages.value[0].reactions![0].userRoles).not.toContain('ViewerGuest');
     expect(messages.value[0].reactions![0].userRoles).toContain('ViewerCompany');
   });
 
@@ -250,7 +250,7 @@ describe('handleReactionRemove', () => {
       userReacted: true,
       userIds: ['user-001'],
       userDisplayNames: ['User One'],
-      userRoles: ['Viewer'],
+      userRoles: ['ViewerGuest' as const],
       firstReactedAt: new Date().toISOString(),
     };
     messages.value = [makeMessage('msg-001', [existing])];
@@ -267,7 +267,7 @@ describe('handleReactionRemove', () => {
       userReacted: true,
       userIds: ['current-user', 'other-user'],
       userDisplayNames: ['Current User', 'Other User'],
-      userRoles: ['Viewer', 'ViewerCompany'],
+      userRoles: ['ViewerGuest', 'ViewerCompany'],
       firstReactedAt: new Date().toISOString(),
     };
     messages.value = [makeMessage('msg-001', [existing])];
@@ -316,7 +316,7 @@ describe('handleReactionRemove', () => {
       userReacted: false,
       userIds: ['user-001'],
       userDisplayNames: ['User One'],
-      userRoles: ['Viewer'],
+      userRoles: ['ViewerGuest' as const],
       firstReactedAt: new Date().toISOString(),
     };
     messages.value = [makeMessage('msg-001', [existing])];

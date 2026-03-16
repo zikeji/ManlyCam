@@ -102,7 +102,13 @@ export async function getReactionsForMessage(
 
   const grouped = new Map<
     string,
-    { count: number; firstAt: Date; userIds: string[]; userDisplayNames: string[]; userRoles: Role[] }
+    {
+      count: number;
+      firstAt: Date;
+      userIds: string[];
+      userDisplayNames: string[];
+      userRoles: Role[];
+    }
   >();
 
   for (const r of rows) {
@@ -151,7 +157,16 @@ export async function getReactionsForMessages(
   // Group by messageId, then by emoji
   const byMessage = new Map<
     string,
-    Map<string, { count: number; firstAt: Date; userIds: string[]; userDisplayNames: string[]; userRoles: Role[] }>
+    Map<
+      string,
+      {
+        count: number;
+        firstAt: Date;
+        userIds: string[];
+        userDisplayNames: string[];
+        userRoles: Role[];
+      }
+    >
   >();
 
   for (const r of rows) {

@@ -17,7 +17,7 @@ const makeReaction = (overrides: Partial<Reaction> = {}): Reaction => ({
   userReacted: false,
   userIds: ['user-other'],
   userDisplayNames: ['Other User'],
-  userRoles: ['Viewer'],
+  userRoles: ['ViewerGuest' as const],
   firstReactedAt: new Date().toISOString(),
   ...overrides,
 });
@@ -186,7 +186,7 @@ describe('ReactionDisplay.vue', () => {
         count: 1,
         userIds: ['target-user'],
         userDisplayNames: ['Target User'],
-        userRoles: ['Viewer'],
+        userRoles: ['ViewerGuest' as const],
       }),
     ];
     wrapper = mount(ReactionDisplay, {
@@ -206,13 +206,13 @@ describe('ReactionDisplay.vue', () => {
     panel?.remove();
   });
 
-  it('hides mod × button for the current user\'s own reaction', async () => {
+  it("hides mod × button for the current user's own reaction", async () => {
     const reactions = [
       makeReaction({
         count: 1,
         userIds: ['user-001'],
         userDisplayNames: ['Me'],
-        userRoles: ['Viewer'],
+        userRoles: ['ViewerGuest' as const],
       }),
     ];
     wrapper = mount(ReactionDisplay, {
@@ -234,7 +234,12 @@ describe('ReactionDisplay.vue', () => {
 
   it('hides mod × button when currentUserRole is not provided', async () => {
     const reactions = [
-      makeReaction({ count: 1, userIds: ['target-user'], userDisplayNames: ['Target'], userRoles: ['Viewer'] }),
+      makeReaction({
+        count: 1,
+        userIds: ['target-user'],
+        userDisplayNames: ['Target'],
+        userRoles: ['ViewerGuest' as const],
+      }),
     ];
     wrapper = mount(ReactionDisplay, {
       props: { reactions, currentUserId: 'user-001', canModerate: true }, // no currentUserRole
@@ -248,10 +253,20 @@ describe('ReactionDisplay.vue', () => {
 
   it('hides mod × button when reactor role data is missing', async () => {
     const reactions = [
-      makeReaction({ count: 1, userIds: ['target-user'], userDisplayNames: ['Target'], userRoles: undefined as any }),
+      makeReaction({
+        count: 1,
+        userIds: ['target-user'],
+        userDisplayNames: ['Target'],
+        userRoles: undefined as unknown as [],
+      }),
     ];
     wrapper = mount(ReactionDisplay, {
-      props: { reactions, currentUserId: 'user-001', currentUserRole: 'Moderator', canModerate: true },
+      props: {
+        reactions,
+        currentUserId: 'user-001',
+        currentUserRole: 'Moderator',
+        canModerate: true,
+      },
       attachTo: document.body,
     });
     await wrapper.find('[role="group"]').trigger('contextmenu');
@@ -308,11 +323,16 @@ describe('ReactionDisplay.vue', () => {
         count: 1,
         userIds: ['target-user'],
         userDisplayNames: ['Target User'],
-        userRoles: ['Viewer'],
+        userRoles: ['ViewerGuest' as const],
       }),
     ];
     wrapper = mount(ReactionDisplay, {
-      props: { reactions, currentUserId: 'user-001', currentUserRole: 'Moderator', canModerate: true },
+      props: {
+        reactions,
+        currentUserId: 'user-001',
+        currentUserRole: 'Moderator',
+        canModerate: true,
+      },
       attachTo: document.body,
     });
     await wrapper.find('[role="group"]').trigger('contextmenu');

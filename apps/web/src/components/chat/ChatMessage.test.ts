@@ -801,6 +801,7 @@ describe('ChatMessage.vue', () => {
           userReacted: false,
           userIds: ['other-user'],
           userDisplayNames: ['Other User'],
+          userRoles: ['ViewerGuest' as const],
           firstReactedAt: new Date().toISOString(),
         },
       ];
@@ -856,6 +857,7 @@ describe('ChatMessage.vue', () => {
           userReacted: true,
           userIds: ['user-001'],
           userDisplayNames: ['Test User'],
+          userRoles: ['ViewerGuest' as const],
           firstReactedAt: new Date().toISOString(),
         },
       ];

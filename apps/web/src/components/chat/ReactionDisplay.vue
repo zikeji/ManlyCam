@@ -47,11 +47,6 @@ function handleOutsidePointer() {
   document.removeEventListener('pointerdown', handleOutsidePointer);
 }
 
-function closeDetail() {
-  showDetail.value = false;
-  document.removeEventListener('pointerdown', handleOutsidePointer);
-}
-
 function openDetail(clientX: number, clientY: number) {
   detailX.value = Math.min(clientX, window.innerWidth - 220);
   detailY.value = Math.min(clientY, window.innerHeight - 150);
@@ -90,7 +85,7 @@ function showModButton(reaction: Reaction, idx: number, uid: string): boolean {
   if (uid === props.currentUserId) return false;
   const reactorRole = reaction.userRoles?.[idx];
   if (!props.currentUserRole || !reactorRole) return false; // fail closed if role data missing
-  return (ROLE_RANK[props.currentUserRole] ?? 0) > (ROLE_RANK[reactorRole] ?? 0);
+  return ROLE_RANK[props.currentUserRole] > ROLE_RANK[reactorRole];
 }
 
 function handleModRemoveClick(emoji: string, userId: string) {

@@ -78,6 +78,7 @@ describe('POST /api/messages/:messageId/reactions', () => {
       messageId: 'msg-001',
       userId: 'user-001',
       displayName: 'Test User',
+      role: 'ViewerCompany' as const,
       emoji: 'thumbs_up',
       createdAt: new Date().toISOString(),
     };
