@@ -22,6 +22,7 @@ import {
 import { cacheUsers, lookupUser } from './useUserCache';
 import { setStateFromWs as setPiSugarStateFromWs } from './usePiSugar';
 import { handleReactionAdd, handleReactionRemove } from './useReactions';
+import { refreshCommands } from './useCommands';
 import { useAuth } from './useAuth';
 import { useBrowserNotifications } from './useBrowserNotifications';
 import { useNotificationPreferences } from './useNotificationPreferences';
@@ -52,6 +53,7 @@ export function useWebSocket(): WsInterface {
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   let reconnectDelay = 1000;
   const MAX_DELAY = 30_000;
+  let hasConnectedBefore = false;
 
   function handleMessage(event: MessageEvent<string>) {
     try {
@@ -165,6 +167,12 @@ export function useWebSocket(): WsInterface {
       reconnectDelay = 1000;
       // Request all known users so the cache is fully populated for autocomplete + mention rendering
       socket!.send(JSON.stringify({ type: 'users:directory' }));
+      // On reconnect (not initial connect), refresh commands — a server restart
+      // may have added new slash commands and also triggered the reconnect.
+      if (hasConnectedBefore) {
+        void refreshCommands();
+      }
+      hasConnectedBefore = true;
     };
     socket.onmessage = handleMessage;
     socket.onclose = () => {

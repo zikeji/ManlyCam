@@ -250,4 +250,47 @@ describe('WsHub', () => {
       expect(list[0].id).toBe('user-001');
     });
   });
+
+  describe('hasUserConnections', () => {
+    it('returns false when no connections registered', () => {
+      expect(hub.hasUserConnections('user-001')).toBe(false);
+    });
+
+    it('returns true when user has an active connection', () => {
+      hub.addClient('conn-1', makeClient(), baseUser);
+      expect(hub.hasUserConnections('user-001')).toBe(true);
+    });
+
+    it('returns false after user connection is disposed', () => {
+      const dispose = hub.addClient('conn-1', makeClient(), baseUser);
+      dispose();
+      expect(hub.hasUserConnections('user-001')).toBe(false);
+    });
+
+    it('returns true when user has multiple connections (both active)', () => {
+      hub.addClient('conn-1', makeClient(), baseUser);
+      hub.addClient('conn-2', makeClient(), baseUser);
+      expect(hub.hasUserConnections('user-001')).toBe(true);
+    });
+
+    it('returns true after one of two connections is disposed', () => {
+      const dispose = hub.addClient('conn-1', makeClient(), baseUser);
+      hub.addClient('conn-2', makeClient(), baseUser);
+      dispose();
+      expect(hub.hasUserConnections('user-001')).toBe(true);
+    });
+
+    it('returns false after all connections for user are disposed', () => {
+      const d1 = hub.addClient('conn-1', makeClient(), baseUser);
+      const d2 = hub.addClient('conn-2', makeClient(), baseUser);
+      d1();
+      d2();
+      expect(hub.hasUserConnections('user-001')).toBe(false);
+    });
+
+    it('does not count connections of a different user', () => {
+      hub.addClient('conn-1', makeClient(), userB);
+      expect(hub.hasUserConnections('user-001')).toBe(false);
+    });
+  });
 });

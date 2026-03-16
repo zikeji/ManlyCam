@@ -54,6 +54,7 @@ vi.mock('../services/wsHub.js', () => ({
     addClient: vi.fn(),
     broadcastExcept: vi.fn(),
     getPresenceList: vi.fn(() => []),
+    hasUserConnections: vi.fn().mockReturnValue(false),
   },
 }));
 
@@ -135,6 +136,17 @@ describe('WS lifecycle — onOpen (AC #2, #3)', () => {
     );
   });
 
+  it('does NOT broadcast presence:join when user already has another connection', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    vi.mocked(wsHub.hasUserConnections).mockReturnValue(true);
+    const mockWs = { send: vi.fn() };
+    capturedFactory!(mockContext).onOpen!(null, mockWs);
+    expect(wsHub.broadcastExcept).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ type: 'presence:join' }),
+    );
+  });
+
   it('sends presence:seed to new client', () => {
     vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
     vi.mocked(wsHub.getPresenceList).mockReturnValue([
@@ -199,11 +211,25 @@ describe('WS lifecycle — onClose (AC #4)', () => {
     const handlers = capturedFactory!(mockContext);
     handlers.onOpen!(null, mockWs);
     vi.clearAllMocks();
+    vi.mocked(wsHub.hasUserConnections).mockReturnValue(false); // no remaining connections
     handlers.onClose!(null, mockWs);
     expect(wsHub.broadcast).toHaveBeenCalledWith({
       type: 'presence:leave',
       payload: { userId: 'user-001' },
     });
+  });
+
+  it('does NOT broadcast presence:leave when user still has another active connection', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = { send: vi.fn() };
+    const handlers = capturedFactory!(mockContext);
+    handlers.onOpen!(null, mockWs);
+    vi.clearAllMocks();
+    vi.mocked(wsHub.hasUserConnections).mockReturnValue(true);
+    handlers.onClose!(null, mockWs);
+    expect(wsHub.broadcast).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'presence:leave' }),
+    );
   });
 
   it('does not throw if onClose fires without a prior onOpen (no-op)', () => {

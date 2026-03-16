@@ -120,6 +120,14 @@ vi.mock('./useNotificationPreferences', () => ({
   }),
 }));
 
+// --- useCommands mock ---
+const mockRefreshCommands = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock('./useCommands', () => ({
+  availableCommands: { value: [] },
+  loadCommands: vi.fn().mockResolvedValue(undefined),
+  refreshCommands: mockRefreshCommands,
+}));
+
 // --- useAuth mock ---
 const mockAuthUser = vi.hoisted(() => ({
   value: { id: 'user-self', displayName: 'Self' } as { id: string; displayName: string } | null,
@@ -194,6 +202,28 @@ describe('useWebSocket', () => {
 
       mockWsInstance.onopen?.(new Event('open'));
       expect(isConnected.value).toBe(true);
+    });
+
+    it('does NOT call refreshCommands on initial connect', () => {
+      const { connect } = useWebSocket();
+      connect();
+      mockWsInstance.onopen?.(new Event('open'));
+      expect(mockRefreshCommands).not.toHaveBeenCalled();
+    });
+
+    it('calls refreshCommands on reconnect (not first connect)', () => {
+      const { connect } = useWebSocket();
+      // First connect
+      connect();
+      mockWsInstance.onopen?.(new Event('open'));
+      expect(mockRefreshCommands).not.toHaveBeenCalled();
+
+      // Simulate disconnect + reconnect
+      mockWsInstance.readyState = 3; // CLOSED
+      mockWsInstance.onclose?.({} as CloseEvent);
+      vi.advanceTimersByTime(1000); // trigger backoff reconnect
+      mockWsInstance.onopen?.(new Event('open'));
+      expect(mockRefreshCommands).toHaveBeenCalledOnce();
     });
   });
 

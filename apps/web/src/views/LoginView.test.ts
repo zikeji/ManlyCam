@@ -31,4 +31,11 @@ describe('LoginView', () => {
     expect(link.find('svg').exists()).toBe(true);
     expect(wrapper.text()).toContain('Sign in with Google');
   });
+
+  it('renders the favicon.svg image instead of an emoji', () => {
+    const wrapper = mount(LoginView);
+    const img = wrapper.find('img[src="/favicon.svg"]');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('alt')).toBe('');
+  });
 });

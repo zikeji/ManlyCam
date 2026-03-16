@@ -109,6 +109,13 @@ export class WsHub {
     }
     return result;
   }
+
+  hasUserConnections(userId: string): boolean {
+    for (const conn of this.connections.values()) {
+      if (conn.userId === userId) return true;
+    }
+    return false;
+  }
 }
 
 export const wsHub = new WsHub();
