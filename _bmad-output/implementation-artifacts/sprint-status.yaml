@@ -116,7 +116,7 @@ development_status:
   8-3-browser-notifications-and-preferences: done # code-review: 2 findings documented (default prefs intentional, file list updated). All 13 ACs implemented. 654 tests passing. Done 2026-03-15
   scrollbar-polish-shadcn-scroll-area: done # unplanned: Chrome native scrollbars were visually ugly in chat sidebar and code blocks; replaced overflow divs in ChatPanel/AdminPanel with ShadCN ScrollArea; styled pre scrollbars via webkit CSS; fixed reka-ui v2.9 viewport element access ($el→viewportElement) and Primitive div min-height issue. Done 2026-03-15
   8-4-programmable-slash-commands: done # code-review: zero critical/high/medium/low issues. All 14 ACs implemented, all 13 tasks verified. Custom slash command loader, role-based API, CommandAutocomplete UI, ephemeral message routing, system user feature. 1043 tests passing. Done 2026-03-15
-  8-5-emoji-picker-component: ready-for-dev
+  8-5-emoji-picker-component: review # All 10 tasks complete + post-review fixes: ScrollArea, emoji size/large, filtering, cache flash fix, jsdom guard, coverage exclusion. 792 tests passing. In review 2026-03-15
   8-6-message-reactions: ready-for-dev
   epic-8-retrospective: optional
 

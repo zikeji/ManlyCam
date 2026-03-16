@@ -4,6 +4,8 @@ import {
   renderMarkdown,
   normalizeNewlines,
   autoCloseCodeBlocks,
+  renderEmojiShortcodes,
+  isEmojiOnlyMessage,
 } from './markdown';
 
 describe('renderMarkdownLite', () => {
@@ -284,5 +286,122 @@ describe('renderMarkdown', () => {
     const result = renderMarkdown('[label](https://example.com)');
     expect(result).toContain('href="https://example.com"');
     expect(result).toContain('label');
+  });
+
+  it('renders emoji shortcodes as img tags', () => {
+    const result = renderMarkdown('Hello :grinning_face:');
+    expect(result).toContain('<img');
+    expect(result).toContain('/emojis/');
+    expect(result).toContain('1f600.svg');
+    expect(result).toContain('class="emoji-inline"');
+  });
+
+  it('uses emoji-large class for emoji-only messages', () => {
+    const result = renderMarkdown(':grinning_face:');
+    expect(result).toContain('class="emoji-large"');
+    expect(result).not.toContain('class="emoji-inline"');
+  });
+
+  it('uses emoji-large class for multiple emoji-only messages', () => {
+    const result = renderMarkdown(':grinning_face: :thumbs_up:');
+    expect(result).toContain('class="emoji-large"');
+  });
+
+  it('uses emoji-inline when message has text alongside emoji', () => {
+    const result = renderMarkdown('Hello :grinning_face:');
+    expect(result).toContain('class="emoji-inline"');
+    expect(result).not.toContain('class="emoji-large"');
+  });
+
+  it('renders emoji shortcodes inside bold markdown', () => {
+    // Bold text with emoji inside — emoji processed after markdown-it
+    const result = renderMarkdown('**:grinning_face:**');
+    expect(result).toContain('<strong>');
+    expect(result).toContain('/emojis/');
+  });
+});
+
+describe('isEmojiOnlyMessage', () => {
+  it('returns true for a single shortcode', () => {
+    expect(isEmojiOnlyMessage(':grinning_face:')).toBe(true);
+  });
+
+  it('returns true for multiple shortcodes with spaces', () => {
+    expect(isEmojiOnlyMessage(':grinning_face: :thumbs_up:')).toBe(true);
+  });
+
+  it('returns false when there is surrounding text', () => {
+    expect(isEmojiOnlyMessage('Hello :grinning_face:')).toBe(false);
+  });
+
+  it('returns false for plain text', () => {
+    expect(isEmojiOnlyMessage('hello world')).toBe(false);
+  });
+
+  it('returns true with leading/trailing whitespace', () => {
+    expect(isEmojiOnlyMessage('  :fire:  ')).toBe(true);
+  });
+});
+
+describe('renderEmojiShortcodes', () => {
+  it('converts :grinning_face: to img tag', () => {
+    const result = renderEmojiShortcodes('Hello :grinning_face:');
+    expect(result).toContain('<img');
+    expect(result).toContain('/emojis/');
+    expect(result).toContain('/emojis/1f600.svg');
+    expect(result).toContain('alt=":grinning_face:"');
+    expect(result).toContain('class="emoji-inline"');
+    expect(result).toContain('loading="lazy"');
+  });
+
+  it('replaces shortcode but preserves surrounding text', () => {
+    const result = renderEmojiShortcodes('Hello :grinning_face: world');
+    expect(result).toContain('Hello ');
+    expect(result).toContain(' world');
+    expect(result).toContain('/emojis/');
+  });
+
+  it('leaves unknown shortcodes as-is', () => {
+    const result = renderEmojiShortcodes('Hello :unknownemoji999:');
+    expect(result).toBe('Hello :unknownemoji999:');
+  });
+
+  it('converts multiple shortcodes in one string', () => {
+    // grinning_face (1f600) and thumbs_up (1f44d)
+    const result = renderEmojiShortcodes(':grinning_face: :thumbs_up:');
+    expect(result).toContain('1f600.svg');
+    expect(result).toContain('1f44d.svg');
+    expect((result.match(/<img/g) ?? []).length).toBe(2);
+  });
+
+  it('is case-insensitive for shortcode matching', () => {
+    const result = renderEmojiShortcodes(':GRINNING_FACE:');
+    expect(result).toContain('/emojis/');
+  });
+
+  it('returns plain text unchanged if no shortcodes', () => {
+    const text = 'Hello world, no emojis here.';
+    expect(renderEmojiShortcodes(text)).toBe(text);
+  });
+
+  it('handles shortcode at start of string', () => {
+    const result = renderEmojiShortcodes(':face_with_tears_of_joy: that was funny');
+    expect(result).toContain('1f602.svg');
+    expect(result).toContain('that was funny');
+  });
+
+  it('handles shortcode at end of string', () => {
+    const result = renderEmojiShortcodes('So true :thumbs_up:');
+    expect(result).toContain('1f44d.svg');
+  });
+
+  it('handles string with only a shortcode', () => {
+    const result = renderEmojiShortcodes(':fire:');
+    expect(result).toContain('1f525.svg');
+  });
+
+  it('does not double-convert already converted img tags', () => {
+    const result = renderEmojiShortcodes(':sparkles:');
+    expect((result.match(/<img/g) ?? []).length).toBe(1);
   });
 });

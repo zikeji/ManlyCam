@@ -50,6 +50,11 @@ export function createApp() {
   // SPA catch-all: serve Vue dist in production
   if (env.NODE_ENV === 'production') {
     const distPath = join(__dirname, '../../web/dist');
+    // Emoji SVGs are content-addressed (npm package version) — cache aggressively.
+    app.use('/emojis/*', async (c, next) => {
+      await next();
+      c.header('Cache-Control', 'public, max-age=31536000, immutable');
+    });
     app.use('/*', serveStatic({ root: distPath }));
     app.get('/*', (c) => {
       const indexHtmlPath = join(distPath, 'index.html');

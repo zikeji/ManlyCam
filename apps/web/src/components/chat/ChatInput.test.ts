@@ -545,4 +545,171 @@ describe('ChatInput.vue', () => {
       expect(wrapper.find('[aria-label="Command suggestions"]').exists()).toBe(false);
     });
   });
+
+  describe('emoji picker', () => {
+    it('renders emoji picker button when not muted', () => {
+      wrapper = mount(ChatInput);
+      expect(wrapper.find('button[aria-label="Open emoji picker"]').exists()).toBe(true);
+    });
+
+    it('does not render emoji picker button when muted', () => {
+      wrapper = mount(ChatInput, { props: { muted: true } });
+      expect(wrapper.find('button[aria-label="Open emoji picker"]').exists()).toBe(false);
+    });
+
+    it('emoji picker is initially closed', () => {
+      wrapper = mount(ChatInput);
+      expect(
+        wrapper.find('button[aria-label="Open emoji picker"]').attributes('aria-expanded'),
+      ).toBe('false');
+    });
+
+    it('clicking emoji button opens the picker', async () => {
+      wrapper = mount(ChatInput);
+      await wrapper.find('button[aria-label="Open emoji picker"]').trigger('click');
+      await nextTick();
+      expect(wrapper.find('[role="dialog"][aria-label="Emoji picker"]').exists()).toBe(true);
+    });
+
+    it('clicking emoji button again closes the picker', async () => {
+      wrapper = mount(ChatInput);
+      const btn = wrapper.find('button[aria-label="Open emoji picker"]');
+      await btn.trigger('click');
+      await nextTick();
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+      await btn.trigger('click');
+      await nextTick();
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    });
+
+    it('selecting an emoji from picker inserts :shortcode: in textarea', async () => {
+      wrapper = mount(ChatInput);
+      await wrapper.find('button[aria-label="Open emoji picker"]').trigger('click');
+      await nextTick();
+
+      const firstEmoji = wrapper.find('[role="dialog"] [role="option"]');
+      expect(firstEmoji.exists()).toBe(true);
+      await firstEmoji.trigger('click');
+      await nextTick();
+
+      const textarea = wrapper.find('textarea');
+      const value = (textarea.element as HTMLTextAreaElement).value;
+      expect(value).toMatch(/^:[a-z0-9_]+:$/);
+    });
+
+    it('picker remains open after selecting an emoji (AC #3)', async () => {
+      wrapper = mount(ChatInput);
+      await wrapper.find('button[aria-label="Open emoji picker"]').trigger('click');
+      await nextTick();
+
+      const firstEmoji = wrapper.find('[role="dialog"] [role="option"]');
+      await firstEmoji.trigger('click');
+      await nextTick();
+
+      // Picker should still be visible
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+    });
+
+    it('closing picker with Escape returns focus to input', async () => {
+      wrapper = mount(ChatInput, { attachTo: document.body });
+      await wrapper.find('button[aria-label="Open emoji picker"]').trigger('click');
+      await nextTick();
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+
+      await wrapper.find('textarea').trigger('keydown', { key: 'Escape' });
+      await nextTick();
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    });
+
+    it('picker closes on send', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('hello');
+      await wrapper.find('button[aria-label="Open emoji picker"]').trigger('click');
+      await nextTick();
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+
+      await textarea.trigger('keydown', { key: 'Enter', shiftKey: false });
+      await nextTick();
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+    });
+  });
+
+  describe('emoji autocomplete', () => {
+    it('shows emoji autocomplete when : followed by letters is typed', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue(':smile');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(true);
+    });
+
+    it('does not show emoji autocomplete for just a colon', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue(':');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(false);
+    });
+
+    it('does not show emoji autocomplete when text does not start with :', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue('hello world');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(false);
+    });
+
+    it('hides emoji autocomplete when query has no results', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue(':xyznotamoji999');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(false);
+    });
+
+    it('selecting emoji from autocomplete replaces :query with :shortcode:', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue(':smile');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(true);
+
+      await wrapper.find('[aria-label="Emoji suggestions"] [role="option"]').trigger('mousedown');
+      await nextTick();
+
+      const value = (textarea.element as HTMLTextAreaElement).value;
+      expect(value).toMatch(/^:[a-z0-9_]+:$/);
+    });
+
+    it('closes emoji autocomplete after selection', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue(':smile');
+      await textarea.trigger('input');
+      await nextTick();
+
+      await wrapper.find('[aria-label="Emoji suggestions"] [role="option"]').trigger('mousedown');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(false);
+    });
+
+    it('closes emoji autocomplete on send', async () => {
+      wrapper = mount(ChatInput);
+      const textarea = wrapper.find('textarea');
+      await textarea.setValue(':smile');
+      await textarea.trigger('input');
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(true);
+
+      await textarea.trigger('keydown', { key: 'Enter', shiftKey: false });
+      await nextTick();
+      expect(wrapper.find('[aria-label="Emoji suggestions"]').exists()).toBe(false);
+    });
+  });
 });

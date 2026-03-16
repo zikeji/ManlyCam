@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import { Button } from '@/components/ui/button';
-import { SendHorizontal } from 'lucide-vue-next';
+import { SendHorizontal, Smile } from 'lucide-vue-next';
 import MentionAutocomplete from './MentionAutocomplete.vue';
 import CommandAutocomplete from './CommandAutocomplete.vue';
+import EmojiPicker from './EmojiPicker.vue';
+import EmojiAutocomplete from './EmojiAutocomplete.vue';
 import { recentlyChattedUserIds } from '@/composables/useRecentlyChatted';
 import { userCache } from '@/composables/useUserCache';
+import { insertEmoji, replaceEmojiQuery } from '@/composables/useEmoji';
 import { getSiteName } from '@/lib/env';
 import { apiFetch } from '@/lib/api';
 import type { UserPresence } from '@manlycam/types';
 import { SYSTEM_USER_ID } from '@manlycam/types';
+import type { Emoji } from '@/lib/emoji-data';
 
 interface CommandEntry {
   name: string;
@@ -19,7 +23,12 @@ interface CommandEntry {
 
 const props = defineProps<{ muted?: boolean; viewers?: UserPresence[]; currentUserId?: string }>();
 
-const emit = defineEmits<{ send: [content: string]; editLast: []; typingStart: []; typingStop: [] }>();
+const emit = defineEmits<{
+  send: [content: string];
+  editLast: [];
+  typingStart: [];
+  typingStop: [];
+}>();
 
 const content = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
@@ -42,13 +51,27 @@ const commandQuery = ref('');
 const commandPosition = ref({ bottom: 0, left: 0 });
 const availableCommands = ref<CommandEntry[]>([]);
 
+// Emoji picker state
+const emojiPickerVisible = ref(false);
+const emojiPickerWrapperRef = ref<HTMLDivElement | null>(null);
+
+// Emoji autocomplete state
+const emojiAutocompleteRef = ref<InstanceType<typeof EmojiAutocomplete> | null>(null);
+const emojiAutocompleteVisible = ref(false);
+const emojiQuery = ref('');
+const emojiStartIndex = ref(-1);
+const emojiAutocompletePosition = ref({ bottom: 0, left: 0 });
+
 function resize() {
   const el = textareaRef.value;
   if (!el) return;
   el.style.height = 'auto';
-  const capped = Math.min(el.scrollHeight, maxHeight.value);
+  // scrollHeight excludes border; add 2px (1px top + 1px bottom) so that the inline
+  // height style matches the border-box height used by the flex container for alignment.
+  const natural = el.scrollHeight + 2;
+  const capped = Math.min(natural, maxHeight.value);
   el.style.height = capped + 'px';
-  el.style.overflowY = el.scrollHeight > maxHeight.value ? 'auto' : 'hidden';
+  el.style.overflowY = natural > maxHeight.value ? 'auto' : 'hidden';
 }
 
 function initPanelObserver() {
@@ -67,11 +90,20 @@ function initPanelObserver() {
 watch(content, () => nextTick(resize));
 
 onMounted(() => {
-  nextTick(() => requestAnimationFrame(() => { initPanelObserver(); resize(); }));
+  nextTick(() =>
+    requestAnimationFrame(() => {
+      initPanelObserver();
+      resize();
+    }),
+  );
   // Fetch available commands for the current user's role
   apiFetch<{ commands: CommandEntry[] }>('/api/commands')
-    .then((data) => { availableCommands.value = data.commands; })
-    .catch(() => { /* commands unavailable — silent fail */ });
+    .then((data) => {
+      availableCommands.value = data.commands;
+    })
+    .catch(() => {
+      /* commands unavailable — silent fail */
+    });
 });
 
 const charCount = computed(() => content.value.length);
@@ -97,7 +129,10 @@ function startTyping() {
 function stopTyping() {
   if (!isTypingActive) return;
   isTypingActive = false;
-  if (typingHeartbeatInterval) { clearInterval(typingHeartbeatInterval); typingHeartbeatInterval = null; }
+  if (typingHeartbeatInterval) {
+    clearInterval(typingHeartbeatInterval);
+    typingHeartbeatInterval = null;
+  }
   emit('typingStop');
 }
 
@@ -180,10 +215,77 @@ function selectCommand(cmd: CommandEntry) {
   });
 }
 
+// Detect `:` followed by alphanumeric/underscore characters for emoji autocomplete
+function detectEmojiAt(cursorPos: number): void {
+  const text = content.value.substring(0, cursorPos);
+  // Find the last `:` before cursor
+  const colonIndex = text.lastIndexOf(':');
+  if (colonIndex === -1) {
+    closeEmojiAutocomplete();
+    return;
+  }
+
+  const afterColon = text.substring(colonIndex + 1);
+  // Only trigger if: afterColon has 1+ alphanumeric/underscore chars, no spaces, no colons
+  if (!/^[a-z0-9_]+$/i.test(afterColon) || afterColon.length === 0) {
+    closeEmojiAutocomplete();
+    return;
+  }
+
+  emojiStartIndex.value = colonIndex;
+  emojiQuery.value = afterColon.toLowerCase();
+  emojiAutocompletePosition.value = getPopupPosition();
+  emojiAutocompleteVisible.value = true;
+}
+
+function closeEmojiAutocomplete() {
+  emojiAutocompleteVisible.value = false;
+  emojiQuery.value = '';
+  emojiStartIndex.value = -1;
+}
+
+function toggleEmojiPicker() {
+  emojiPickerVisible.value = !emojiPickerVisible.value;
+}
+
+function handleEmojiSelect(emoji: Emoji) {
+  const textarea = textareaRef.value;
+  if (!textarea) return;
+
+  const cursorPos = textarea.selectionStart ?? content.value.length;
+  const result = insertEmoji(content.value, emoji, cursorPos);
+  content.value = result.text;
+
+  nextTick(() => {
+    textarea.selectionStart = textarea.selectionEnd = result.newCursorPos;
+    textarea.focus();
+    resize();
+  });
+  // Keep picker open (AC #3: picker remains open after selection)
+}
+
+function handleEmojiAutocompleteSelect(emoji: Emoji) {
+  const textarea = textareaRef.value;
+  if (!textarea || emojiStartIndex.value === -1) return;
+
+  const cursorPos = textarea.selectionStart ?? content.value.length;
+  const result = replaceEmojiQuery(content.value, emoji, emojiStartIndex.value, cursorPos);
+  content.value = result.text;
+  closeEmojiAutocomplete();
+
+  nextTick(() => {
+    textarea.selectionStart = textarea.selectionEnd = result.newCursorPos;
+    textarea.focus();
+    resize();
+  });
+}
+
 function handleInput() {
   const textarea = textareaRef.value;
   if (textarea) {
-    detectMentionAt(textarea.selectionStart ?? content.value.length);
+    const cursorPos = textarea.selectionStart ?? content.value.length;
+    detectMentionAt(cursorPos);
+    detectEmojiAt(cursorPos);
   }
   detectCommandAt(content.value);
 
@@ -199,9 +301,7 @@ function handleInput() {
 
 function selectMention(user: UserPresence) {
   const before = content.value.substring(0, mentionStartIndex.value);
-  const after = content.value.substring(
-    mentionStartIndex.value + 1 + mentionQuery.value.length,
-  );
+  const after = content.value.substring(mentionStartIndex.value + 1 + mentionQuery.value.length);
   const nameNoSpaces = user.displayName.replace(/\s+/g, '');
   const displayToken = `@${nameNoSpaces} `;
   mentionMap.set(nameNoSpaces.toLowerCase(), user.id);
@@ -227,6 +327,14 @@ function resolveMentions(text: string): string {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  // Let emoji autocomplete handle arrow keys, Enter, Tab, Escape when visible
+  if (emojiAutocompleteVisible.value && emojiAutocompleteRef.value) {
+    if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
+      emojiAutocompleteRef.value.handleKeydown(e);
+      return;
+    }
+  }
+
   // Let command autocomplete handle arrow keys, Enter, Tab, Escape when visible
   if (commandVisible.value && commandAutocompleteRef.value) {
     if (['ArrowUp', 'ArrowDown', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
@@ -243,6 +351,12 @@ function handleKeydown(e: KeyboardEvent) {
     }
   }
 
+  // Close emoji picker on Escape
+  if (e.key === 'Escape' && emojiPickerVisible.value) {
+    emojiPickerVisible.value = false;
+    return;
+  }
+
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     send();
@@ -255,10 +369,15 @@ function handleKeydown(e: KeyboardEvent) {
 
 function send() {
   if (isEmpty.value) return;
-  if (typingStopTimer) { clearTimeout(typingStopTimer); typingStopTimer = null; }
+  if (typingStopTimer) {
+    clearTimeout(typingStopTimer);
+    typingStopTimer = null;
+  }
   stopTyping();
   closeMention();
   closeCommand();
+  closeEmojiAutocomplete();
+  emojiPickerVisible.value = false;
   emit('send', resolveMentions(content.value));
   content.value = '';
   mentionMap = new Map();
@@ -266,9 +385,15 @@ function send() {
 }
 
 function handleClickOutside(e: MouseEvent) {
-  if (textareaRef.value && !textareaRef.value.contains(e.target as Node)) {
+  const target = e.target as Node;
+  // Close mention popup if clicking outside textarea
+  if (textareaRef.value && !textareaRef.value.contains(target)) {
     if (mentionVisible.value) closeMention();
     if (commandVisible.value) closeCommand();
+  }
+  // Close emoji picker if clicking outside the picker wrapper
+  if (emojiPickerWrapperRef.value && !emojiPickerWrapperRef.value.contains(target)) {
+    if (emojiPickerVisible.value) emojiPickerVisible.value = false;
   }
 }
 
@@ -291,7 +416,7 @@ const sortedViewers = computed(() => {
 
   // Build merged map: cache first, then override with live presence data
   const merged = new Map(userCache.value);
-  for (const viewer of (props.viewers ?? [])) {
+  for (const viewer of props.viewers ?? []) {
     merged.set(viewer.id, viewer);
   }
 
@@ -338,7 +463,17 @@ const sortedViewers = computed(() => {
       @close="closeMention"
     />
 
-    <div class="relative flex-1">
+    <EmojiAutocomplete
+      ref="emojiAutocompleteRef"
+      :visible="emojiAutocompleteVisible"
+      :query="emojiQuery"
+      :position="emojiAutocompletePosition"
+      @select="handleEmojiAutocompleteSelect"
+      @close="closeEmojiAutocomplete"
+    />
+
+    <!-- Textarea wrapper — also anchors emoji picker popup -->
+    <div ref="emojiPickerWrapperRef" class="relative flex-1">
       <textarea
         v-if="!muted"
         ref="textareaRef"
@@ -347,7 +482,7 @@ const sortedViewers = computed(() => {
         :placeholder="`Message ${siteName}…`"
         rows="1"
         maxlength="1000"
-        class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] overflow-y-hidden"
+        class="w-full resize-none rounded-md border border-input bg-background px-3 py-[7px] pr-9 text-sm align-top placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] overflow-y-hidden"
         @keydown="handleKeydown"
         @input="handleInput"
       />
@@ -357,11 +492,32 @@ const sortedViewers = computed(() => {
         aria-label="You are muted"
         placeholder="You are muted"
         rows="1"
-        class="w-full resize-none rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[120px] cursor-not-allowed opacity-50"
+        class="w-full resize-none rounded-md border border-input bg-background px-3 py-[7px] text-sm align-top placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 min-h-[36px] max-h-[120px] cursor-not-allowed opacity-50"
       />
+
+      <button
+        v-if="!muted"
+        type="button"
+        class="absolute right-2 bottom-2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        aria-label="Open emoji picker"
+        :aria-expanded="emojiPickerVisible"
+        @click="toggleEmojiPicker"
+      >
+        <Smile class="h-4 w-4" />
+      </button>
+
+      <EmojiPicker
+        :visible="emojiPickerVisible"
+        @select="handleEmojiSelect"
+        @close="emojiPickerVisible = false"
+      />
+
       <span
         v-if="showCounter"
-        class="absolute bottom-1 right-2 text-xs text-muted-foreground pointer-events-none"
+        :class="[
+          'absolute bottom-1 text-xs text-muted-foreground pointer-events-none',
+          muted ? 'right-2' : 'right-9',
+        ]"
       >
         {{ charCount }}/1000
       </span>
@@ -370,7 +526,7 @@ const sortedViewers = computed(() => {
     <Button
       variant="default"
       size="icon"
-      class="shrink-0 h-9 w-9"
+      class="shrink-0 h-9 w-9 self-end"
       :disabled="isEmpty || muted"
       aria-label="Send message"
       @click="send"
