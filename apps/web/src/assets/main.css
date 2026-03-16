@@ -133,6 +133,26 @@ pre::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground));
 }
 
+/* Inline emoji images in rendered markdown messages */
+.emoji-inline {
+  display: inline-block;
+  width: 1.25rem; /* 20px */
+  height: 1.25rem;
+  vertical-align: middle;
+  object-fit: contain;
+  color: transparent; /* suppress alt-text flash while loading */
+}
+
+/* Emoji-only messages — larger rendering (Discord-style) */
+.emoji-large {
+  display: inline-block;
+  width: 2rem; /* 32px */
+  height: 2rem;
+  vertical-align: middle;
+  object-fit: contain;
+  color: transparent;
+}
+
 /* Suppress all motion for users who prefer reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *,
