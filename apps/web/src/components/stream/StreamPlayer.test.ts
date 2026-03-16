@@ -230,6 +230,15 @@ describe('StreamPlayer', () => {
       expect(wrapper.emitted('startPreview')).toBeTruthy();
     });
 
+    it('emits stopPreview when Stop Preview button is clicked', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', adminPreview: true },
+      });
+      await flushPromises();
+      await wrapper.find('[data-preview-badge]').trigger('click');
+      expect(wrapper.emitted('stopPreview')).toBeTruthy();
+    });
+
     it('stops WHEP when adminPreview transitions from true to false while explicit-offline', async () => {
       wrapper = mount(StreamPlayer, {
         props: { streamState: 'explicit-offline', adminPreview: true },

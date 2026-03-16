@@ -74,6 +74,7 @@ watch(streamState, (state) => {
 const handleOpenCameraControls = () => { adminPanelOpen.value = !adminPanelOpen.value; };
 const handleToggleAdminPanel = () => { adminPanelOpen.value = !adminPanelOpen.value; };
 const handleStartPreview = () => { adminPreviewActive.value = true; };
+const handleStopPreview = () => { adminPreviewActive.value = false; };
 
 const handleToggleChatSidebar = () => {
   if (isDesktop.value && chatPanelRef.value) {
@@ -173,6 +174,7 @@ onMounted(() => {
             :adminPreview="adminPreviewActive"
             @toggle-chat-sidebar="handleToggleChatSidebar"
             @start-preview="handleStartPreview"
+          @stop-preview="handleStopPreview"
           />
         </div>
         <BroadcastConsole
@@ -235,6 +237,7 @@ onMounted(() => {
           :adminPreview="adminPreviewActive"
           @toggle-chat-sidebar="handleToggleChatSidebar"
           @start-preview="handleStartPreview"
+          @stop-preview="handleStopPreview"
         />
       </div>
 
@@ -251,6 +254,7 @@ onMounted(() => {
           :adminPreview="adminPreviewActive"
           @toggle-chat-sidebar="handleToggleChatSidebar"
           @start-preview="handleStartPreview"
+          @stop-preview="handleStopPreview"
         />
       </div>
 

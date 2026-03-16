@@ -128,9 +128,9 @@ vi.mock('@/components/stream/StreamPlayer.vue', () => ({
       'showPreviewButton',
       'adminPreview',
     ],
-    emits: ['toggleChatSidebar', 'startPreview'],
+    emits: ['toggleChatSidebar', 'startPreview', 'stopPreview'],
     template:
-      '<button data-stream-player @dblclick="$emit(\'toggleChatSidebar\')" @click="$emit(\'startPreview\')" />',
+      '<button data-stream-player @dblclick="$emit(\'toggleChatSidebar\')" @click="$emit(\'startPreview\')" @contextmenu="$emit(\'stopPreview\')" />',
   },
 }));
 
@@ -462,6 +462,22 @@ describe('WatchView', () => {
       await nextTick();
 
       expect(streamPlayer.props('adminPreview')).toBe(true);
+    });
+
+    it('resets adminPreview when stopPreview is emitted', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      // Start preview
+      await wrapper.find('[data-stream-player]').trigger('click');
+      await nextTick();
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('adminPreview')).toBe(true);
+
+      // Stop preview via contextmenu (mapped to stopPreview in mock)
+      await wrapper.find('[data-stream-player]').trigger('contextmenu');
+      await nextTick();
+      expect(streamPlayer.props('adminPreview')).toBe(false);
     });
 
     it('resets adminPreview when streamState changes away from explicit-offline', async () => {

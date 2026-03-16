@@ -21,6 +21,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   toggleChatSidebar: [];
   startPreview: [];
+  stopPreview: [];
 }>();
 
 const petName = getPetName();
@@ -119,15 +120,17 @@ defineExpose({ videoRef });
       @preview="emit('startPreview')"
     />
 
-    <!-- Admin preview mode badge -->
-    <Badge
+    <!-- Admin preview mode: Stop Preview button -->
+    <Button
       v-if="adminPreview && streamState === 'explicit-offline'"
       data-preview-badge
       variant="outline"
-      class="absolute top-2 right-2 z-20 pointer-events-none border-white/40 text-white/80 bg-black/50"
+      size="sm"
+      class="absolute top-2 right-2 z-20 border-white/40 text-white/80 bg-black/50 hover:bg-black/70 hover:text-white"
+      @click.stop="emit('stopPreview')"
     >
-      PREVIEW
-    </Badge>
+      Stop Preview
+    </Button>
 
     <!-- Client-side loading/reconnecting overlay: initial connect or mid-session drop.
          Not shown when coming back from a server-reported offline state (prevStateWasOffline),
