@@ -26,7 +26,7 @@ export function loadCommands(): void {
     return;
   }
 
-  const files = fs.readdirSync(CUSTOM_PATH).filter((f) => f.endsWith('.js'));
+  const files = fs.readdirSync(CUSTOM_PATH).filter((f) => f.endsWith('.cjs'));
 
   for (const file of files) {
     try {

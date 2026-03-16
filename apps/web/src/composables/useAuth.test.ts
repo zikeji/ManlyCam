@@ -29,6 +29,12 @@ describe('useAuth', () => {
     expect(user.value).toBeNull();
   });
 
+  it('authLoading is true initially', async () => {
+    const { useAuth } = await import('./useAuth');
+    const { authLoading } = withRouter(() => useAuth());
+    expect(authLoading.value).toBe(true);
+  });
+
   it('fetchCurrentUser sets user on success', async () => {
     const mockUser = {
       id: 'u1',
@@ -46,9 +52,10 @@ describe('useAuth', () => {
     } as Response);
 
     const { useAuth } = await import('./useAuth');
-    const { user, fetchCurrentUser } = withRouter(() => useAuth());
+    const { user, authLoading, fetchCurrentUser } = withRouter(() => useAuth());
     await fetchCurrentUser();
     expect(user.value).toEqual(mockUser);
+    expect(authLoading.value).toBe(false);
   });
 
   it('fetchCurrentUser sets user to null on 401 UNAUTHORIZED error', async () => {
@@ -58,9 +65,10 @@ describe('useAuth', () => {
     global.fetch = vi.fn().mockRejectedValue(unauthorizedError);
 
     const { useAuth } = await import('./useAuth');
-    const { user, fetchCurrentUser } = withRouter(() => useAuth());
+    const { user, authLoading, fetchCurrentUser } = withRouter(() => useAuth());
     await fetchCurrentUser();
     expect(user.value).toBeNull();
+    expect(authLoading.value).toBe(false);
   });
 
   it('fetchCurrentUser keeps user null on network error (non-auth)', async () => {
@@ -71,9 +79,10 @@ describe('useAuth', () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     const { useAuth } = await import('./useAuth');
-    const { user, fetchCurrentUser } = withRouter(() => useAuth());
+    const { user, authLoading, fetchCurrentUser } = withRouter(() => useAuth());
     await fetchCurrentUser();
     expect(user.value).toBeNull();
+    expect(authLoading.value).toBe(false);
     expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch user:', networkError);
   });
 });

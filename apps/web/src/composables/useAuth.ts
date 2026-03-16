@@ -11,6 +11,7 @@ import { apiFetch, ApiFetchError } from '@/lib/api';
  * to isolate each test's state.
  */
 const user = ref<MeResponse | null>(null);
+const authLoading = ref(true);
 
 export const useAuth = () => {
   const router = useRouter();
@@ -26,6 +27,8 @@ export const useAuth = () => {
       } else {
         console.warn('Failed to fetch user:', err);
       }
+    } finally {
+      authLoading.value = false;
     }
   };
 
@@ -48,5 +51,5 @@ export const useAuth = () => {
     await router.push('/');
   };
 
-  return { user, fetchCurrentUser, logout };
+  return { user, authLoading, fetchCurrentUser, logout };
 };

@@ -71,8 +71,8 @@ describe('slashCommands.loadCommands', () => {
     expect(getCommands()).toHaveLength(0);
   });
 
-  it('loads valid commands from .js files', () => {
-    mockReaddirSync.mockReturnValue(['shrug.js']);
+  it('loads valid commands from .cjs files', () => {
+    mockReaddirSync.mockReturnValue(['shrug.cjs']);
     mockRequireFn.mockReturnValue({
       name: 'shrug',
       description: 'Appends shrug',
@@ -84,7 +84,7 @@ describe('slashCommands.loadCommands', () => {
   });
 
   it('loads multiple commands', () => {
-    mockReaddirSync.mockReturnValue(['shrug.js', 'tableflip.js']);
+    mockReaddirSync.mockReturnValue(['shrug.cjs', 'tableflip.cjs']);
     mockRequireFn
       .mockReturnValueOnce({
         name: 'shrug',
@@ -100,8 +100,8 @@ describe('slashCommands.loadCommands', () => {
     expect(getCommands()).toHaveLength(2);
   });
 
-  it('skips files without .js extension', () => {
-    mockReaddirSync.mockReturnValue(['readme.txt', 'shrug.js']);
+  it('skips files without .cjs extension', () => {
+    mockReaddirSync.mockReturnValue(['readme.txt', 'shrug.cjs']);
     mockRequireFn.mockReturnValue({
       name: 'shrug',
       description: 'Shrug',
@@ -112,14 +112,14 @@ describe('slashCommands.loadCommands', () => {
   });
 
   it('skips command with missing name field and logs error', () => {
-    mockReaddirSync.mockReturnValue(['bad.js']);
+    mockReaddirSync.mockReturnValue(['bad.cjs']);
     mockRequireFn.mockReturnValue({ description: 'No name', handler: () => ({ content: '' }) });
     loadCommands();
     expect(getCommands()).toHaveLength(0);
   });
 
   it('skips command with non-string name and logs error', () => {
-    mockReaddirSync.mockReturnValue(['bad.js']);
+    mockReaddirSync.mockReturnValue(['bad.cjs']);
     mockRequireFn.mockReturnValue({
       name: 42,
       description: 'Bad',
@@ -130,28 +130,28 @@ describe('slashCommands.loadCommands', () => {
   });
 
   it('skips command with missing description and logs error', () => {
-    mockReaddirSync.mockReturnValue(['bad.js']);
+    mockReaddirSync.mockReturnValue(['bad.cjs']);
     mockRequireFn.mockReturnValue({ name: 'test', handler: () => ({ content: '' }) });
     loadCommands();
     expect(getCommands()).toHaveLength(0);
   });
 
   it('skips command with missing handler and logs error', () => {
-    mockReaddirSync.mockReturnValue(['bad.js']);
+    mockReaddirSync.mockReturnValue(['bad.cjs']);
     mockRequireFn.mockReturnValue({ name: 'test', description: 'Test' });
     loadCommands();
     expect(getCommands()).toHaveLength(0);
   });
 
   it('skips command with non-function handler and logs error', () => {
-    mockReaddirSync.mockReturnValue(['bad.js']);
+    mockReaddirSync.mockReturnValue(['bad.cjs']);
     mockRequireFn.mockReturnValue({ name: 'test', description: 'Test', handler: 'not a function' });
     loadCommands();
     expect(getCommands()).toHaveLength(0);
   });
 
   it('skips erroring require() and continues loading remaining files', () => {
-    mockReaddirSync.mockReturnValue(['bad.js', 'good.js']);
+    mockReaddirSync.mockReturnValue(['bad.cjs', 'good.cjs']);
     mockRequireFn
       .mockImplementationOnce(() => {
         throw new Error('syntax error');
@@ -167,7 +167,7 @@ describe('slashCommands.loadCommands', () => {
   });
 
   it('allows duplicate command names', () => {
-    mockReaddirSync.mockReturnValue(['shrug1.js', 'shrug2.js']);
+    mockReaddirSync.mockReturnValue(['shrug1.cjs', 'shrug2.cjs']);
     mockRequireFn
       .mockReturnValueOnce({
         name: 'shrug',
@@ -185,7 +185,7 @@ describe('slashCommands.loadCommands', () => {
   });
 
   it('reloadCommands re-reads the directory', () => {
-    mockReaddirSync.mockReturnValue(['shrug.js']);
+    mockReaddirSync.mockReturnValue(['shrug.cjs']);
     mockRequireFn.mockReturnValue({
       name: 'shrug',
       description: 'Shrug',
@@ -202,7 +202,7 @@ describe('slashCommands.loadCommands', () => {
 
 describe('slashCommands.getCommandsForRole', () => {
   beforeEach(() => {
-    mockReaddirSync.mockReturnValue(['a.js', 'b.js', 'c.js']);
+    mockReaddirSync.mockReturnValue(['a.cjs', 'b.cjs', 'c.cjs']);
     mockRequireFn
       .mockReturnValueOnce({
         name: 'public',
@@ -270,7 +270,7 @@ describe('slashCommands.executeCommand', () => {
   beforeEach(() => {
     handler.mockReset();
     adminHandler.mockReset();
-    mockReaddirSync.mockReturnValue(['shrug.js', 'admin.js']);
+    mockReaddirSync.mockReturnValue(['shrug.cjs', 'admin.cjs']);
     mockRequireFn
       .mockReturnValueOnce({
         name: 'shrug',
@@ -438,7 +438,7 @@ describe('slashCommands.executeCommand', () => {
 
   it('uses first matching command when duplicates exist', () => {
     const handler2 = vi.fn().mockReturnValue({ content: 'second' });
-    mockReaddirSync.mockReturnValue(['s1.js', 's2.js']);
+    mockReaddirSync.mockReturnValue(['s1.cjs', 's2.cjs']);
     mockRequireFn
       .mockReturnValueOnce({ name: 'shrug', description: 'First shrug', handler })
       .mockReturnValueOnce({ name: 'shrug', description: 'Second shrug', handler: handler2 });

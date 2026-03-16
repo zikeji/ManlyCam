@@ -177,6 +177,80 @@ describe('StreamPlayer', () => {
     expect(wrapper.vm.videoRef).toBeInstanceOf(HTMLVideoElement);
   });
 
+  describe('admin preview mode', () => {
+    it('does NOT start WHEP when explicit-offline without adminPreview', () => {
+      wrapper = mount(StreamPlayer, { props: { streamState: 'explicit-offline' } });
+      expect(mockStartWhep).not.toHaveBeenCalled();
+    });
+
+    it('starts WHEP when explicit-offline with adminPreview=true', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', adminPreview: true },
+      });
+      await flushPromises();
+      expect(mockStartWhep).toHaveBeenCalled();
+    });
+
+    it('hides StateOverlay when adminPreview=true and state is explicit-offline', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', adminPreview: true },
+      });
+      await flushPromises();
+      expect(wrapper.findComponent({ name: 'StateOverlay' }).exists()).toBe(false);
+    });
+
+    it('shows PREVIEW badge when adminPreview=true and state is explicit-offline', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', adminPreview: true },
+      });
+      await flushPromises();
+      expect(wrapper.find('[data-preview-badge]').exists()).toBe(true);
+    });
+
+    it('does NOT show PREVIEW badge when adminPreview=false', () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', adminPreview: false },
+      });
+      expect(wrapper.find('[data-preview-badge]').exists()).toBe(false);
+    });
+
+    it('passes showPreviewButton to StateOverlay', () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', showPreviewButton: true },
+      });
+      const overlay = wrapper.findComponent({ name: 'StateOverlay' });
+      expect(overlay.props('showPreviewButton')).toBe(true);
+    });
+
+    it('emits startPreview when StateOverlay preview button is clicked', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', showPreviewButton: true },
+      });
+      await wrapper.find('[data-preview-button]').trigger('click');
+      expect(wrapper.emitted('startPreview')).toBeTruthy();
+    });
+
+    it('emits stopPreview when Stop Preview button is clicked', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', adminPreview: true },
+      });
+      await flushPromises();
+      await wrapper.find('[data-preview-badge]').trigger('click');
+      expect(wrapper.emitted('stopPreview')).toBeTruthy();
+    });
+
+    it('stops WHEP when adminPreview transitions from true to false while explicit-offline', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'explicit-offline', adminPreview: true },
+      });
+      await flushPromises();
+      mockStopWhep.mockClear();
+      await wrapper.setProps({ adminPreview: false });
+      await flushPromises();
+      expect(mockStopWhep).toHaveBeenCalled();
+    });
+  });
+
   describe('landscape tap overlay', () => {
     it('landscape tap overlay visible after touch tap when showLandscapeTapToggle=true', async () => {
       wrapper = mount(StreamPlayer, {

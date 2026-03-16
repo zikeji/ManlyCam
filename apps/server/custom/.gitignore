@@ -5,7 +5,7 @@
 !.gitkeep
 !.gitignore
 !README.md
-!shrug.js
-!tableflip.js
-!pet.js
-!treat.js
+!shrug.cjs
+!tableflip.cjs
+!pet.cjs
+!treat.cjs

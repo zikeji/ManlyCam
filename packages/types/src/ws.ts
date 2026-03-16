@@ -72,6 +72,7 @@ export interface ChatEdit {
 export interface StreamState {
   state: 'live' | 'unreachable' | 'explicit-offline'
   adminToggle?: 'live' | 'offline' // present on 'unreachable' to distinguish FR10 states
+  piReachable?: boolean // present on 'explicit-offline' to indicate Pi reachability for admin preview
 }
 
 export type PiSugarStatus =

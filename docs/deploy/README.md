@@ -366,7 +366,7 @@ Or with `docker run`:
 docker run ... -v /path/to/custom:/repo/apps/server/custom ghcr.io/zikeji/manlycam:latest
 ```
 
-> **Note:** Mounting a volume **shadows the entire directory** — the built-in commands baked into the image are no longer visible. Copy any built-ins you want to keep (`shrug.js`, `tableflip.js`, `pet.js`, `treat.js`) from `apps/server/custom/` into your local folder first.
+> **Note:** Mounting a volume **shadows the entire directory** — the built-in commands baked into the image are no longer visible. Copy any built-ins you want to keep (`shrug.cjs`, `tableflip.cjs`, `pet.cjs`, `treat.cjs`) from `apps/server/custom/` into your local folder first.
 
 > **Note:** Do not mount with `:ro` (read-only) if any of your commands write files to `__dirname` (e.g. rate-limit state files). The built-in `/pet` and `/treat` commands write `.last-*-timestamp` files to the `custom/` directory and require a writable mount.
 

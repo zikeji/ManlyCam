@@ -68,5 +68,33 @@ describe('StateOverlay', () => {
       const wrapper = mount(StateOverlay, { props: { variant: 'explicit-offline' } });
       expect(wrapper.text()).toContain('Stream is offline');
     });
+
+    it('does NOT render preview button when showPreviewButton is false/omitted', () => {
+      const wrapper = mount(StateOverlay, { props: { variant: 'explicit-offline' } });
+      expect(wrapper.find('[data-preview-button]').exists()).toBe(false);
+    });
+
+    it('renders preview button when showPreviewButton is true', () => {
+      const wrapper = mount(StateOverlay, {
+        props: { variant: 'explicit-offline', showPreviewButton: true },
+      });
+      expect(wrapper.find('[data-preview-button]').exists()).toBe(true);
+      expect(wrapper.find('[data-preview-button]').text()).toBe('Preview Stream');
+    });
+
+    it('emits preview when preview button is clicked', async () => {
+      const wrapper = mount(StateOverlay, {
+        props: { variant: 'explicit-offline', showPreviewButton: true },
+      });
+      await wrapper.find('[data-preview-button]').trigger('click');
+      expect(wrapper.emitted('preview')).toBeTruthy();
+    });
+
+    it('does NOT render preview button in unreachable variant even if showPreviewButton=true', () => {
+      const wrapper = mount(StateOverlay, {
+        props: { variant: 'unreachable', showPreviewButton: true },
+      });
+      expect(wrapper.find('[data-preview-button]').exists()).toBe(false);
+    });
   });
 });

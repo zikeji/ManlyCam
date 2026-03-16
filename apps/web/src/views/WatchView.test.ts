@@ -21,10 +21,12 @@ vi.mock('@/composables/useAuth', () => ({
 
 const mockInitStream = vi.fn().mockResolvedValue(undefined);
 const mockStreamState = ref<string>('connecting');
+const mockPiReachableWhileOffline = ref(false);
 
 vi.mock('@/composables/useStream', () => ({
   useStream: () => ({
     streamState: mockStreamState,
+    piReachableWhileOffline: mockPiReachableWhileOffline,
     initStream: mockInitStream,
     setStateFromWs: vi.fn(),
   }),
@@ -118,9 +120,17 @@ vi.mock('reka-ui', () => ({
 vi.mock('@/components/stream/StreamPlayer.vue', () => ({
   default: {
     name: 'StreamPlayer',
-    props: ['streamState', 'chatSidebarOpen', 'unreadCount', 'showLandscapeTapToggle'],
-    emits: ['toggleChatSidebar'],
-    template: '<button data-stream-player @dblclick="$emit(\'toggleChatSidebar\')" />',
+    props: [
+      'streamState',
+      'chatSidebarOpen',
+      'unreadCount',
+      'showLandscapeTapToggle',
+      'showPreviewButton',
+      'adminPreview',
+    ],
+    emits: ['toggleChatSidebar', 'startPreview', 'stopPreview'],
+    template:
+      '<button data-stream-player @dblclick="$emit(\'toggleChatSidebar\')" @click="$emit(\'startPreview\')" @contextmenu="$emit(\'stopPreview\')" />',
   },
 }));
 
@@ -143,6 +153,38 @@ vi.mock('@/components/stream/AtmosphericVoid.vue', () => ({
   default: {
     name: 'AtmosphericVoid',
     template: '<div data-atmospheric-void />',
+  },
+}));
+
+vi.mock('@/components/ui/sheet', () => ({
+  Sheet: {
+    name: 'Sheet',
+    props: ['open'],
+    emits: ['update:open'],
+    template: '<div data-sheet />',
+  },
+  SheetContent: {
+    name: 'SheetContent',
+    props: ['side'],
+    template: '<div data-sheet-content />',
+  },
+}));
+
+vi.mock('@/components/admin/AdminPanel.vue', () => ({
+  default: {
+    name: 'AdminPanel',
+    props: ['showClose'],
+    emits: ['close'],
+    template: '<div data-admin-panel />',
+  },
+}));
+
+vi.mock('@/components/admin/UserManagerDialog.vue', () => ({
+  default: {
+    name: 'UserManagerDialog',
+    props: ['open'],
+    emits: ['update:open'],
+    template: '<div data-user-manager-dialog />',
   },
 }));
 
@@ -174,6 +216,7 @@ describe('WatchView', () => {
     mockInitStream.mockClear();
     mockUser.value = { role: 'ViewerCompany', displayName: 'Test User' };
     mockStreamState.value = 'connecting';
+    mockPiReachableWhileOffline.value = false;
     mockMessages.value = [];
     mockUnreadCount.value = 0;
     mockResetUnread.mockClear();
@@ -367,6 +410,91 @@ describe('WatchView', () => {
 
       const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
       expect(streamPlayer.props('showLandscapeTapToggle')).toBe(false);
+    });
+  });
+
+  describe('Admin preview', () => {
+    beforeEach(() => {
+      mockIsDesktop = true;
+      mockIsPortrait = false;
+      mockUser.value = { role: 'Admin', displayName: 'Admin User' };
+    });
+
+    it('passes showPreviewButton=true to StreamPlayer when admin and piReachableWhileOffline', async () => {
+      mockStreamState.value = 'explicit-offline';
+      mockPiReachableWhileOffline.value = true;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('showPreviewButton')).toBe(true);
+    });
+
+    it('passes showPreviewButton=false when piReachableWhileOffline=false', async () => {
+      mockStreamState.value = 'explicit-offline';
+      mockPiReachableWhileOffline.value = false;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('showPreviewButton')).toBe(false);
+    });
+
+    it('passes showPreviewButton=false to non-admin user even when piReachableWhileOffline', async () => {
+      mockUser.value = { role: 'ViewerCompany', displayName: 'Viewer' };
+      mockStreamState.value = 'explicit-offline';
+      mockPiReachableWhileOffline.value = true;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('showPreviewButton')).toBe(false);
+    });
+
+    it('sets adminPreview=true when startPreview is emitted', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('adminPreview')).toBe(false);
+
+      await wrapper.find('[data-stream-player]').trigger('click');
+      await nextTick();
+
+      expect(streamPlayer.props('adminPreview')).toBe(true);
+    });
+
+    it('resets adminPreview when stopPreview is emitted', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      // Start preview
+      await wrapper.find('[data-stream-player]').trigger('click');
+      await nextTick();
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('adminPreview')).toBe(true);
+
+      // Stop preview via contextmenu (mapped to stopPreview in mock)
+      await wrapper.find('[data-stream-player]').trigger('contextmenu');
+      await nextTick();
+      expect(streamPlayer.props('adminPreview')).toBe(false);
+    });
+
+    it('resets adminPreview when streamState changes away from explicit-offline', async () => {
+      mockStreamState.value = 'explicit-offline';
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      // Start preview
+      await wrapper.find('[data-stream-player]').trigger('click');
+      await nextTick();
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('adminPreview')).toBe(true);
+
+      // Stream goes live — adminPreview should reset
+      mockStreamState.value = 'live';
+      await nextTick();
+      expect(streamPlayer.props('adminPreview')).toBe(false);
     });
   });
 

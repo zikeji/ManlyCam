@@ -4,14 +4,19 @@ import type { StreamState } from '@manlycam/types';
 
 export type ClientStreamState = 'connecting' | 'live' | 'unreachable' | 'explicit-offline';
 
-function toClientState(s: StreamState): Exclude<ClientStreamState, 'connecting'> {
-  if (s.state === 'live') return 'live';
-  if (s.state === 'unreachable') return 'unreachable';
-  return 'explicit-offline';
-}
-
 // Module-level singleton — all callers share the same ref (same pattern as useAuth)
 const streamState = ref<ClientStreamState>('connecting');
+const piReachableWhileOffline = ref(false);
+
+function toClientState(s: StreamState): Exclude<ClientStreamState, 'connecting'> {
+  if (s.state === 'explicit-offline') {
+    piReachableWhileOffline.value = s.piReachable ?? false;
+    return 'explicit-offline';
+  }
+  piReachableWhileOffline.value = false;
+  if (s.state === 'live') return 'live';
+  return 'unreachable';
+}
 
 export const useStream = () => {
   const initStream = async (): Promise<void> => {
@@ -28,5 +33,5 @@ export const useStream = () => {
     streamState.value = toClientState(payload);
   };
 
-  return { streamState, initStream, setStateFromWs };
+  return { streamState, piReachableWhileOffline, initStream, setStateFromWs };
 };

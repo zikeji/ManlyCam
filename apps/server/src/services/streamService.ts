@@ -10,7 +10,8 @@ export class StreamService {
   private stopped = false;
 
   getState(): StreamState {
-    if (this.adminToggle === 'offline') return { state: 'explicit-offline' };
+    if (this.adminToggle === 'offline')
+      return { state: 'explicit-offline', piReachable: this.piReachable };
     if (this.piReachable) return { state: 'live' };
     return { state: 'unreachable', adminToggle: 'live' };
   }
