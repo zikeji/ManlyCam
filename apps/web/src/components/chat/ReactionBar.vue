@@ -24,6 +24,8 @@ const emit = defineEmits<{
 }>();
 
 const showPicker = ref(false);
+const moreButtonRef = ref<HTMLButtonElement | null>(null);
+const pickerPosition = ref<{ bottom: number; right: number } | null>(null);
 
 function getQuickEmojiUrl(shortcode: string): string {
   const emoji = EMOJI_MAP.get(shortcode);
@@ -33,6 +35,17 @@ function getQuickEmojiUrl(shortcode: string): string {
 
 function handleQuickReaction(shortcode: string) {
   emit('select', shortcode);
+}
+
+function togglePicker() {
+  showPicker.value = !showPicker.value;
+  if (showPicker.value && moreButtonRef.value) {
+    const rect = moreButtonRef.value.getBoundingClientRect();
+    pickerPosition.value = {
+      bottom: window.innerHeight - rect.top + 8,
+      right: window.innerWidth - rect.right,
+    };
+  }
 }
 
 function handlePickerSelect(emoji: Emoji) {
@@ -66,24 +79,20 @@ function handlePickerSelect(emoji: Emoji) {
 
     <div class="relative">
       <button
+        ref="moreButtonRef"
         :disabled="disabled"
         class="w-7 h-7 flex items-center justify-center rounded hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-muted-foreground text-sm font-semibold"
         aria-label="More emoji reactions"
-        @click.stop="showPicker = !showPicker"
+        @click.stop="togglePicker"
       >
         +
       </button>
-      <div
-        v-if="showPicker"
-        class="absolute bottom-full right-0 mb-1 z-50"
-        @click.stop
-      >
-        <EmojiPicker
-          :visible="showPicker"
-          @select="handlePickerSelect"
-          @close="showPicker = false"
-        />
-      </div>
+      <EmojiPicker
+        :visible="showPicker"
+        :position="pickerPosition ?? undefined"
+        @select="handlePickerSelect"
+        @close="showPicker = false"
+      />
     </div>
   </div>
 </template>
