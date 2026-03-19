@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import CameraControls from './CameraControls.vue';
 
@@ -98,6 +98,7 @@ describe('CameraControls.vue', () => {
     mockStreamState.value = 'explicit-offline';
     const wrapper = mount(CameraControls, { props: { previewActive: true } });
     expect(wrapper.text()).not.toContain('Start the stream');
+    expect(wrapper.text()).not.toContain('Pi is offline');
   });
 
   it('suppresses offline overlay when previewActive is true and stream is unreachable', () => {
@@ -105,12 +106,24 @@ describe('CameraControls.vue', () => {
     mockStreamState.value = 'unreachable';
     const wrapper = mount(CameraControls, { props: { previewActive: true } });
     expect(wrapper.text()).not.toContain('Pi is offline');
+    expect(wrapper.text()).not.toContain('Start the stream');
   });
 
   it('shows offline overlay when previewActive is false and stream is explicit-offline', () => {
     vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls());
     mockStreamState.value = 'explicit-offline';
     const wrapper = mount(CameraControls, { props: { previewActive: false } });
+    expect(wrapper.text()).toContain('Start the stream');
+  });
+
+  it('shows offline overlay when previewActive transitions from true to false while stream stays explicit-offline', async () => {
+    vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls());
+    mockStreamState.value = 'explicit-offline';
+    const wrapper = mount(CameraControls, { props: { previewActive: true } });
+    expect(wrapper.text()).not.toContain('Start the stream');
+
+    await wrapper.setProps({ previewActive: false });
+    await nextTick();
     expect(wrapper.text()).toContain('Start the stream');
   });
 });

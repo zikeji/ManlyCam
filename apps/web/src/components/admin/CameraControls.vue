@@ -195,17 +195,28 @@ watch(streamState, (state) => {
   }
 });
 
+// Keep piReachable in sync when previewActive changes while stream stays explicit-offline
+watch(
+  () => props.previewActive,
+  (active) => {
+    if (streamState.value === 'explicit-offline') {
+      piReachable.value = active ?? false;
+    }
+  }
+);
+
 // Overlay when stream is not live (controls would have no effect)
 // Suppressed when admin is previewing — Pi IS reachable in that case
 const showOfflineOverlay = computed(
   () => !props.previewActive && (streamState.value === 'unreachable' || streamState.value === 'explicit-offline')
 );
 
-const overlayMessage = computed(() =>
-  streamState.value === 'explicit-offline'
+const overlayMessage = computed(() => {
+  if (props.previewActive) return '';
+  return streamState.value === 'explicit-offline'
     ? 'Start the stream to manage camera settings'
-    : 'Pi is offline — start the stream to manage camera settings'
-);
+    : 'Pi is offline — start the stream to manage camera settings';
+});
 
 // Per-key debounce timers (used for all non-switch controls)
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();

@@ -233,15 +233,27 @@ function closeEmojiAutocomplete() {
   emojiStartIndex.value = -1;
 }
 
-function toggleEmojiPicker() {
-  emojiPickerVisible.value = !emojiPickerVisible.value;
-  if (emojiPickerVisible.value && emojiButtonRef.value) {
+function computeEmojiPickerPosition() {
+  if (emojiButtonRef.value) {
     const rect = emojiButtonRef.value.getBoundingClientRect();
     emojiPickerPosition.value = {
       bottom: window.innerHeight - rect.top + 8,
       right: window.innerWidth - rect.right,
     };
   }
+}
+
+function toggleEmojiPicker() {
+  emojiPickerVisible.value = !emojiPickerVisible.value;
+  if (emojiPickerVisible.value) {
+    computeEmojiPickerPosition();
+  } else {
+    emojiPickerPosition.value = null;
+  }
+}
+
+function handleEmojiPickerResize() {
+  if (emojiPickerVisible.value) computeEmojiPickerPosition();
 }
 
 function handleEmojiSelect(emoji: Emoji) {
@@ -389,7 +401,7 @@ function handleClickOutside(e: MouseEvent) {
   }
   // Close emoji picker if clicking outside the picker wrapper and outside the picker itself
   const clickedWrapper = emojiPickerWrapperRef.value?.contains(target) ?? false;
-  const clickedPicker = (e.target as Element).closest?.('[data-emoji-picker]') !== null;
+  const clickedPicker = (target as Element).closest?.('[data-emoji-picker]') !== null;
   if (!clickedWrapper && !clickedPicker && emojiPickerVisible.value) {
     emojiPickerVisible.value = false;
   }
@@ -397,6 +409,7 @@ function handleClickOutside(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('mousedown', handleClickOutside);
+  window.addEventListener('resize', handleEmojiPickerResize);
 });
 
 onUnmounted(() => {
@@ -404,6 +417,7 @@ onUnmounted(() => {
   if (typingHeartbeatInterval) clearInterval(typingHeartbeatInterval);
   panelObserver?.disconnect();
   document.removeEventListener('mousedown', handleClickOutside);
+  window.removeEventListener('resize', handleEmojiPickerResize);
 });
 
 // Sorted viewers: merge cache + online viewers, exclude self.
