@@ -177,7 +177,7 @@ onMounted(() => {
         data-sidebar-left
         class="w-[280px] shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-r border-[hsl(var(--border))] z-30"
       >
-        <AdminPanel :show-close="false" @close="adminPanelOpen = false" />
+        <AdminPanel :show-close="false" :preview-active="adminPreviewActive" @close="adminPanelOpen = false" />
       </aside>
     </Transition>
 
@@ -345,7 +345,7 @@ onMounted(() => {
     <!-- Mobile: Sheet drawer for admin controls (< lg only) -->
     <Sheet v-if="isAdmin" v-model:open="mobileSheetOpen">
       <SheetContent side="bottom" class="h-[90vh] p-0">
-        <AdminPanel :show-close="false" @close="adminPanelOpen = false" />
+        <AdminPanel :show-close="false" :preview-active="adminPreviewActive" @close="adminPanelOpen = false" />
       </SheetContent>
     </Sheet>
 

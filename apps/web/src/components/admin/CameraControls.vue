@@ -170,6 +170,8 @@ import { CAMERA_CONTROL_META, type CameraControlMeta, type CameraControlKey } fr
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 
+const props = withDefaults(defineProps<{ previewActive?: boolean }>(), { previewActive: false });
+
 const { settings, piReachable, isLoading, lastError, fetchSettings, patchSetting } = useCameraControls();
 const { streamState } = useStream();
 
@@ -186,21 +188,35 @@ function handleSwitchChange(key: string, value: boolean): void {
 watch(streamState, (state) => {
   if (state === 'live') {
     piReachable.value = true;
-  } else if (state === 'unreachable' || state === 'explicit-offline') {
+  } else if (state === 'unreachable') {
     piReachable.value = false;
+  } else if (state === 'explicit-offline') {
+    piReachable.value = props.previewActive ?? false;
   }
 });
 
-// Overlay when stream is not live (controls would have no effect)
-const showOfflineOverlay = computed(
-  () => streamState.value === 'unreachable' || streamState.value === 'explicit-offline'
+// Keep piReachable in sync when previewActive changes while stream stays explicit-offline
+watch(
+  () => props.previewActive,
+  (active) => {
+    if (streamState.value === 'explicit-offline') {
+      piReachable.value = active ?? false;
+    }
+  }
 );
 
-const overlayMessage = computed(() =>
-  streamState.value === 'explicit-offline'
-    ? 'Start the stream to manage camera settings'
-    : 'Pi is offline — start the stream to manage camera settings'
+// Overlay when stream is not live (controls would have no effect)
+// Suppressed when admin is previewing — Pi IS reachable in that case
+const showOfflineOverlay = computed(
+  () => !props.previewActive && (streamState.value === 'unreachable' || streamState.value === 'explicit-offline')
 );
+
+const overlayMessage = computed(() => {
+  if (props.previewActive) return '';
+  return streamState.value === 'explicit-offline'
+    ? 'Start the stream to manage camera settings'
+    : 'Pi is offline — start the stream to manage camera settings';
+});
 
 // Per-key debounce timers (used for all non-switch controls)
 const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();

@@ -8,10 +8,10 @@ import { EMOJI_MAP } from '@/lib/emoji-data';
 vi.mock('./EmojiPicker.vue', () => ({
   default: {
     name: 'EmojiPicker',
-    props: ['visible'],
+    props: ['visible', 'position'],
     emits: ['select', 'close'],
     template:
-      '<div data-testid="emoji-picker" :data-visible="visible" @click="$emit(\'close\')"></div>',
+      '<div v-if="visible" data-testid="emoji-picker" :data-visible="visible" @click="$emit(\'close\')"></div>',
   },
 }));
 
