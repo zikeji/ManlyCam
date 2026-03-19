@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 const props = defineProps<{
   visible: boolean;
+  position?: { bottom: number; right: number };
 }>();
 
 const emit = defineEmits<{
@@ -78,9 +79,12 @@ defineExpose({ handleKeydown, searchInputRef });
 <template>
   <div
     v-if="visible"
+    data-emoji-picker
     role="dialog"
     aria-label="Emoji picker"
-    class="absolute bottom-full right-0 z-50 mb-1 w-80 bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
+    class="w-80 bg-popover border border-border rounded-lg shadow-lg overflow-hidden"
+    :class="position ? 'fixed z-[200]' : 'absolute bottom-full right-0 z-50 mb-1'"
+    :style="position ? { bottom: position.bottom + 'px', right: position.right + 'px' } : undefined"
     @keydown="handleKeydown"
   >
     <!-- Search input -->

@@ -14,7 +14,7 @@
       </button>
     </div>
     <ScrollArea class="flex-1">
-      <CameraControls />
+      <CameraControls :preview-active="previewActive" />
     </ScrollArea>
   </div>
 </template>
@@ -24,6 +24,6 @@ import { X } from 'lucide-vue-next';
 import CameraControls from './CameraControls.vue';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
-withDefaults(defineProps<{ showClose?: boolean }>(), { showClose: true });
+withDefaults(defineProps<{ showClose?: boolean; previewActive?: boolean }>(), { showClose: true, previewActive: false });
 defineEmits<{ close: [] }>();
 </script>

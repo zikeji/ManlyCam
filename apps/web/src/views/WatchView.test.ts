@@ -173,7 +173,7 @@ vi.mock('@/components/ui/sheet', () => ({
 vi.mock('@/components/admin/AdminPanel.vue', () => ({
   default: {
     name: 'AdminPanel',
-    props: ['showClose'],
+    props: ['showClose', 'previewActive'],
     emits: ['close'],
     template: '<div data-admin-panel />',
   },
@@ -478,6 +478,30 @@ describe('WatchView', () => {
       await wrapper.find('[data-stream-player]').trigger('contextmenu');
       await nextTick();
       expect(streamPlayer.props('adminPreview')).toBe(false);
+    });
+
+    it('passes previewActive=true to AdminPanel when adminPreviewActive is true', async () => {
+      // Open admin panel so the aside renders
+      mockLocalStorage.setItem('manlycam:admin-panel-open', 'true');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      // Start preview
+      await wrapper.find('[data-stream-player]').trigger('click');
+      await nextTick();
+
+      const adminPanel = wrapper.findComponent({ name: 'AdminPanel' });
+      expect(adminPanel.props('previewActive')).toBe(true);
+    });
+
+    it('passes previewActive=false to AdminPanel by default', async () => {
+      // Open admin panel so the aside renders
+      mockLocalStorage.setItem('manlycam:admin-panel-open', 'true');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const adminPanel = wrapper.findComponent({ name: 'AdminPanel' });
+      expect(adminPanel.props('previewActive')).toBe(false);
     });
 
     it('resets adminPreview when streamState changes away from explicit-offline', async () => {

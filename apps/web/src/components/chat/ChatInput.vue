@@ -48,6 +48,8 @@ const commandPosition = ref({ bottom: 0, left: 0 });
 // Emoji picker state
 const emojiPickerVisible = ref(false);
 const emojiPickerWrapperRef = ref<HTMLDivElement | null>(null);
+const emojiButtonRef = ref<HTMLButtonElement | null>(null);
+const emojiPickerPosition = ref<{ bottom: number; right: number } | null>(null);
 
 // Emoji autocomplete state
 const emojiAutocompleteRef = ref<InstanceType<typeof EmojiAutocomplete> | null>(null);
@@ -233,6 +235,13 @@ function closeEmojiAutocomplete() {
 
 function toggleEmojiPicker() {
   emojiPickerVisible.value = !emojiPickerVisible.value;
+  if (emojiPickerVisible.value && emojiButtonRef.value) {
+    const rect = emojiButtonRef.value.getBoundingClientRect();
+    emojiPickerPosition.value = {
+      bottom: window.innerHeight - rect.top + 8,
+      right: window.innerWidth - rect.right,
+    };
+  }
 }
 
 function handleEmojiSelect(emoji: Emoji) {
@@ -378,9 +387,11 @@ function handleClickOutside(e: MouseEvent) {
     if (mentionVisible.value) closeMention();
     if (commandVisible.value) closeCommand();
   }
-  // Close emoji picker if clicking outside the picker wrapper
-  if (emojiPickerWrapperRef.value && !emojiPickerWrapperRef.value.contains(target)) {
-    if (emojiPickerVisible.value) emojiPickerVisible.value = false;
+  // Close emoji picker if clicking outside the picker wrapper and outside the picker itself
+  const clickedWrapper = emojiPickerWrapperRef.value?.contains(target) ?? false;
+  const clickedPicker = (e.target as Element).closest?.('[data-emoji-picker]') !== null;
+  if (!clickedWrapper && !clickedPicker && emojiPickerVisible.value) {
+    emojiPickerVisible.value = false;
   }
 }
 
@@ -484,6 +495,7 @@ const sortedViewers = computed(() => {
 
       <button
         v-if="!muted"
+        ref="emojiButtonRef"
         type="button"
         class="absolute right-2 bottom-2 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
         aria-label="Open emoji picker"
@@ -495,6 +507,7 @@ const sortedViewers = computed(() => {
 
       <EmojiPicker
         :visible="emojiPickerVisible"
+        :position="emojiPickerPosition ?? undefined"
         @select="handleEmojiSelect"
         @close="emojiPickerVisible = false"
       />

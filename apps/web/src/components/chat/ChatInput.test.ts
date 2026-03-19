@@ -629,6 +629,41 @@ describe('ChatInput.vue', () => {
       await nextTick();
       expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
     });
+
+    it('toggleEmojiPicker computes position from button bounding rect', async () => {
+      wrapper = mount(ChatInput, { attachTo: document.body });
+      const btn = wrapper.find('button[aria-label="Open emoji picker"]');
+      const btnEl = btn.element as HTMLButtonElement;
+
+      // Stub getBoundingClientRect on the button element
+      vi.spyOn(btnEl, 'getBoundingClientRect').mockReturnValue({
+        top: 400,
+        right: 600,
+        bottom: 420,
+        left: 580,
+        width: 20,
+        height: 20,
+        x: 580,
+        y: 400,
+        toJSON: () => ({}),
+      });
+
+      // Stub window dimensions
+      vi.stubGlobal('innerHeight', 800);
+      vi.stubGlobal('innerWidth', 1200);
+
+      await btn.trigger('click');
+      await nextTick();
+
+      // Picker should be open with fixed positioning
+      const dialog = wrapper.find('[role="dialog"][aria-label="Emoji picker"]');
+      expect(dialog.exists()).toBe(true);
+      // Position: bottom = 800 - 400 + 8 = 408, right = 1200 - 600 = 600
+      expect(dialog.attributes('style')).toContain('bottom: 408px');
+      expect(dialog.attributes('style')).toContain('right: 600px');
+
+      vi.unstubAllGlobals();
+    });
   });
 
   describe('emoji autocomplete', () => {

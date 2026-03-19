@@ -196,4 +196,44 @@ describe('EmojiPicker.vue', () => {
     expect(smileysCatBtn).toBeDefined();
     expect(smileysCatBtn!.attributes('aria-pressed')).toBe('true');
   });
+
+  it('root div has data-emoji-picker attribute', () => {
+    wrapper = mount(EmojiPicker, { props: { visible: true } });
+    expect(wrapper.find('[data-emoji-picker]').exists()).toBe(true);
+  });
+
+  it('uses absolute positioning classes when no position prop is given', () => {
+    wrapper = mount(EmojiPicker, { props: { visible: true } });
+    const dialog = wrapper.find('[role="dialog"]');
+    expect(dialog.classes()).toContain('absolute');
+    expect(dialog.classes()).toContain('bottom-full');
+    expect(dialog.classes()).toContain('right-0');
+    expect(dialog.classes()).toContain('z-50');
+    expect(dialog.classes()).toContain('mb-1');
+  });
+
+  it('uses fixed positioning when position prop is provided', () => {
+    wrapper = mount(EmojiPicker, {
+      props: { visible: true, position: { bottom: 100, right: 20 } },
+    });
+    const dialog = wrapper.find('[role="dialog"]');
+    expect(dialog.classes()).toContain('fixed');
+    expect(dialog.classes()).toContain('z-[200]');
+    expect(dialog.classes()).not.toContain('absolute');
+  });
+
+  it('applies inline style from position prop', () => {
+    wrapper = mount(EmojiPicker, {
+      props: { visible: true, position: { bottom: 100, right: 20 } },
+    });
+    const dialog = wrapper.find('[role="dialog"]');
+    expect(dialog.attributes('style')).toContain('bottom: 100px');
+    expect(dialog.attributes('style')).toContain('right: 20px');
+  });
+
+  it('does not apply inline style when no position prop', () => {
+    wrapper = mount(EmojiPicker, { props: { visible: true } });
+    const dialog = wrapper.find('[role="dialog"]');
+    expect(dialog.attributes('style')).toBeUndefined();
+  });
 });
