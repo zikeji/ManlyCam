@@ -26,7 +26,8 @@
     "unicode-emoji-json": "^0.8.0",
     "vite-plugin-static-copy": "^3.3.0",
     "vue": "^3.5.0",
-    "vue-router": "^4.4.0"
+    "vue-router": "^4.4.0",
+    "vue-sonner": "^2.0.9"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
