@@ -39,13 +39,14 @@
       <template v-else>
         <div v-for="section in sections" :key="section">
           <!-- Section header -->
-          <p class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3 mt-5 first:mt-0">
+          <p
+            class="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground mb-3 mt-5 first:mt-0"
+          >
             {{ section }}
           </p>
 
           <div class="space-y-4">
             <template v-for="ctrl in getControlsForSection(section)" :key="ctrl.key">
-
               <!-- Switch -->
               <div v-if="ctrl.type === 'switch'" class="flex items-center justify-between">
                 <label :for="ctrl.key" class="text-sm text-foreground cursor-pointer select-none">
@@ -53,7 +54,9 @@
                 </label>
                 <Switch
                   :id="ctrl.key"
-                  :modelValue="!!getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired)"
+                  :modelValue="
+                    !!getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired)
+                  "
                   @update:modelValue="handleSwitchChange(ctrl, $event)"
                 />
               </div>
@@ -81,15 +84,15 @@
                 <label :for="ctrl.key" class="text-sm text-foreground">{{ ctrl.label }}</label>
                 <select
                   :id="ctrl.key"
-                  :value="String(getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired))"
+                  :value="
+                    String(getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired))
+                  "
                   @change="(e) => handleSelectChange(ctrl, (e.target as HTMLSelectElement).value)"
                   class="w-full bg-input border border-border text-foreground text-sm rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                 >
-                  <option
-                    v-for="opt in ctrl.options"
-                    :key="opt.value"
-                    :value="opt.value"
-                  >{{ opt.label }}</option>
+                  <option v-for="opt in ctrl.options" :key="opt.value" :value="opt.value">
+                    {{ opt.label }}
+                  </option>
                 </select>
               </div>
 
@@ -99,11 +102,20 @@
                 <input
                   :id="ctrl.key"
                   type="number"
-                  :value="Number(getDisplayValue(ctrl, getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired)))"
+                  :value="
+                    Number(
+                      getDisplayValue(
+                        ctrl,
+                        getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired),
+                      ),
+                    )
+                  "
                   :min="ctrl.min"
                   :max="ctrl.max"
                   :step="ctrl.step ?? 1"
-                  @change="(e) => handleNumberChange(ctrl, Number((e.target as HTMLInputElement).value))"
+                  @change="
+                    (e) => handleNumberChange(ctrl, Number((e.target as HTMLInputElement).value))
+                  "
                   class="w-full bg-input border border-border text-foreground text-sm rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                 />
                 <p v-if="ctrl.description" class="text-[11px] text-muted-foreground">
@@ -117,7 +129,9 @@
                 <input
                   :id="ctrl.key"
                   type="text"
-                  :value="String(getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired))"
+                  :value="
+                    String(getStagedOrValue(ctrl.key, ctrl.defaultValue, ctrl.restartRequired))
+                  "
                   @change="(e) => handleTextChange(ctrl, (e.target as HTMLInputElement).value)"
                   class="w-full bg-input border border-border text-foreground text-sm rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                 />
@@ -135,8 +149,17 @@
                     <input
                       type="number"
                       :value="(getValue(ctrl.key, ctrl.defaultValue) as number[])?.[0] ?? 0"
-                      :min="ctrl.min" :max="ctrl.max" :step="ctrl.step ?? 0.01"
-                      @change="(e) => handleDualChange(ctrl.key, 0, Number((e.target as HTMLInputElement).value))"
+                      :min="ctrl.min"
+                      :max="ctrl.max"
+                      :step="ctrl.step ?? 0.01"
+                      @change="
+                        (e) =>
+                          handleDualChange(
+                            ctrl.key,
+                            0,
+                            Number((e.target as HTMLInputElement).value),
+                          )
+                      "
                       class="w-full bg-input border border-border text-foreground text-sm rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
@@ -145,14 +168,22 @@
                     <input
                       type="number"
                       :value="(getValue(ctrl.key, ctrl.defaultValue) as number[])?.[1] ?? 0"
-                      :min="ctrl.min" :max="ctrl.max" :step="ctrl.step ?? 0.01"
-                      @change="(e) => handleDualChange(ctrl.key, 1, Number((e.target as HTMLInputElement).value))"
+                      :min="ctrl.min"
+                      :max="ctrl.max"
+                      :step="ctrl.step ?? 0.01"
+                      @change="
+                        (e) =>
+                          handleDualChange(
+                            ctrl.key,
+                            1,
+                            Number((e.target as HTMLInputElement).value),
+                          )
+                      "
                       class="w-full bg-input border border-border text-foreground text-sm rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                 </div>
               </div>
-
             </template>
           </div>
         </div>
@@ -191,9 +222,7 @@
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Reset changes</AlertDialogTitle>
-          <AlertDialogDescription>
-            Unsaved changes will be lost. Reset?
-          </AlertDialogDescription>
+          <AlertDialogDescription> Unsaved changes will be lost. Reset? </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel @click="handleResetCancel">Cancel</AlertDialogCancel>
@@ -210,7 +239,11 @@ import { Lock, RotateCcw } from 'lucide-vue-next';
 import { toast } from 'vue-sonner';
 import { useCameraControls } from '@/composables/useCameraControls';
 import { useStream } from '@/composables/useStream';
-import { CAMERA_CONTROL_META, type CameraControlMeta, type CameraControlKey } from '@manlycam/types';
+import {
+  CAMERA_CONTROL_META,
+  type CameraControlMeta,
+  type CameraControlKey,
+} from '@manlycam/types';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
@@ -244,7 +277,9 @@ const { streamState } = useStream();
 const confirmOpen = ref(false);
 const resetConfirmOpen = ref(false);
 
-onMounted(() => { fetchSettings(); });
+onMounted(() => {
+  fetchSettings();
+});
 
 // hasStagedChanges: true only when staged value differs from the effective stored+default value.
 // This ensures toggling a control back to its current stored value hides the Apply button.
@@ -275,6 +310,7 @@ function handleSelectChange(ctrl: CameraControlMeta, value: string): void {
 }
 
 function handleNumberChange(ctrl: CameraControlMeta, value: number): void {
+  if (isNaN(value)) return;
   const clamped = clampNumber(value, ctrl.min, ctrl.max);
   const stored = ctrl.transform ? ctrl.transform.toBackend(clamped) : clamped;
   if (ctrl.restartRequired) {
@@ -317,14 +353,14 @@ watch(
     if (streamState.value === 'explicit-offline') {
       piReachable.value = active ?? false;
     }
-  }
+  },
 );
 
 // Overlay only when stream is explicitly stopped — controls are inaccessible when stream hasn't started.
 // For 'unreachable' (Pi offline or bad settings), the yellow piReachable banner is sufficient;
 // the admin must still be able to correct settings to recover from a misconfigured state.
 const showOfflineOverlay = computed(
-  () => !props.previewActive && streamState.value === 'explicit-offline'
+  () => !props.previewActive && streamState.value === 'explicit-offline',
 );
 
 const overlayMessage = 'Start the stream to manage camera settings';
@@ -334,10 +370,13 @@ const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function debouncedPatch(key: string, value: unknown): void {
   if (debounceTimers.has(key)) clearTimeout(debounceTimers.get(key)!);
-  debounceTimers.set(key, setTimeout(() => {
-    patchSetting(key, value);
-    debounceTimers.delete(key);
-  }, 300));
+  debounceTimers.set(
+    key,
+    setTimeout(() => {
+      patchSetting(key, value);
+      debounceTimers.delete(key);
+    }, 300),
+  );
 }
 
 function handleSliderChange(key: string, value: number): void {
@@ -385,12 +424,17 @@ function getDisplayValue(ctrl: CameraControlMeta, backendValue: unknown): unknow
   return backendValue;
 }
 
-const SECTION_ORDER = ['Image', 'Exposure', 'White Balance', 'Autofocus', 'Overlay', 'Encoding'] as const;
+const SECTION_ORDER = [
+  'Image',
+  'Exposure',
+  'White Balance',
+  'Autofocus',
+  'Overlay',
+  'Encoding',
+] as const;
 
 const sections = computed(() => {
-  const visible = new Set(
-    CAMERA_CONTROL_META.filter(isControlVisible).map((c) => c.section)
-  );
+  const visible = new Set(CAMERA_CONTROL_META.filter(isControlVisible).map((c) => c.section));
   return SECTION_ORDER.filter((s) => visible.has(s));
 });
 

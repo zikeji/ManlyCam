@@ -42,5 +42,5 @@ onMounted(() => {
     </svg>
   </div>
   <LoginView v-else />
-  <Toaster />
+  <Toaster position="top-center" />
 </template>

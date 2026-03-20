@@ -8,6 +8,7 @@ export function useCameraControls() {
   const isLoading = ref(false);
   const lastError = ref<string | null>(null);
   const stagedValues = ref<CameraSettingsMap>({});
+  const pendingPatchCount = ref(0);
 
   const hasStagedChanges = computed(() => Object.keys(stagedValues.value).length > 0);
 
@@ -17,7 +18,9 @@ export function useCameraControls() {
       const data = await apiFetch<{ settings: CameraSettingsMap; piReachable: boolean }>(
         '/api/stream/camera-settings',
       );
-      settings.value = data.settings;
+      if (pendingPatchCount.value === 0) {
+        settings.value = data.settings;
+      }
       piReachable.value = data.piReachable;
       lastError.value = null;
     } catch (err) {
@@ -32,8 +35,8 @@ export function useCameraControls() {
 
   async function patchSetting(key: string, value: unknown): Promise<void> {
     const previous = settings.value[key as keyof CameraSettingsMap];
-    // Optimistic update
     settings.value = { ...settings.value, [key]: value };
+    pendingPatchCount.value++;
     try {
       const result = await apiFetch<{ ok: boolean; error?: string }>(
         '/api/stream/camera-settings',
@@ -46,7 +49,6 @@ export function useCameraControls() {
       if (!result.ok) {
         console.error('[CameraControls] PATCH failed:', result.error);
         lastError.value = result.error ?? 'Failed to apply setting';
-        // Revert
         settings.value = { ...settings.value, [key]: previous };
       } else {
         lastError.value = null;
@@ -57,12 +59,14 @@ export function useCameraControls() {
         lastError.value = err.message;
         settings.value = { ...settings.value, [key]: previous };
       }
+    } finally {
+      pendingPatchCount.value--;
     }
   }
 
   async function patchSettings(body: CameraSettingsMap): Promise<void> {
-    // Optimistic batch update
     settings.value = { ...settings.value, ...body };
+    pendingPatchCount.value++;
     try {
       const result = await apiFetch<{ ok: boolean; error?: string }>(
         '/api/stream/camera-settings',
@@ -75,8 +79,6 @@ export function useCameraControls() {
       if (!result.ok) {
         console.error('[CameraControls] batch PATCH failed:', result.error);
         lastError.value = result.error ?? 'Failed to apply settings';
-        // No revert — server returns ok:true for all connectivity failures;
-        // ok:false here can only be a validation error on already-allowlisted keys.
       } else {
         lastError.value = null;
       }
@@ -85,6 +87,8 @@ export function useCameraControls() {
         console.error('[CameraControls] batch PATCH error:', err);
         lastError.value = err.message;
       }
+    } finally {
+      pendingPatchCount.value--;
     }
   }
 

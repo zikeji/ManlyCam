@@ -208,4 +208,40 @@ describe('useCameraControls', () => {
     expect(settings.value.rpiCameraFps).toBe(30);
     expect(settings.value.rpiCameraBitrate).toBe(2000);
   });
+
+  it('fetchSettings does not overwrite settings when PATCH is in flight', async () => {
+    const { fetchSettings, patchSettings, settings } = useCameraControls();
+
+    settings.value = { rpiCameraFps: 60 };
+    let resolvePatch: () => void;
+    vi.mocked(apiFetch).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePatch = () => resolve({ ok: true });
+        }) as Promise<{ ok: boolean }>,
+    );
+
+    const patchPromise = patchSettings({ rpiCameraFps: 60 });
+    vi.mocked(apiFetch).mockResolvedValue({
+      settings: { rpiCameraFps: 30 },
+      piReachable: true,
+    });
+    await fetchSettings();
+    expect(settings.value.rpiCameraFps).toBe(60);
+
+    resolvePatch!();
+    await patchPromise;
+  });
+
+  it('fetchSettings updates settings when no PATCH is in flight', async () => {
+    vi.mocked(apiFetch).mockResolvedValue({
+      settings: { rpiCameraFps: 30 },
+      piReachable: true,
+    });
+
+    const { fetchSettings, settings } = useCameraControls();
+    await fetchSettings();
+
+    expect(settings.value.rpiCameraFps).toBe(30);
+  });
 });

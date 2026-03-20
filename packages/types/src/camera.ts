@@ -32,7 +32,13 @@ export type CameraControlKey = (typeof CAMERA_CONTROLS_ALLOWLIST)[number];
 export type CameraSettingsMap = Partial<Record<CameraControlKey, unknown>>;
 
 export type CameraControlType = 'switch' | 'slider' | 'select' | 'number' | 'text' | 'dual-number';
-export type CameraControlSection = 'Image' | 'Exposure' | 'White Balance' | 'Autofocus' | 'Overlay' | 'Encoding';
+export type CameraControlSection =
+  | 'Image'
+  | 'Exposure'
+  | 'White Balance'
+  | 'Autofocus'
+  | 'Overlay'
+  | 'Encoding';
 
 export interface CameraControlMeta {
   key: CameraControlKey;
@@ -311,8 +317,8 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     defaultValue: 2000000, // stored in bps internally; transform handles display ↔ storage
     restartRequired: true,
     transform: {
-      fromBackend: (v: number) => Math.round(v / 1000),
-      toBackend: (v: number) => v * 1000,
+      fromBackend: (v: number) => (typeof v === 'number' && !isNaN(v) ? Math.round(v / 1000) : 0),
+      toBackend: (v: number) => (typeof v === 'number' && !isNaN(v) ? v * 1000 : 0),
     },
   },
   {
