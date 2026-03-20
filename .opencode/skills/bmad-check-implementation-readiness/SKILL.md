@@ -3,4 +3,4 @@ name: bmad-check-implementation-readiness
 description: 'Validate PRD, UX, Architecture and Epics specs are complete. Use when the user says "check implementation readiness".'
 ---
 
-Follow the instructions in ./workflow.md.
+Follow the instructions in [workflow.md]({project-root}/.opencode/skills/bmad-check-implementation-readiness/workflow.md).
