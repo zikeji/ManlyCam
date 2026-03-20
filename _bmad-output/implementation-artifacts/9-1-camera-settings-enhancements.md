@@ -10,11 +10,11 @@ so that I have safe, granular control over the camera pipeline without risk of a
 
 ## Acceptance Criteria
 
-1. **Given** the camera settings panel is open, **When** I adjust any non-restart-required control (brightness, contrast, AWB, sharpness, saturation, EV, gain, metering, shutter, flicker period, AF controls, HDR, text overlay), **Then** the PATCH is sent immediately on change — exactly as today — no Apply button is involved for these controls.
+1. **Given** the camera settings panel is open, **When** I adjust any non-restart-required control (brightness, contrast, AWB, sharpness, saturation, EV, gain, metering, shutter, flicker period, lens position, denoise), **Then** the PATCH is sent immediately on change — exactly as today — no Apply button is involved for these controls.
 
-2. **Given** the camera settings panel is open and the Encoding section is visible, **When** I look at the controls, **Then** I see a `Denoise` select with options: `cdn_off` (Off), `cdn_fast` (Fast), `cdn_hq` (High Quality); and the following additional controls: `FPS` — number input (1–120); `Bitrate` — number input (100–10000, in kbps); `IDR Period` — number input (1–300, in frames); `Width` — number input (320–4608); `Height` — number input (240–3496); `Horizontal Flip` — switch; `Vertical Flip` — switch.
+2. **Given** the camera settings panel is open and the Encoding section is visible, **When** I look at the controls, **Then** I see a `Denoise` select with options: `cdn_off` (Off), `cdn_fast` (Fast), `cdn_hq` (High Quality); and the following additional controls: `FPS` — number input (1–120); `Bitrate` — number input (100–50000, in kbps); `IDR Period` — number input (1–300, in frames); `Width` — number input (320–4608); `Height` — number input (240–3496); `Horizontal Flip` — switch; `Vertical Flip` — switch.
 
-3. **Given** I have edited one or more restart-required controls (FPS, Bitrate, IDR Period, Width, Height, HFlip, VFlip), **When** I click Apply, **Then** a confirmation dialog appears warning that the stream will briefly restart, **And** clicking Confirm sends the PATCH with all staged restart-required values, **And** clicking Cancel discards the edits and resets the staged controls back to their last-applied values.
+3. **Given** I have edited one or more restart-required controls (FPS, Bitrate, IDR Period, Width, Height, HFlip, VFlip, HDR, text overlay, AF mode/range/speed), **When** I click Apply, **Then** a confirmation dialog appears warning that the stream will briefly restart, **And** clicking Confirm sends the PATCH with all staged restart-required values, **And** clicking Cancel closes the dialog without discarding staged changes — user can continue editing or click Reset to discard.
 
 4. **Given** the `CameraControlMeta` interface in `packages/types/src/camera.ts`, **When** inspected, **Then** it includes an optional `restartRequired?: boolean` field, **And** all new encoding, resolution, and flip entries have `restartRequired: true`, **And** `rpiCameraDenoise` has a `CAMERA_CONTROL_META` entry with `restartRequired: false`.
 
@@ -393,3 +393,4 @@ claude-sonnet-4-6
 - 2026-03-20: Post-smoke-test fixes — bitrate kbps→bps; hasStagedChanges value-diff logic; Apply Cancel no longer discards; Reset button+dialog; number clamping; Denoise test fake timers.
 - 2026-03-20: Recovery fix — showOfflineOverlay now only fires for explicit-offline; unreachable state no longer blocks controls (admin can correct bad settings to recover stream). 918 web tests passing.
 - 2026-03-20: Smoke test passed — Zikeji verified all Apply flow and recovery scenarios. Story ready for code review.
+- 2026-03-20: Code review fixes — AC1/AC2/AC3 amended to match implementation; NaN guard in handleNumberChange; pendingPatchCount to prevent fetchSettings race with optimistic updates; transform functions guard against NaN/non-number input; 2 new tests for fetchSettings race condition. 399 server + 925 web tests passing.
