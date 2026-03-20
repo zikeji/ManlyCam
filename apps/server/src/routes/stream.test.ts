@@ -372,7 +372,7 @@ describe('PATCH /api/stream/camera-settings', () => {
     });
   });
 
-  it('persists settings and returns 200 ok:true piOffline:true when Pi is unreachable', async () => {
+  it('persists settings and attempts fetch even when Pi is unreachable, returns ok:true', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
     vi.mocked(streamService.isPiReachable).mockReturnValue(false);
     vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
@@ -380,6 +380,7 @@ describe('PATCH /api/stream/camera-settings', () => {
       value: '0.5',
       updatedAt: new Date(),
     } as never);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network error')));
 
     const res = await createApp().app.request('/api/stream/camera-settings', {
       ...authHeaders,
@@ -390,12 +391,14 @@ describe('PATCH /api/stream/camera-settings', () => {
     expect(res.status).toBe(200);
     const data = await res.json();
     expect(data.ok).toBe(true);
-    expect(data.piOffline).toBe(true);
-    // Verify DB upsert still happened even though Pi is offline
+    expect(data.piOffline).toBeUndefined();
+    // Verify DB upsert still happened
     expect(vi.mocked(prisma.cameraSettings.upsert)).toHaveBeenCalled();
+    // Verify fetch was still attempted even though Pi is unreachable
+    expect(vi.mocked(global.fetch)).toHaveBeenCalled();
   });
 
-  it('returns 200 ok:false error:string when mediamtx API returns error', async () => {
+  it('returns 200 ok:true (silent failure) when mediamtx API returns error', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
     vi.mocked(streamService.isPiReachable).mockReturnValue(true);
     vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
@@ -416,11 +419,11 @@ describe('PATCH /api/stream/camera-settings', () => {
 
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.ok).toBe(false);
-    expect(data.error).toBe('mediamtx error');
+    expect(data.ok).toBe(true);
+    expect(data.error).toBeUndefined();
   });
 
-  it('returns 200 ok:false when fetch to mediamtx fails', async () => {
+  it('returns 200 ok:true (silent failure) when fetch to mediamtx fails', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
     vi.mocked(streamService.isPiReachable).mockReturnValue(true);
     vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
@@ -438,8 +441,8 @@ describe('PATCH /api/stream/camera-settings', () => {
 
     expect(res.status).toBe(200);
     const data = await res.json();
-    expect(data.ok).toBe(false);
-    expect(data.error).toBe('Failed to reach Pi camera API');
+    expect(data.ok).toBe(true);
+    expect(data.error).toBeUndefined();
   });
 
   it('upserts multiple keys in a single PATCH request', async () => {

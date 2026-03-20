@@ -144,11 +144,7 @@ streamRouter.patch(
       ),
     );
 
-    // Forward to Pi via frp tunnel
-    if (!streamService.isPiReachable()) {
-      return c.json({ ok: true, piOffline: true });
-    }
-
+    // Forward to Pi via frp tunnel (always attempted — DB is source of truth)
     try {
       const res = await fetch(
         `http://${env.FRP_HOST}:${env.FRP_API_PORT}/v3/config/paths/patch/cam`,
@@ -160,12 +156,13 @@ streamRouter.patch(
       );
       if (!res.ok) {
         const text = await res.text();
-        return c.json({ ok: false, error: text });
+        logger.warn({ text }, 'camera: mediamtx PATCH returned non-ok status');
+        return c.json({ ok: true });
       }
       return c.json({ ok: true });
     } catch (err) {
       logger.error({ err }, 'camera: failed to PATCH mediamtx');
-      return c.json({ ok: false, error: 'Failed to reach Pi camera API' });
+      return c.json({ ok: true });
     }
   },
 );

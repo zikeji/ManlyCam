@@ -4,6 +4,7 @@ import { useAuth } from '@/composables/useAuth';
 import { useWebSocket, WS_INJECTION_KEY } from '@/composables/useWebSocket';
 import LoginView from '@/views/LoginView.vue';
 import WatchView from '@/views/WatchView.vue';
+import { Toaster } from '@/components/ui/sonner';
 
 const { user, authLoading, fetchCurrentUser } = useAuth();
 
@@ -41,4 +42,5 @@ onMounted(() => {
     </svg>
   </div>
   <LoginView v-else />
+  <Toaster />
 </template>

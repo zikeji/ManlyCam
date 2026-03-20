@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { apiFetch, ApiFetchError } from '@/lib/api';
 import type { CameraSettingsMap } from '@manlycam/types';
 
@@ -7,6 +7,9 @@ export function useCameraControls() {
   const piReachable = ref(true);
   const isLoading = ref(false);
   const lastError = ref<string | null>(null);
+  const stagedValues = ref<CameraSettingsMap>({});
+
+  const hasStagedChanges = computed(() => Object.keys(stagedValues.value).length > 0);
 
   async function fetchSettings(): Promise<void> {
     isLoading.value = true;
@@ -32,7 +35,7 @@ export function useCameraControls() {
     // Optimistic update
     settings.value = { ...settings.value, [key]: value };
     try {
-      const result = await apiFetch<{ ok: boolean; piOffline?: boolean; error?: string }>(
+      const result = await apiFetch<{ ok: boolean; error?: string }>(
         '/api/stream/camera-settings',
         {
           method: 'PATCH',
@@ -48,7 +51,6 @@ export function useCameraControls() {
       } else {
         lastError.value = null;
       }
-      // piOffline: true is not an error — setting is saved for reconnect
     } catch (err) {
       if (err instanceof ApiFetchError) {
         console.error('[CameraControls] PATCH error:', err);
@@ -58,5 +60,59 @@ export function useCameraControls() {
     }
   }
 
-  return { settings, piReachable, isLoading, lastError, fetchSettings, patchSetting };
+  async function patchSettings(body: CameraSettingsMap): Promise<void> {
+    // Optimistic batch update
+    settings.value = { ...settings.value, ...body };
+    try {
+      const result = await apiFetch<{ ok: boolean; error?: string }>(
+        '/api/stream/camera-settings',
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!result.ok) {
+        console.error('[CameraControls] batch PATCH failed:', result.error);
+        lastError.value = result.error ?? 'Failed to apply settings';
+        // No revert — server returns ok:true for all connectivity failures;
+        // ok:false here can only be a validation error on already-allowlisted keys.
+      } else {
+        lastError.value = null;
+      }
+    } catch (err) {
+      if (err instanceof ApiFetchError) {
+        console.error('[CameraControls] batch PATCH error:', err);
+        lastError.value = err.message;
+      }
+    }
+  }
+
+  function stageValue(key: string, value: unknown): void {
+    stagedValues.value = { ...stagedValues.value, [key]: value };
+  }
+
+  function discardStagedValues(): void {
+    stagedValues.value = {};
+  }
+
+  async function applyStaged(): Promise<void> {
+    await patchSettings(stagedValues.value);
+    discardStagedValues();
+  }
+
+  return {
+    settings,
+    piReachable,
+    isLoading,
+    lastError,
+    stagedValues,
+    hasStagedChanges,
+    fetchSettings,
+    patchSetting,
+    patchSettings,
+    stageValue,
+    discardStagedValues,
+    applyStaged,
+  };
 }
