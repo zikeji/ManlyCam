@@ -21,7 +21,7 @@ import type { ChatMessage as ChatMessageType } from '@manlycam/types';
 
 // const emit = defineEmits<{
 //   openCameraControls: [];
-//   openUserManager: [];
+//   openAdminDialog: [];
 // }>();
 
 const {

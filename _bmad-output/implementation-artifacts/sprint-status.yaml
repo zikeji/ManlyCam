@@ -124,7 +124,7 @@ development_status:
   slash-command-cjs-extension: done # Bugfix: changed slash command extension from .js to .cjs for CommonJS compatibility. Code review: zero critical/high issues. 390 tests passing. Done 2026-03-16
 
   epic-9: in-progress
-  9-1-camera-settings-enhancements: review
+  9-1-camera-settings-enhancements: done
   9-2-allowlist-management-web-ui: ready-for-dev
   9-3-audit-log-viewer: ready-for-dev
   9-4-users-list-enhancements: ready-for-dev

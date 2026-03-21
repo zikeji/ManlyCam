@@ -135,11 +135,11 @@ describe('BroadcastConsole', () => {
     expect(collapseButtons.length).toBe(1);
   });
 
-  it('emits toggleAdminPanel when Camera Controls button is clicked', async () => {
+  it('emits toggleControlsPanel when Camera Controls button is clicked', async () => {
     wrapper = mountConsole({ isAdmin: true });
     const settingsBtn = wrapper.find('button[aria-label="Show camera controls"]');
     await settingsBtn.trigger('click');
-    expect(wrapper.emitted('toggleAdminPanel')).toBeTruthy();
+    expect(wrapper.emitted('toggleControlsPanel')).toBeTruthy();
   });
 
   it('calls useAdminStream stopStream when stream toggle clicked while live', async () => {

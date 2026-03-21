@@ -7,8 +7,8 @@ import { Role } from '@manlycam/types';
 import StreamPlayer from '@/components/stream/StreamPlayer.vue';
 import BroadcastConsole from '@/components/stream/BroadcastConsole.vue';
 import AtmosphericVoid from '@/components/stream/AtmosphericVoid.vue';
-import AdminPanel from '@/components/admin/AdminPanel.vue';
-import UserManagerDialog from '@/components/admin/UserManagerDialog.vue';
+import CameraControlsPanel from '@/components/admin/CameraControlsPanel.vue';
+import AdminDialog from '@/components/admin/AdminDialog.vue';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
@@ -27,8 +27,8 @@ const isMobilePortrait = ref(false);
 const isMobileLandscape = ref(false);
 const chatSidebarOpen = ref(true);
 
-const adminPanelOpen = ref(false);
-const userManagerOpen = ref(false);
+const controlsPanelOpen = ref(false);
+const adminDialogOpen = ref(false);
 
 const streamPlayerRef = ref<InstanceType<typeof StreamPlayer> | null>(null);
 const streamVideoRef = computed(() => streamPlayerRef.value?.videoRef ?? null);
@@ -38,17 +38,17 @@ const splitterAnimating = ref(false);
 let splitterAnimateTimer: ReturnType<typeof setTimeout> | null = null;
 
 const mobileSheetOpen = computed({
-  get: () => adminPanelOpen.value && !isDesktop.value,
+  get: () => controlsPanelOpen.value && !isDesktop.value,
   /* c8 ignore next -- computed setter only triggered by Sheet v-model in mobile template */
   set: (val: boolean) => {
-    adminPanelOpen.value = val;
+    controlsPanelOpen.value = val;
   },
 });
 
-watch(adminPanelOpen, (newValue) => {
+watch(controlsPanelOpen, (newValue) => {
   try {
     if (typeof localStorage !== 'undefined' && localStorage) {
-      localStorage.setItem('manlycam:admin-panel-open', newValue ? 'true' : 'false');
+      localStorage.setItem('manlycam:controls-panel-open', newValue ? 'true' : 'false');
     }
   } catch {
     /* ignore */
@@ -89,10 +89,10 @@ watch(streamState, (state) => {
 });
 
 const handleOpenCameraControls = () => {
-  adminPanelOpen.value = !adminPanelOpen.value;
+  controlsPanelOpen.value = !controlsPanelOpen.value;
 };
-const handleToggleAdminPanel = () => {
-  adminPanelOpen.value = !adminPanelOpen.value;
+const handleToggleControlsPanel = () => {
+  controlsPanelOpen.value = !controlsPanelOpen.value;
 };
 const handleStartPreview = () => {
   adminPreviewActive.value = true;
@@ -153,7 +153,7 @@ onMounted(() => {
 
   try {
     if (typeof localStorage !== 'undefined' && localStorage) {
-      adminPanelOpen.value = localStorage.getItem('manlycam:admin-panel-open') === 'true';
+      controlsPanelOpen.value = localStorage.getItem('manlycam:controls-panel-open') === 'true';
 
       const stored = localStorage.getItem('manlycam:chat-sidebar-open');
       if (stored !== null) {
@@ -175,14 +175,14 @@ onMounted(() => {
     <!-- Left sidebar: admin only, desktop -->
     <Transition name="sidebar-left">
       <aside
-        v-if="isAdmin && adminPanelOpen && isDesktop"
+        v-if="isAdmin && controlsPanelOpen && isDesktop"
         data-sidebar-left
         class="w-[280px] shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-r border-[hsl(var(--border))] z-30"
       >
-        <AdminPanel
+        <CameraControlsPanel
           :show-close="false"
           :preview-active="adminPreviewActive"
-          @close="adminPanelOpen = false"
+          @close="controlsPanelOpen = false"
         />
       </aside>
     </Transition>
@@ -215,15 +215,15 @@ onMounted(() => {
         <BroadcastConsole
           :isAdmin="isAdmin"
           :streamState="streamState"
-          :adminPanelOpen="adminPanelOpen"
+          :controlsPanelOpen="controlsPanelOpen"
           :chatSidebarOpen="chatSidebarOpen"
           :unreadCount="unreadCount"
           :isDesktop="isDesktop"
           :showChatToggle="true"
           :videoRef="streamVideoRef"
-          @toggle-admin-panel="handleToggleAdminPanel"
+          @toggle-controls-panel="handleToggleControlsPanel"
           @toggle-chat-sidebar="handleToggleChatSidebar"
-          @open-user-manager="userManagerOpen = true"
+          @open-admin-dialog="adminDialogOpen = true"
         />
       </SplitterPanel>
 
@@ -250,7 +250,7 @@ onMounted(() => {
           data-chat-panel
           class="flex-1 flex flex-col min-h-0"
           @open-camera-controls="handleOpenCameraControls"
-          @open-user-manager="userManagerOpen = true"
+          @open-admin-dialog="adminDialogOpen = true"
         />
       </SplitterPanel>
     </SplitterGroup>
@@ -300,15 +300,15 @@ onMounted(() => {
         v-if="!isMobileLandscape"
         :isAdmin="isAdmin"
         :streamState="streamState"
-        :adminPanelOpen="adminPanelOpen"
+        :controlsPanelOpen="controlsPanelOpen"
         :chatSidebarOpen="chatSidebarOpen"
         :unreadCount="unreadCount"
         :isDesktop="isDesktop"
         :showChatToggle="!isMobilePortrait"
         :videoRef="streamVideoRef"
-        @toggle-admin-panel="handleToggleAdminPanel"
+        @toggle-controls-panel="handleToggleControlsPanel"
         @toggle-chat-sidebar="handleToggleChatSidebar"
-        @open-user-manager="userManagerOpen = true"
+        @open-admin-dialog="adminDialogOpen = true"
       />
 
       <!-- Portrait Chat (Replaces Void) -->
@@ -317,7 +317,7 @@ onMounted(() => {
         data-chat-panel
         class="flex-1 min-h-0 flex flex-col bg-[hsl(var(--sidebar))]"
         @open-camera-controls="handleOpenCameraControls"
-        @open-user-manager="userManagerOpen = true"
+        @open-admin-dialog="adminDialogOpen = true"
       />
     </main>
 
@@ -330,20 +330,20 @@ onMounted(() => {
         <ChatPanel
           class="flex-1 flex flex-col min-h-0"
           @open-camera-controls="handleOpenCameraControls"
-          @open-user-manager="userManagerOpen = true"
+          @open-admin-dialog="adminDialogOpen = true"
         />
         <BroadcastConsole
           :isAdmin="isAdmin"
           :streamState="streamState"
-          :adminPanelOpen="adminPanelOpen"
+          :controlsPanelOpen="controlsPanelOpen"
           :chatSidebarOpen="chatSidebarOpen"
           :unreadCount="unreadCount"
           :isDesktop="false"
           :showViewerCount="false"
           :videoRef="streamVideoRef"
-          @toggle-admin-panel="handleToggleAdminPanel"
+          @toggle-controls-panel="handleToggleControlsPanel"
           @toggle-chat-sidebar="handleToggleChatSidebar"
-          @open-user-manager="userManagerOpen = true"
+          @open-admin-dialog="adminDialogOpen = true"
         />
       </div>
     </Transition>
@@ -351,15 +351,15 @@ onMounted(() => {
     <!-- Mobile: Sheet drawer for admin controls (< lg only) -->
     <Sheet v-if="isAdmin" v-model:open="mobileSheetOpen">
       <SheetContent side="bottom" class="h-[90vh] p-0">
-        <AdminPanel
+        <CameraControlsPanel
           :show-close="false"
           :preview-active="adminPreviewActive"
-          @close="adminPanelOpen = false"
+          @close="controlsPanelOpen = false"
         />
       </SheetContent>
     </Sheet>
 
-    <UserManagerDialog v-if="isAdmin" v-model:open="userManagerOpen" />
+    <AdminDialog v-if="isAdmin" v-model:open="adminDialogOpen" />
   </div>
 </template>
 

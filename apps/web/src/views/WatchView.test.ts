@@ -170,21 +170,21 @@ vi.mock('@/components/ui/sheet', () => ({
   },
 }));
 
-vi.mock('@/components/admin/AdminPanel.vue', () => ({
+vi.mock('@/components/admin/CameraControlsPanel.vue', () => ({
   default: {
-    name: 'AdminPanel',
+    name: 'CameraControlsPanel',
     props: ['showClose', 'previewActive'],
     emits: ['close'],
-    template: '<div data-admin-panel />',
+    template: '<div data-camera-controls-panel />',
   },
 }));
 
-vi.mock('@/components/admin/UserManagerDialog.vue', () => ({
+vi.mock('@/components/admin/AdminDialog.vue', () => ({
   default: {
-    name: 'UserManagerDialog',
+    name: 'AdminDialog',
     props: ['open'],
     emits: ['update:open'],
-    template: '<div data-user-manager-dialog />',
+    template: '<div data-admin-dialog />',
   },
 }));
 
@@ -481,9 +481,9 @@ describe('WatchView', () => {
       expect(streamPlayer.props('adminPreview')).toBe(false);
     });
 
-    it('passes previewActive=true to AdminPanel when adminPreviewActive is true', async () => {
+    it('passes previewActive=true to CameraControlsPanel when adminPreviewActive is true', async () => {
       // Open admin panel so the aside renders
-      mockLocalStorage.setItem('manlycam:admin-panel-open', 'true');
+      mockLocalStorage.setItem('manlycam:controls-panel-open', 'true');
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
@@ -491,18 +491,18 @@ describe('WatchView', () => {
       await wrapper.find('[data-stream-player]').trigger('click');
       await nextTick();
 
-      const adminPanel = wrapper.findComponent({ name: 'AdminPanel' });
-      expect(adminPanel.props('previewActive')).toBe(true);
+      const controlsPanel = wrapper.findComponent({ name: 'CameraControlsPanel' });
+      expect(controlsPanel.props('previewActive')).toBe(true);
     });
 
-    it('passes previewActive=false to AdminPanel by default', async () => {
+    it('passes previewActive=false to CameraControlsPanel by default', async () => {
       // Open admin panel so the aside renders
-      mockLocalStorage.setItem('manlycam:admin-panel-open', 'true');
+      mockLocalStorage.setItem('manlycam:controls-panel-open', 'true');
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
-      const adminPanel = wrapper.findComponent({ name: 'AdminPanel' });
-      expect(adminPanel.props('previewActive')).toBe(false);
+      const controlsPanel = wrapper.findComponent({ name: 'CameraControlsPanel' });
+      expect(controlsPanel.props('previewActive')).toBe(false);
     });
 
     it('resets adminPreview when streamState changes away from explicit-offline', async () => {
@@ -604,27 +604,27 @@ describe('WatchView', () => {
     });
   });
 
-  describe('Admin Panel toggling', () => {
+  describe('Controls Panel toggling', () => {
     beforeEach(() => {
       mockIsDesktop = true;
       mockIsPortrait = false;
       mockUser.value = { role: 'Admin', displayName: 'Admin User' };
     });
 
-    it('toggles adminPanelOpen when BroadcastConsole emits toggleAdminPanel', async () => {
+    it('toggles controlsPanelOpen when BroadcastConsole emits toggleControlsPanel', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
       const console = wrapper.findComponent({ name: 'BroadcastConsole' });
-      await console.vm.$emit('toggleAdminPanel');
+      await console.vm.$emit('toggleControlsPanel');
       await nextTick();
 
       expect(
-        (wrapper.vm as ComponentPublicInstance & { adminPanelOpen: boolean }).adminPanelOpen,
+        (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
       ).toBe(true);
     });
 
-    it('toggles adminPanelOpen when ChatPanel emits openCameraControls', async () => {
+    it('toggles controlsPanelOpen when ChatPanel emits openCameraControls', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
@@ -633,7 +633,7 @@ describe('WatchView', () => {
       await nextTick();
 
       expect(
-        (wrapper.vm as ComponentPublicInstance & { adminPanelOpen: boolean }).adminPanelOpen,
+        (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
       ).toBe(true);
     });
   });
@@ -670,7 +670,7 @@ describe('WatchView', () => {
       }).not.toThrow();
     });
 
-    it('silently catches localStorage errors in adminPanelOpen watcher', async () => {
+    it('silently catches localStorage errors in controlsPanelOpen watcher', async () => {
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
@@ -683,9 +683,9 @@ describe('WatchView', () => {
       };
       vi.stubGlobal('localStorage', throwingStorage);
 
-      const vm = wrapper.vm as ComponentPublicInstance & { adminPanelOpen: boolean };
+      const vm = wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean };
       expect(() => {
-        vm.adminPanelOpen = true;
+        vm.controlsPanelOpen = true;
       }).not.toThrow();
       await nextTick();
     });

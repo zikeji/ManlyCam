@@ -28,7 +28,7 @@ const props = withDefaults(
   defineProps<{
     streamState: ClientStreamState;
     isAdmin?: boolean;
-    adminPanelOpen?: boolean;
+    controlsPanelOpen?: boolean;
     chatSidebarOpen?: boolean;
     unreadCount?: number;
     isDesktop?: boolean;
@@ -38,7 +38,7 @@ const props = withDefaults(
   }>(),
   {
     isAdmin: false,
-    adminPanelOpen: false,
+    controlsPanelOpen: false,
     chatSidebarOpen: false,
     unreadCount: 0,
     isDesktop: true,
@@ -49,9 +49,9 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  toggleAdminPanel: [];
+  toggleControlsPanel: [];
   toggleChatSidebar: [];
-  openUserManager: [];
+  openAdminDialog: [];
 }>();
 
 const { user, logout } = useAuth();
@@ -175,8 +175,8 @@ const streamToggleLabel = computed(() => {
           variant="ghost"
           size="icon"
           class="w-11 h-11 rounded"
-          :aria-label="adminPanelOpen ? 'Hide camera controls' : 'Show camera controls'"
-          @click="emit('toggleAdminPanel')"
+          :aria-label="controlsPanelOpen ? 'Hide camera controls' : 'Show camera controls'"
+          @click="emit('toggleControlsPanel')"
         >
           <Settings2 class="w-5 h-5" />
         </Button>
@@ -275,7 +275,7 @@ const streamToggleLabel = computed(() => {
               @click="
                 () => {
                   isProfileOpen = false;
-                  emit('toggleAdminPanel');
+                  emit('toggleControlsPanel');
                 }
               "
             >
@@ -299,7 +299,7 @@ const streamToggleLabel = computed(() => {
               @click="
                 () => {
                   isProfileOpen = false;
-                  emit('openUserManager');
+                  emit('openAdminDialog');
                 }
               "
             >
