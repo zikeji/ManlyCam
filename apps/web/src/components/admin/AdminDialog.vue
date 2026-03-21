@@ -16,7 +16,7 @@ const isOpen = defineModel<boolean>('open', { default: false });
 
 <template>
   <AlertDialog v-model:open="isOpen">
-    <AlertDialogContent class="max-w-4xl h-[80vh] flex flex-col p-0 overflow-hidden">
+    <AlertDialogContent class="max-w-4xl h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
       <AlertDialogHeader class="px-6 py-4 border-b border-border flex flex-row items-center justify-between space-y-0">
         <AlertDialogTitle>Admin</AlertDialogTitle>
         <AlertDialogCancel class="mt-0 p-1 h-auto bg-transparent border-none hover:bg-accent">
@@ -24,7 +24,7 @@ const isOpen = defineModel<boolean>('open', { default: false });
         </AlertDialogCancel>
       </AlertDialogHeader>
       <Tabs default-value="users" class="flex-1 flex flex-col overflow-hidden">
-        <TabsList class="flex w-full p-0 px-6 pt-2 shrink-0 justify-start bg-transparent border-b border-border rounded-none h-auto pb-0 gap-0">
+        <TabsList class="flex w-full p-0 shrink-0 justify-start bg-transparent border-b border-border rounded-none h-auto gap-0">
           <TabsTrigger value="users" class="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent pb-2">
             Users
           </TabsTrigger>
