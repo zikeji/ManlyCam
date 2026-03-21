@@ -1,7 +1,7 @@
 ---
 project_name: 'ManlyCam'
 user_name: 'Zikeji'
-date: '2026-03-20'
+date: '2026-03-21'
 sections_completed:
   [
     'technology_stack',
@@ -13,7 +13,7 @@ sections_completed:
     'anti_patterns',
   ]
 status: 'complete'
-rule_count: 52
+rule_count: 53
 optimized_for_llm: true
 ---
 
@@ -140,6 +140,12 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Unplanned work**: If work outside the story's scope is needed (e.g., fixing a related bug, adding a missing test), formalize it as a new story rather than silently folding it in.
 - **Commit syntax**: Use Conventional Commits — `type(scope): description`. Types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `style`, `perf`. Scope is the app or area (e.g., `feat(chat):`, `fix(server):`, `chore(deps):`). Subject line is lowercase, imperative, no trailing period.
 - **Commit hygiene**: Prefer specific file staging over `git add -A`. Never use `--no-verify` to skip hooks unless explicitly instructed.
+- **Co-authored-by attribution**: When AI assists in writing code, include a `Co-authored-by:` git trailer with the actual model identity. If the model knows its name (e.g., "Claude", "GPT-4", "Gemini"), use it: `Co-authored-by: Claude <noreply@anthropic.com>`. If uncertain about the model identity, ask the user what model to attribute. Example:
+  ```
+  feat(chat): add message deletion
+  
+  Co-authored-by: Claude <noreply@anthropic.com>
+  ```
 - **Branch naming**: `fix/`, `feat/`, `chore/` prefixes — e.g., `feat/story-5-2-moderation`.
 - **Pi hardware stories**: Cannot be self-declared done from tests alone — must be smoke-tested on actual hardware before closure.
 - **Types package**: Build `@manlycam/types` before server typecheck or test runs: `pnpm --filter @manlycam/types build`. The server `typecheck` script does this automatically; manual `tsc --noEmit` runs do not.
@@ -197,4 +203,4 @@ Before marking any story `ready-for-review`, confirm ALL of the following:
 - Update when technology stack or patterns change
 - Remove rules that become obvious over time
 
-_Last Updated: 2026-03-20_
+_Last Updated: 2026-03-21_
