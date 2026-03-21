@@ -37,7 +37,8 @@ describe('useAdminUsers', () => {
     expect(isLoading.value).toBe(false);
   });
 
-  it('updates user role optimistically', async () => {
+  it('updates user role optimistically and shows toast', async () => {
+    const { toast } = await import('vue-sonner');
     const mockUsers = [
       { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany },
     ] as unknown as AdminUser[];
@@ -50,6 +51,7 @@ describe('useAdminUsers', () => {
 
     expect(users.value[0].role).toBe(Role.Moderator);
     expect(apiFetch).toHaveBeenCalledWith('/api/admin/users/u1/role', expect.any(Object));
+    expect(toast.success).toHaveBeenCalledWith('Role updated');
   });
 
   it('does nothing if same role is passed to updateRole', async () => {

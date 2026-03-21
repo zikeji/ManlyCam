@@ -32,11 +32,13 @@ export function handleAdminUserUpdate(updatedUser: Partial<UserProfile> & { id: 
             userTagColor: updatedUser.userTag?.color ?? null,
           }
         : {};
-    users.value[index] = {
+    const updated = users.value.slice();
+    updated[index] = {
       ...users.value[index],
       ...(updatedUser as unknown as Partial<AdminUser>),
       ...tagFields,
     };
+    users.value = updated;
   }
 }
 
@@ -66,8 +68,8 @@ export function useAdminUsers() {
         method: 'POST',
         body: JSON.stringify({ role }),
       });
-      // Optimistic update
       handleAdminUserUpdate({ id: userId, role });
+      toast.success('Role updated');
     } catch (err: unknown) {
       console.error('Failed to update role:', err);
       throw err;
