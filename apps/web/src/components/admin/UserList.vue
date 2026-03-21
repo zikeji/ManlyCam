@@ -279,7 +279,6 @@ const columns: ColumnDef<AdminUser>[] = [
   columnHelper.accessor('lastSeenAt', {
     header: 'Last Seen',
     enableSorting: true,
-    sortingFn: 'datetime',
     cell: ({ row }) => {
       const val = row.original.lastSeenAt;
       return h(
@@ -588,7 +587,7 @@ const columns: ColumnDef<AdminUser>[] = [
     <!-- Toolbar: Show banned toggle + Refresh button -->
     <div class="flex items-center justify-between px-2 py-2 border-b border-border shrink-0">
       <div class="flex items-center gap-2">
-        <Switch v-model:checked="showBanned" data-testid="show-banned-toggle" />
+        <Switch v-model="showBanned" data-testid="show-banned-toggle" />
         <span class="text-xs text-muted-foreground">Show banned users</span>
       </div>
       <Button

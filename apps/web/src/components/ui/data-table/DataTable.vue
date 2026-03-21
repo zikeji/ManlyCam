@@ -39,10 +39,10 @@ const emit = defineEmits<{ loadMore: [] }>();
 
 const sorting = ref<SortingState>(props.initialSorting);
 
+const dataRef = computed(() => props.data);
+
 const table = useVueTable({
-  get data() {
-    return props.data;
-  },
+  data: dataRef,
   get columns() {
     return props.columns;
   },

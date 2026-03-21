@@ -56,7 +56,6 @@ const columns: ColumnDef<AuditLogEntry>[] = [
       return formatDateTime(row.getValue<string>('performedAt'));
     },
     enableSorting: true,
-    sortingFn: 'datetime',
   },
   {
     accessorKey: 'metadata',

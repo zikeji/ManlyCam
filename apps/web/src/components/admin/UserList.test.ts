@@ -39,10 +39,10 @@ vi.mock('@/composables/useAuth', () => ({
 // Switch mock: forwards attrs so data-testid from parent template works
 vi.mock('@/components/ui/switch', () => ({
   Switch: defineComponent({
-    props: ['checked'],
-    emits: ['update:checked'],
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
     template:
-      '<button v-bind="$attrs" @click="$emit(\'update:checked\', !checked)"><slot /></button>',
+      '<button v-bind="$attrs" @click="$emit(\'update:modelValue\', !modelValue)"><slot /></button>',
   }),
 }));
 
