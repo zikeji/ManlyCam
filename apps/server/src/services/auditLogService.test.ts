@@ -135,4 +135,15 @@ describe('getAuditLogPage', () => {
   it('throws AppError 422 for cursor that is too short', async () => {
     await expect(getAuditLogPage({ cursor: 'SHORT', limit: 50 })).rejects.toBeInstanceOf(AppError);
   });
+
+  it('throws AppError 500 when database query fails', async () => {
+    vi.mocked(prisma.auditLog.findMany).mockRejectedValue(
+      new Error('DB connection failed') as never,
+    );
+
+    await expect(getAuditLogPage({ limit: 50 })).rejects.toMatchObject({
+      statusCode: 500,
+      code: 'DB_ERROR',
+    });
+  });
 });

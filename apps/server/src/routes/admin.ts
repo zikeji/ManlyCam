@@ -181,7 +181,8 @@ export function createAdminRouter() {
   router.get('/audit-log', async (c) => {
     const cursor = c.req.query('cursor');
     const limitRaw = c.req.query('limit');
-    const limit = limitRaw ? parseInt(limitRaw, 10) : 50;
+    const parsedLimit = limitRaw ? parseInt(limitRaw, 10) : 50;
+    const limit = Number.isNaN(parsedLimit) ? 50 : parsedLimit;
     const result = await getAuditLogPage({ cursor, limit });
     return c.json(result);
   });

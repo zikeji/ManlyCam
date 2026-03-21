@@ -676,5 +676,16 @@ describe('admin routes', () => {
       const body = await res.json();
       expect(body.nextCursor).toBe('01HX00000000000000000000BB');
     });
+
+    it('defaults limit to 50 when limit param is invalid (NaN)', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(getAuditLogPage).mockResolvedValue({ entries: [], nextCursor: null });
+
+      await app.request('/api/admin/audit-log?limit=invalid', {
+        headers: { cookie: 'session_id=s1' },
+      });
+
+      expect(getAuditLogPage).toHaveBeenCalledWith(expect.objectContaining({ limit: 50 }));
+    });
   });
 });

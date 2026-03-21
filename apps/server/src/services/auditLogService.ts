@@ -31,12 +31,17 @@ export async function getAuditLogPage({
     throw new AppError('Invalid cursor format', 'VALIDATION_ERROR', 422);
   }
 
-  const rows = await prisma.auditLog.findMany({
-    where: cursor ? { id: { lt: cursor } } : undefined,
-    orderBy: { id: 'desc' },
-    take: clampedLimit,
-    include: { actor: { select: { displayName: true } } },
-  });
+  let rows;
+  try {
+    rows = await prisma.auditLog.findMany({
+      where: cursor ? { id: { lt: cursor } } : undefined,
+      orderBy: { id: 'desc' },
+      take: clampedLimit,
+      include: { actor: { select: { displayName: true } } },
+    });
+  } catch {
+    throw new AppError('Database query failed', 'DB_ERROR', 500);
+  }
 
   const entries: AuditLogEntry[] = rows.map((e) => ({
     id: e.id,

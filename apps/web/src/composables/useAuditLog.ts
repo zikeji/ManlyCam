@@ -33,7 +33,8 @@ export function useAuditLog() {
       nextCursor = data.nextCursor;
       hasMore.value = nextCursor !== null;
     } catch (err: unknown) {
-      error.value = (err as Error).message || 'Failed to fetch audit log';
+      error.value =
+        (err instanceof Error ? err.message : String(err)) || 'Failed to fetch audit log';
     } finally {
       isLoading.value = false;
     }
@@ -51,7 +52,8 @@ export function useAuditLog() {
       nextCursor = data.nextCursor;
       hasMore.value = nextCursor !== null;
     } catch (err: unknown) {
-      error.value = (err as Error).message || 'Failed to fetch audit log';
+      error.value =
+        (err instanceof Error ? err.message : String(err)) || 'Failed to fetch audit log';
     } finally {
       isLoading.value = false;
     }

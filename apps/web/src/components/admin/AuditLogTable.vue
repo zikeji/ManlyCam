@@ -8,6 +8,8 @@ import type { AuditLogEntry } from '@/composables/useAuditLog';
 import { formatDateTime } from '@/lib/dateFormat';
 import { Loader2 } from 'lucide-vue-next';
 
+const initialSorting = [{ id: 'performedAt', desc: true as const }];
+
 const ACTION_LABELS: Record<string, string> = {
   message_delete: 'Message Deleted',
   mute: 'User Muted',
@@ -82,6 +84,7 @@ const columns: ColumnDef<AuditLogEntry>[] = [
       :page-size="50"
       empty-message="No moderation actions recorded yet."
       :has-more="hasMore"
+      :initial-sorting="initialSorting"
       @load-more="fetchNextPage"
     />
   </div>

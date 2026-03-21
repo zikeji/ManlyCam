@@ -25,17 +25,19 @@ interface Props {
   pageSize?: number;
   emptyMessage?: string;
   hasMore?: boolean;
+  initialSorting?: SortingState;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   pageSize: 10,
   emptyMessage: 'No data.',
   hasMore: false,
+  initialSorting: () => [],
 });
 
 const emit = defineEmits<{ loadMore: [] }>();
 
-const sorting = ref<SortingState>([]);
+const sorting = ref<SortingState>(props.initialSorting);
 
 const table = useVueTable({
   get data() {
@@ -87,7 +89,10 @@ defineExpose({ table });
                   />
                   <template v-if="header.column.getCanSort()">
                     <ChevronUp v-if="header.column.getIsSorted() === 'asc'" class="w-3 h-3" />
-                    <ChevronDown v-else-if="header.column.getIsSorted() === 'desc'" class="w-3 h-3" />
+                    <ChevronDown
+                      v-else-if="header.column.getIsSorted() === 'desc'"
+                      class="w-3 h-3"
+                    />
                     <ChevronsUpDown v-else class="w-3 h-3 text-muted-foreground" />
                   </template>
                 </div>
