@@ -72,6 +72,20 @@ describe('GET /api/me', () => {
     });
   });
 
+  it('serialises mutedAt as ISO string when present', async () => {
+    const muted = new Date('2026-02-20T12:00:00Z');
+    vi.mocked(getSessionUser).mockResolvedValue({
+      ...mockUser,
+      mutedAt: muted,
+    } as never);
+    const { app } = createApp();
+    const res = await app.request('/api/me', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+    const body = await res.json();
+    expect(body.mutedAt).toBe(muted.toISOString());
+  });
+
   it('returns null for optional fields, never undefined', async () => {
     vi.mocked(getSessionUser).mockResolvedValue({
       ...mockUser,

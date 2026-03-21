@@ -10,6 +10,8 @@ import {
   handleUserUpdate,
   handleChatEdit,
   handleChatDelete,
+  handleEphemeral,
+  dismissEphemeral,
   unreadCount,
   resetUnread,
   incrementUnread,
@@ -359,6 +361,24 @@ describe('useChat', () => {
 
       expect(() => handleChatDelete('msg-001')).not.toThrow();
       expect(messages.value).toHaveLength(0);
+    });
+  });
+
+  describe('handleEphemeral', () => {
+    it('adds message to ephemeralMessages', () => {
+      const { ephemeralMessages } = useChat();
+      handleEphemeral(mockMessage);
+      expect(ephemeralMessages.value).toHaveLength(1);
+      expect(ephemeralMessages.value[0]).toEqual(mockMessage);
+    });
+  });
+
+  describe('dismissEphemeral', () => {
+    it('removes message from ephemeralMessages by id', () => {
+      const { ephemeralMessages } = useChat();
+      handleEphemeral(mockMessage);
+      dismissEphemeral(mockMessage.id);
+      expect(ephemeralMessages.value).toHaveLength(0);
     });
   });
 

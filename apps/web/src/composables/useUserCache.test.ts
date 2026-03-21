@@ -98,6 +98,18 @@ describe('useUserCache', () => {
     expect(lookupUser('user-001')).toBeUndefined();
   });
 
+  it('does not throw when localStorage.setItem throws (quota exceeded etc.)', async () => {
+    const throwingStorage = {
+      ...makeStorageStub(),
+      setItem: () => {
+        throw new Error('QuotaExceededError');
+      },
+    };
+    vi.stubGlobal('localStorage', throwingStorage);
+    const { cacheUsers } = await import('./useUserCache');
+    expect(() => cacheUsers([john])).not.toThrow();
+  });
+
   it('userCache ref is reactive — values visible via the ref', async () => {
     const { cacheUsers, userCache } = await import('./useUserCache');
     cacheUsers([john]);

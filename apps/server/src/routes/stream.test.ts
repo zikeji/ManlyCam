@@ -134,6 +134,48 @@ describe('POST /api/stream/whep', () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it('forwards Content-Type header when provided (non-null ?? branch)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('v=0\r\n', { status: 201 })));
+
+    const res = await createApp().app.request('/api/stream/whep', {
+      method: 'POST',
+      headers: { cookie: 'session_id=valid-session', 'Content-Type': 'application/sdp' },
+      body: 'v=0\r\n',
+    });
+
+    expect(res.status).toBe(201);
+    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
+    expect((fetchCall[1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ 'Content-Type': 'application/sdp' }),
+    );
+  });
+
+  it('strips hop-by-hop headers from mediamtx response', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('v=0\r\n', {
+          status: 201,
+          headers: {
+            'Content-Type': 'application/sdp',
+            'Transfer-Encoding': 'chunked',
+          },
+        }),
+      ),
+    );
+
+    const res = await createApp().app.request('/api/stream/whep', {
+      ...authHeaders,
+      method: 'POST',
+      body: 'v=0\r\n',
+    });
+
+    expect(res.status).toBe(201);
+    expect(res.headers.get('Transfer-Encoding')).toBeNull();
+  });
 });
 
 describe('PATCH /api/stream/whep/:session', () => {
@@ -158,6 +200,26 @@ describe('PATCH /api/stream/whep/:session', () => {
       body: 'a=candidate:...',
     });
     expect(res.status).toBe(204);
+  });
+
+  it('forwards Content-Type header on PATCH when provided (non-null ?? branch)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+    const res = await createApp().app.request('/api/stream/whep/session-abc', {
+      method: 'PATCH',
+      headers: {
+        cookie: 'session_id=valid-session',
+        'Content-Type': 'application/trickle-ice-sdpfrag',
+      },
+      body: 'a=candidate:...',
+    });
+
+    expect(res.status).toBe(204);
+    const fetchCall = vi.mocked(global.fetch).mock.calls[0];
+    expect((fetchCall[1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ 'Content-Type': 'application/trickle-ice-sdpfrag' }),
+    );
   });
 });
 

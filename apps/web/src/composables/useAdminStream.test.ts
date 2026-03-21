@@ -67,6 +67,26 @@ describe('useAdminStream', () => {
     expect(error.value).toBe('Failed to start stream');
   });
 
+  it('stopStream on ApiFetchError, error.value is set to message; isLoading is false', async () => {
+    const apiError = new ApiFetchError('Forbidden', 403, 'FORBIDDEN');
+    vi.mocked(apiFetch).mockRejectedValue(apiError);
+    const { stopStream, isLoading, error } = useAdminStream();
+
+    await stopStream();
+
+    expect(isLoading.value).toBe(false);
+    expect(error.value).toBe('Forbidden');
+  });
+
+  it('stopStream on non-ApiFetchError, error.value is set to fallback message', async () => {
+    vi.mocked(apiFetch).mockRejectedValue(new Error('network error'));
+    const { stopStream, error } = useAdminStream();
+
+    await stopStream();
+
+    expect(error.value).toBe('Failed to stop stream');
+  });
+
   it('error is cleared on a new successful call', async () => {
     vi.mocked(apiFetch).mockRejectedValueOnce(new ApiFetchError('err', 500));
     vi.mocked(apiFetch).mockResolvedValueOnce({ ok: true });

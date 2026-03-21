@@ -153,6 +153,16 @@ describe('MentionAutocomplete.vue', () => {
     });
   });
 
+  it('handleKeydown does nothing when visible is false', async () => {
+    wrapper = mount(MentionAutocomplete, {
+      props: { ...defaultProps, visible: false },
+    });
+    const comp = wrapper.vm as unknown as { handleKeydown: (e: KeyboardEvent) => void };
+    comp.handleKeydown(new KeyboardEvent('keydown', { key: 'ArrowDown' }));
+    await wrapper.vm.$nextTick();
+    expect(wrapper.emitted('select')).toBeFalsy();
+  });
+
   it('has role="listbox" on container', () => {
     wrapper = mount(MentionAutocomplete, { props: defaultProps });
     expect(wrapper.find('[role="listbox"]').exists()).toBe(true);

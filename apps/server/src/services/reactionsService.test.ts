@@ -88,6 +88,14 @@ describe('addReaction', () => {
     ).rejects.toMatchObject({ code: 'NOT_FOUND', statusCode: 404 });
   });
 
+  it('throws NOT_FOUND when user does not exist', async () => {
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(mockMessage as never);
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    await expect(
+      addReaction({ messageId: 'msg-001', userId: 'nonexistent', emoji: 'thumbs_up' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', statusCode: 404 });
+  });
+
   it('throws FORBIDDEN when user is muted', async () => {
     vi.mocked(prisma.message.findUnique).mockResolvedValue(mockMessage as never);
     vi.mocked(prisma.user.findUnique).mockResolvedValue(mutedUser as never);
@@ -361,5 +369,37 @@ describe('getReactionsForMessages', () => {
     const result = await getReactionsForMessages(['msg-001', 'msg-002']);
     expect(result.get('msg-001')).toEqual([]);
     expect(result.get('msg-002')).toEqual([]);
+  });
+
+  it('aggregates multiple reactions with same emoji from different users on same message', async () => {
+    const t1 = new Date('2026-01-01T10:00:00Z');
+    const t2 = new Date('2026-01-01T10:01:00Z');
+    vi.mocked(prisma.reaction.findMany).mockResolvedValue([
+      {
+        id: 'r1',
+        messageId: 'msg-001',
+        userId: 'u1',
+        emoji: 'thumbs_up',
+        createdAt: t1,
+        user: { displayName: 'User One', role: 'ViewerCompany' },
+      },
+      {
+        id: 'r2',
+        messageId: 'msg-001',
+        userId: 'u2',
+        emoji: 'thumbs_up',
+        createdAt: t2,
+        user: { displayName: 'User Two', role: 'Viewer' },
+      },
+    ] as never);
+
+    const result = await getReactionsForMessages(['msg-001']);
+    const reactions = result.get('msg-001')!;
+    expect(reactions).toHaveLength(1);
+    expect(reactions[0].emoji).toBe('thumbs_up');
+    expect(reactions[0].count).toBe(2);
+    expect(reactions[0].userIds).toEqual(['u1', 'u2']);
+    expect(reactions[0].userDisplayNames).toEqual(['User One', 'User Two']);
+    expect(reactions[0].userRoles).toEqual(['ViewerCompany', 'Viewer']);
   });
 });

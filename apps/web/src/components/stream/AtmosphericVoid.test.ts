@@ -77,4 +77,20 @@ describe('AtmosphericVoid', () => {
       expect.any(Function),
     );
   });
+
+  it('removes old loadeddata listener when videoRef changes', async () => {
+    const firstEl = document.createElement('video');
+    vi.spyOn(firstEl, 'removeEventListener');
+
+    wrapper = mount(AtmosphericVoid, {
+      props: { videoRef: firstEl },
+    });
+    await wrapper.vm.$nextTick();
+
+    const secondEl = document.createElement('video');
+    await wrapper.setProps({ videoRef: secondEl });
+    await wrapper.vm.$nextTick();
+
+    expect(firstEl.removeEventListener).toHaveBeenCalledWith('loadeddata', expect.any(Function));
+  });
 });

@@ -102,8 +102,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
   - Server: `pnpm run test --coverage` from `apps/server`
   - Web: `pnpm run test --coverage` from `apps/web`
   - Never use `npx vitest run` directly.
-- **Coverage thresholds** (server): lines 80%, functions 90%, branches 87%, statements 80%. Do not lower thresholds — raise them to match actuals when coverage improves.
-- **Every new line must be covered**: All new code introduced in a story must be covered by tests. If a line/branch logically cannot be covered (e.g., a Pi hardware reconnect path, defensive fallback, or impossible type guard), add `/* istanbul ignore next */` (or `/* istanbul ignore if */` / `/* istanbul ignore else */` for branches) with a brief inline comment explaining why. Do NOT leave uncovered lines without an explicit ignore annotation.
+- **Coverage thresholds**: Defined in each app's vitest config. Do not lower thresholds — raise them to match actuals when coverage improves.
+- **Every new line must be covered**: All new code introduced in a story must be covered by tests. If a line/branch logically cannot be covered (e.g., a Pi hardware reconnect path, defensive fallback, or impossible type guard), add `/* c8 ignore next */` (or `/* c8 ignore next N */` for multiple lines, `/* c8 ignore start */` / `/* c8 ignore stop */` for blocks) with a brief inline comment explaining why. Do NOT leave uncovered lines without an explicit ignore annotation. **Use `c8` syntax, NOT `istanbul` — the V8 coverage provider does not respect `istanbul ignore` comments.**
 - **Vue component cleanup**: Every Vue Test Utils test suite MUST have `afterEach(() => { wrapper?.unmount(); wrapper = null; })`. Missing cleanup causes watchers from prior tests to pollute subsequent tests → non-deterministic failures.
 - **Wrapper pattern**: Declare `let wrapper: VueWrapper | null = null` at suite level, assign in `beforeEach`, unmount in `afterEach`. Never use top-level `const wrapper = mount(...)`.
 - **No database mocks on server**: Server integration tests hit a real (test) database — do not mock Prisma. Mocked tests can pass while prod migrations are broken.
@@ -158,7 +158,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Never use HLS or introduce a new stream format** — the stream pipeline is WebRTC WHEP via mediamtx. Do not change it.
 - **Never upgrade Tailwind past v3** — pinned to `3.4.19`.
 - **Never set story status to `done`** without explicit permission from Zikeji.
-- **Never leave new uncovered lines without `/* istanbul ignore next */`** (or `if`/`else` variant) and a brief explanation.
+- **Never leave new uncovered lines without `/* c8 ignore next */`** (or `/* c8 ignore start */` / `/* c8 ignore stop */` for blocks) and a brief explanation. V8 provider ignores `istanbul` comments — always use `c8` syntax.
 
 #### Security Rules
 
@@ -175,7 +175,7 @@ Before marking any story `ready-for-review`, confirm ALL of the following:
 1. `pnpm run typecheck` passes (from affected app directories)
 2. `pnpm run lint` passes
 3. `pnpm run test --coverage` passes with thresholds met
-4. All new lines are covered or have `istanbul ignore` annotations
+4. All new lines are covered or have `c8 ignore` annotations
 5. Story File List includes every modified file
 6. UI changes have been flagged for Zikeji to smoke-test
 7. Story `status` is set to `ready-for-review` — NOT `done`

@@ -41,11 +41,36 @@ import {
   getSessionUser,
   handleCallback,
   processOAuthCallback,
+  initiateOAuth,
 } from './authService.js';
 
 describe('authService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('initiateOAuth', () => {
+    it('returns a 32-character hex state string', () => {
+      const { state } = initiateOAuth();
+      expect(state).toMatch(/^[0-9a-f]{32}$/);
+    });
+
+    it('returns authUrl pointing to Google OAuth endpoint with all required params', () => {
+      const { state, authUrl } = initiateOAuth();
+      expect(authUrl).toContain('https://accounts.google.com/o/oauth2/v2/auth');
+      expect(authUrl).toContain('client_id=test-client-id');
+      expect(authUrl).toContain('redirect_uri=');
+      expect(authUrl).toContain('response_type=code');
+      expect(authUrl).toContain('scope=');
+      expect(authUrl).toContain(`state=${state}`);
+      expect(authUrl).toContain('access_type=online');
+    });
+
+    it('generates a different state on each call', () => {
+      const { state: state1 } = initiateOAuth();
+      const { state: state2 } = initiateOAuth();
+      expect(state1).not.toBe(state2);
+    });
   });
 
   describe('createSession', () => {
@@ -313,6 +338,31 @@ describe('authService', () => {
         expect.objectContaining({ data: expect.objectContaining({ role: 'ViewerGuest' }) }),
       );
       expect(result.redirectTo).toBe('/');
+    });
+
+    it('new user: handles email without domain gracefully', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, json: () => Promise.resolve({ access_token: 'tok' }) })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              sub: 'google-123',
+              email: 'nodomain',
+              name: 'Test User',
+              picture: 'https://example.com/avatar.jpg',
+            }),
+        });
+      vi.mocked(prisma.allowlistEntry.findFirst).mockResolvedValue(null);
+
+      const result = await processOAuthCallback('code', 'state', 'state');
+
+      expect(prisma.allowlistEntry.findFirst).toHaveBeenCalledWith({
+        where: { type: 'domain', value: '' },
+      });
+      expect(result).toEqual({ sessionId: null, redirectTo: '/rejected' });
     });
 
     it('no allowlist match: returns null sessionId, redirectTo "/rejected", does not create user or session', async () => {

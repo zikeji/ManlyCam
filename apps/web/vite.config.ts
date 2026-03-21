@@ -37,7 +37,9 @@ export const config = defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@manlycam/types': fileURLToPath(new URL('../../packages/types/src/index.ts', import.meta.url)),
+      '@manlycam/types': fileURLToPath(
+        new URL('../../packages/types/src/index.ts', import.meta.url),
+      ),
     },
   },
   server: {
@@ -56,19 +58,21 @@ export const config = defineConfig({
       exclude: [
         'src/**/*.test.ts',
         'src/main.ts',
-        'src/router/**',  // routing config, not unit-testable
-        'src/types/**',   // re-export barrel, no logic
-        'src/components/ui/**',  // shadcn-vue generated components, not unit-testable
-        'src/lib/emoji-data.ts',  // import.meta.glob generates ~1000s of lazy arrow fns; V8 counts all as uncovered
+        'src/router/**', // routing config, not unit-testable
+        'src/types/**', // re-export barrel, no logic
+        'src/components/ui/**', // shadcn-vue generated components, not unit-testable
+        'src/lib/emoji-data.ts', // import.meta.glob generates ~1000s of lazy arrow fns; V8 counts all as uncovered
+        'src/vite-env.d.ts', // ambient type declarations, no runtime code
+        'src/components/admin/UserManagerDialog.vue', // pure template wrapper, no logic to test
       ],
       // Thresholds based on Story 8.4 actual coverage (slash commands + ephemeral messages)
       // Actual coverage: lines ~93%, functions 68%, branches ~91%, statements ~93%
       // Setting thresholds: functions at 64% (hover-gated UI components), others per actual
       thresholds: {
-        lines: 90,
-        functions: 64,
-        branches: 90,
-        statements: 90,
+        lines: 98,
+        functions: 87,
+        branches: 94,
+        statements: 98,
       },
     },
   },

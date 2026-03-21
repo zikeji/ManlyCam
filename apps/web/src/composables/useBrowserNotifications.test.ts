@@ -117,6 +117,21 @@ describe('useBrowserNotifications', () => {
     expect(MockNotification.instances).toHaveLength(1);
   });
 
+  it('showNotification does nothing when Notification is not in window', async () => {
+    const savedNotification = window.Notification;
+    // @ts-expect-error intentionally removing
+    delete window.Notification;
+
+    const { useBrowserNotifications } = await import('./useBrowserNotifications');
+    const { showNotification } = useBrowserNotifications();
+    showNotification('Test', { body: 'hello' });
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(MockNotification.instances).toHaveLength(0);
+
+    vi.stubGlobal('Notification', savedNotification);
+  });
+
   it('showNotification does nothing when permission is not granted', async () => {
     MockNotification.permission = 'denied';
 
@@ -155,6 +170,26 @@ describe('useBrowserNotifications', () => {
     expect(MockNotification.instances[0].options?.tag).toBe('manlycam');
   });
 
+  it('notification.onclick focuses window and closes notification', async () => {
+    MockNotification.permission = 'granted';
+    const focusSpy = vi.spyOn(window, 'focus').mockImplementation(() => {});
+
+    const { useBrowserNotifications } = await import('./useBrowserNotifications');
+    const { showNotification } = useBrowserNotifications();
+
+    showNotification('Test Title', { body: 'Test body' });
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(MockNotification.instances).toHaveLength(1);
+    const notification = MockNotification.instances[0];
+
+    expect(notification.onclick).not.toBeNull();
+    notification.onclick!();
+
+    expect(focusSpy).toHaveBeenCalled();
+    expect(notification.close).toHaveBeenCalled();
+  });
+
   it('showNotification works correctly on second call (channel already initialized)', async () => {
     MockNotification.permission = 'granted';
 
@@ -173,6 +208,24 @@ describe('useBrowserNotifications', () => {
     await new Promise((r) => setTimeout(r, 200));
     expect(MockNotification.instances).toHaveLength(1);
     expect(MockNotification.instances[0].title).toBe('Second');
+  });
+
+  it('showNotification does nothing when leader is lost before timeout (isLeader=false branch)', async () => {
+    vi.useFakeTimers();
+    MockNotification.permission = 'granted';
+
+    const { useBrowserNotifications } = await import('./useBrowserNotifications');
+    const { showNotification } = useBrowserNotifications();
+
+    showNotification('Test', { body: 'hello' });
+
+    const ch = MockBroadcastChannel.channels[0];
+    ch.onmessage?.(new MessageEvent('message', { data: { type: 'claim-leader' } }));
+
+    vi.advanceTimersByTime(200);
+
+    expect(MockNotification.instances).toHaveLength(0);
+    vi.useRealTimers();
   });
 
   it('tab coordination: only one notification is shown across two tabs (AC #7)', async () => {

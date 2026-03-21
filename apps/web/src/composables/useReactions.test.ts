@@ -212,6 +212,34 @@ describe('handleReactionAdd', () => {
 
     expect(messages.value[0].reactions).toHaveLength(0);
   });
+
+  it('preserves existing userReacted=true via || short-circuit when another user reacts', () => {
+    const existing: Reaction = {
+      emoji: 'thumbs_up',
+      count: 1,
+      userReacted: true,
+      userIds: ['current-user'],
+      userDisplayNames: ['Me'],
+      userRoles: ['ViewerCompany' as const],
+      firstReactedAt: new Date().toISOString(),
+    };
+    messages.value = [makeMessage('msg-001', [existing])];
+
+    handleReactionAdd(
+      {
+        messageId: 'msg-001',
+        userId: 'other-user',
+        displayName: 'Other',
+        role: 'ViewerGuest' as const,
+        emoji: 'thumbs_up',
+        createdAt: new Date().toISOString(),
+      },
+      'current-user',
+    );
+
+    expect(messages.value[0].reactions![0].userReacted).toBe(true);
+    expect(messages.value[0].reactions![0].count).toBe(2);
+  });
 });
 
 describe('handleReactionRemove', () => {
@@ -350,6 +378,36 @@ describe('useReactions', () => {
       '/api/messages/msg-001/reactions/thumbs_up',
       expect.objectContaining({ method: 'DELETE' }),
     );
+  });
+
+  it('keeps other emoji reactions intact when removing one reaction type', () => {
+    const thumbsUp: Reaction = {
+      emoji: 'thumbs_up',
+      count: 1,
+      userReacted: true,
+      userIds: ['user-001'],
+      userDisplayNames: ['User One'],
+      userRoles: ['ViewerGuest' as const],
+      firstReactedAt: new Date().toISOString(),
+    };
+    const heart: Reaction = {
+      emoji: 'red_heart',
+      count: 1,
+      userReacted: false,
+      userIds: ['user-002'],
+      userDisplayNames: ['User Two'],
+      userRoles: ['ViewerCompany' as const],
+      firstReactedAt: new Date().toISOString(),
+    };
+    messages.value = [makeMessage('msg-001', [thumbsUp, heart])];
+
+    handleReactionRemove(
+      { messageId: 'msg-001', userId: 'user-001', emoji: 'thumbs_up' },
+      'user-001',
+    );
+
+    expect(messages.value[0].reactions!).toHaveLength(1);
+    expect(messages.value[0].reactions![0].emoji).toBe('red_heart');
   });
 
   it('modRemoveReaction calls apiFetch with DELETE to mod endpoint', async () => {

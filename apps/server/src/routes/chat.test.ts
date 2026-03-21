@@ -202,6 +202,32 @@ describe('POST /api/chat/messages', () => {
       content: 'Hello world',
     });
   });
+
+  it('returns 400 when body is invalid JSON', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+
+    const res = await createApp().app.request('/api/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: 'not-valid-json{',
+    });
+
+    expect(res.status).toBe(400);
+    expect(createMessage).not.toHaveBeenCalled();
+  });
+
+  it('returns 204 when createMessage returns null (ephemeral slash command)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(createMessage).mockResolvedValue(null);
+
+    const res = await createApp().app.request('/api/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: JSON.stringify({ content: '/help' }),
+    });
+
+    expect(res.status).toBe(204);
+  });
 });
 
 describe('GET /api/chat/history', () => {
@@ -267,6 +293,17 @@ describe('GET /api/chat/history', () => {
     });
 
     expect(getHistory).toHaveBeenCalledWith({ limit: 20, before: undefined, userId: 'user-001' });
+  });
+
+  it('treats NaN limit as default 50', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getHistory).mockResolvedValue({ messages: [], hasMore: false });
+
+    await createApp().app.request('/api/chat/history?limit=abc', {
+      headers: { cookie: 'session_id=valid-session' },
+    });
+
+    expect(getHistory).toHaveBeenCalledWith({ limit: 50, before: undefined, userId: 'user-001' });
   });
 
   it('clamps limit to max 100', async () => {
@@ -421,6 +458,19 @@ describe('PATCH /api/chat/messages/:messageId', () => {
       userId: 'user-001',
       content: 'Updated content',
     });
+  });
+
+  it('returns 400 when body is invalid JSON', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+
+    const res = await createApp().app.request('/api/chat/messages/msg-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+      body: 'not-valid-json{',
+    });
+
+    expect(res.status).toBe(400);
+    expect(editMessage).not.toHaveBeenCalled();
   });
 });
 

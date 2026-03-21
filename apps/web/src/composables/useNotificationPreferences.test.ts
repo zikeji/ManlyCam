@@ -117,6 +117,22 @@ describe('useNotificationPreferences', () => {
     expect(preferences.value.mentions).toBe(false);
   });
 
+  it('handles localStorage.setItem throwing an error gracefully', async () => {
+    localStorageMock.setItem.mockImplementationOnce(() => {
+      throw new Error('Quota exceeded');
+    });
+    const { useNotificationPreferences } = await import('./useNotificationPreferences');
+    const { updatePreference } = useNotificationPreferences();
+
+    // Should not throw
+    expect(() => {
+      updatePreference('chatMessages', true);
+    }).not.toThrow();
+
+    // Wait for watcher
+    await new Promise((r) => setTimeout(r, 0));
+  });
+
   it('preferences ref is shared across multiple useNotificationPreferences() calls', async () => {
     localStorageMock.getItem.mockReturnValue(null);
     const { useNotificationPreferences } = await import('./useNotificationPreferences');

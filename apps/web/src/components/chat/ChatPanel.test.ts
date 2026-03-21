@@ -728,4 +728,113 @@ describe('ChatPanel.vue', () => {
       expect(wrapper.text()).toContain('ephemeral alongside regular');
     });
   });
+
+  describe('handleMessageDelete with INSUFFICIENT_ROLE error', () => {
+    function mountWithStub() {
+      return mount(ChatPanel, {
+        global: {
+          stubs: {
+            ChatMessage: {
+              name: 'ChatMessage',
+              props: ['message', 'isContinuation', 'isOwn', 'canModerateDelete'],
+              emits: ['requestDelete'],
+              template: `<div :data-msg-id="message.id"><button class="trigger-delete" @click="$emit('requestDelete', message.id)">delete</button></div>`,
+            },
+          },
+        },
+      });
+    }
+
+    it('alerts when deleteMessage throws INSUFFICIENT_ROLE', async () => {
+      const err = Object.assign(new Error('Insufficient role'), { code: 'INSUFFICIENT_ROLE' });
+      mockDeleteMessage.mockRejectedValue(err);
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+      mockMessages.value = [mockMessage];
+      wrapper = mountWithStub();
+      await flushPromises();
+
+      await wrapper.find('.trigger-delete').trigger('click');
+      await flushPromises();
+
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('permission'));
+      alertSpy.mockRestore();
+    });
+  });
+
+  describe('handleEditLast', () => {
+    it('triggers edit on the most recent own message within 5 minutes', async () => {
+      const now = Date.now();
+      mockMessages.value = [
+        {
+          ...mockMessage,
+          id: 'msg-recent',
+          userId: 'user-001',
+          createdAt: new Date(now - 60_000).toISOString(),
+        },
+      ];
+      wrapper = mount(ChatPanel);
+      await flushPromises();
+      const textarea = wrapper.find('textarea');
+      await textarea.trigger('keydown', { key: 'ArrowUp' });
+    });
+  });
+
+  describe('canModerateDeleteMsg — system messages', () => {
+    function mountWithStub() {
+      return mount(ChatPanel, {
+        global: {
+          stubs: {
+            ChatMessage: {
+              name: 'ChatMessage',
+              props: ['message', 'isContinuation', 'isOwn', 'canModerateDelete'],
+              emits: [],
+              template: `<div :data-msg-id="message.id" :data-can-moderate-delete="String(canModerateDelete)" />`,
+            },
+          },
+        },
+      });
+    }
+
+    it('Admin can delete system messages (canModerateDelete=true)', async () => {
+      const { useAuth } = await import('@/composables/useAuth');
+      vi.mocked(useAuth).mockReturnValueOnce({
+        user: ref({ id: 'user-001', displayName: 'Admin', avatarUrl: null, role: 'Admin' }),
+        logout: vi.fn(),
+      } as never);
+      mockMessages.value = [
+        {
+          ...mockMessage,
+          id: 'msg-sys',
+          userId: '015YP4KB00MANLY0CAM0SYSTEM',
+          authorRole: 'System' as never,
+        },
+      ];
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-sys"]').attributes('data-can-moderate-delete')).toBe(
+        'true',
+      );
+    });
+
+    it('Moderator cannot delete system messages (canModerateDelete=false)', async () => {
+      const { useAuth } = await import('@/composables/useAuth');
+      vi.mocked(useAuth).mockReturnValueOnce({
+        user: ref({ id: 'user-001', displayName: 'Mod', avatarUrl: null, role: 'Moderator' }),
+        logout: vi.fn(),
+      } as never);
+      mockMessages.value = [
+        {
+          ...mockMessage,
+          id: 'msg-sys',
+          userId: '015YP4KB00MANLY0CAM0SYSTEM',
+          authorRole: 'System' as never,
+        },
+      ];
+      wrapper = mountWithStub();
+      await flushPromises();
+      expect(wrapper.find('[data-msg-id="msg-sys"]').attributes('data-can-moderate-delete')).toBe(
+        'false',
+      );
+    });
+  });
 });

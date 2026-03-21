@@ -7,7 +7,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
 import { AppError } from '../lib/errors.js';
 import type { AppEnv } from '../lib/types.js';
-import { Role } from '@manlycam/types';
+import { Role, SYSTEM_USER_ID } from '@manlycam/types';
 
 vi.mock('../services/authService.js', () => ({
   getSessionUser: vi.fn(),
@@ -160,6 +160,66 @@ describe('admin routes', () => {
       expect(res.status).toBe(403);
       expect(updateUserRoleById).not.toHaveBeenCalled();
     });
+
+    it('returns 400 when body is invalid JSON', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'u1',
+        role: Role.Admin,
+        bannedAt: null,
+      } as never);
+
+      const res = await app.request('/api/admin/users/u2/role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: 'session_id=s1',
+        },
+        body: 'not-valid-json{',
+      });
+
+      expect(res.status).toBe(400);
+      expect(updateUserRoleById).not.toHaveBeenCalled();
+    });
+
+    it('returns 422 when role is not an allowed value', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'u1',
+        role: Role.Admin,
+        bannedAt: null,
+      } as never);
+
+      const res = await app.request('/api/admin/users/u2/role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: 'session_id=s1',
+        },
+        body: JSON.stringify({ role: Role.Admin }),
+      });
+
+      expect(res.status).toBe(422);
+      expect(updateUserRoleById).not.toHaveBeenCalled();
+    });
+
+    it('returns 403 when targetUserId is the system user', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'u1',
+        role: Role.Admin,
+        bannedAt: null,
+      } as never);
+
+      const res = await app.request(`/api/admin/users/${SYSTEM_USER_ID}/role`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          cookie: 'session_id=s1',
+        },
+        body: JSON.stringify({ role: Role.Moderator }),
+      });
+
+      expect(res.status).toBe(403);
+      expect(updateUserRoleById).not.toHaveBeenCalled();
+    });
   });
 
   describe('PATCH /api/admin/users/:userId/user-tag', () => {
@@ -263,6 +323,20 @@ describe('admin routes', () => {
       });
 
       expect(res.status).toBe(404);
+    });
+
+    it('returns 400 INVALID_JSON when body is malformed', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+
+      const res = await app.request('/api/admin/users/u2/user-tag', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: 'not-json',
+      });
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.code).toBe('INVALID_JSON');
     });
   });
 });

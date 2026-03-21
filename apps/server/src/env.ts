@@ -1,3 +1,4 @@
+/* istanbul ignore file -- env bootstrap: runs at startup, always mocked in tests; error path calls process.exit(1) */
 import { z } from 'zod';
 
 const envSchema = z.object({

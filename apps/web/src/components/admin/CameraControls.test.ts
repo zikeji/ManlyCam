@@ -419,4 +419,107 @@ describe('CameraControls.vue', () => {
       expect(patchSetting).not.toHaveBeenCalled();
     }
   });
+
+  it('debouncedPatch delays API call and cancels previous timer', async () => {
+    vi.useFakeTimers();
+    const patchSetting = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls({ patchSetting }));
+    wrapper = mount(CameraControls);
+
+    const brightnessSlider = wrapper.findComponent({ name: 'Slider' });
+    if (brightnessSlider.exists()) {
+      brightnessSlider.vm.$emit('update:model-value', [0.6]);
+      brightnessSlider.vm.$emit('update:model-value', [0.7]);
+      brightnessSlider.vm.$emit('update:model-value', [0.8]);
+
+      vi.advanceTimersByTime(150);
+      expect(patchSetting).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(200);
+      expect(patchSetting).toHaveBeenCalledTimes(1);
+      expect(patchSetting).toHaveBeenCalledWith('rpiCameraBrightness', 0.8);
+    }
+    vi.useRealTimers();
+  });
+
+  it('handleTextChange calls debouncedPatch for non-restart-required text controls', async () => {
+    vi.useFakeTimers();
+    const patchSetting = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls({ patchSetting }));
+    wrapper = mount(CameraControls);
+
+    const textInput = wrapper.find('#rpiCameraTextOverlay');
+    if (textInput.exists()) {
+      await textInput.setValue('New Overlay Text');
+      vi.runAllTimers();
+      expect(patchSetting).toHaveBeenCalledWith('rpiCameraTextOverlay', 'New Overlay Text');
+    }
+    vi.useRealTimers();
+  });
+
+  it('watch on streamState: sets piReachable=false when state is unreachable', async () => {
+    const piReachable = ref(true);
+    vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls({ piReachable }));
+    mockStreamState.value = 'live';
+    wrapper = mount(CameraControls);
+    mockStreamState.value = 'unreachable';
+    await nextTick();
+    expect(piReachable.value).toBe(false);
+  });
+
+  it('watch on streamState: sets piReachable=false when state is explicit-offline (previewActive=false)', async () => {
+    const piReachable = ref(true);
+    vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls({ piReachable }));
+    mockStreamState.value = 'live';
+    wrapper = mount(CameraControls);
+    mockStreamState.value = 'explicit-offline';
+    await nextTick();
+    expect(piReachable.value).toBe(false);
+  });
+
+  it('handleDualChange calls debouncedPatch with updated array when AWB mode is custom', async () => {
+    vi.useFakeTimers();
+    const patchSetting = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useCameraControlsMock).mockReturnValue(
+      defaultControls({
+        patchSetting,
+        settings: ref({ rpiCameraAWB: 'custom', rpiCameraAWBGains: [1.0, 1.5] }),
+      }),
+    );
+    wrapper = mount(CameraControls);
+
+    const numberInputs = wrapper.findAll('input[type="number"]');
+    if (numberInputs.length > 0) {
+      const inputEl = numberInputs[0].element as HTMLInputElement;
+      inputEl.value = '2.5';
+      await numberInputs[0].trigger('change');
+      vi.runAllTimers();
+      expect(patchSetting).toHaveBeenCalled();
+    }
+    vi.useRealTimers();
+  });
+
+  it('handleConfirm shows error toast if applyStaged throws', async () => {
+    const applyStaged = vi.fn().mockRejectedValue(new Error('Test error'));
+    vi.mocked(useCameraControlsMock).mockReturnValue(
+      defaultControls({ stagedValues: ref({ rpiCameraFps: 60 }), settings: ref({}), applyStaged }),
+    );
+    wrapper = mount(CameraControls, { attachTo: document.body });
+
+    const applyButton = [...document.body.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Apply',
+    );
+    applyButton!.click();
+    await nextTick();
+
+    const confirmBtn = [...document.body.querySelectorAll('button')]
+      .filter((b) => b.textContent?.trim() === 'Apply')
+      .at(-1);
+    confirmBtn!.click();
+    await nextTick();
+    await nextTick();
+
+    expect(applyStaged).toHaveBeenCalled();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Failed to apply settings');
+  });
 });

@@ -306,5 +306,46 @@ describe('StreamPlayer', () => {
       await button.trigger('click');
       expect(wrapper.emitted('toggleChatSidebar')).toBeTruthy();
     });
+
+    it('clears existing tapTimer when second tap arrives before first timer expires', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'live', showLandscapeTapToggle: true },
+      });
+      const container = wrapper.find('[data-stream-container]');
+
+      await container.trigger('click', { pointerType: 'touch' });
+      vi.advanceTimersByTime(1500);
+      await container.trigger('click', { pointerType: 'touch' });
+      await wrapper.vm.$nextTick();
+
+      const toggleOverlay = wrapper.find('.absolute.inset-y-0.right-3');
+      expect(toggleOverlay.classes()).toContain('opacity-100');
+      vi.useRealTimers();
+    });
+
+    it('aria-label includes unread count when unreadCount > 0', () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'live', showLandscapeTapToggle: true, unreadCount: 3 },
+      });
+      const btn = wrapper.find('button[aria-label]');
+      expect(btn.attributes('aria-label')).toContain('3 unread');
+    });
+  });
+
+  it('renders Stop Preview button when adminPreview is true and streamState is explicit-offline', () => {
+    wrapper = mount(StreamPlayer, {
+      props: { streamState: 'explicit-offline', adminPreview: true },
+    });
+    expect(wrapper.find('[data-preview-badge]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Stop Preview');
+  });
+
+  it('emits stopPreview when Stop Preview button is clicked', async () => {
+    wrapper = mount(StreamPlayer, {
+      props: { streamState: 'explicit-offline', adminPreview: true },
+    });
+    await wrapper.find('[data-preview-badge]').trigger('click');
+    expect(wrapper.emitted('stopPreview')).toBeTruthy();
   });
 });

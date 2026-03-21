@@ -272,7 +272,7 @@ describe('PiSugarService', () => {
       const dataHandler = getHandler('data');
 
       await Promise.resolve();
-      dataHandler?.(Buffer.from('60\n'));
+      dataHandler?.(Buffer.from('invalid_number\n'));
       await Promise.resolve();
       dataHandler?.(Buffer.from('true\n'));
       await Promise.resolve();
@@ -284,11 +284,13 @@ describe('PiSugarService', () => {
       const found = (
         statuses as Array<{
           connected: boolean;
+          level?: number;
           plugged?: boolean;
           charging?: boolean;
           chargingRange?: unknown;
         }>
       ).find((s) => s.connected === true);
+      expect(found?.level).toBe(0);
       expect(found?.plugged).toBe(true);
       expect(found?.charging).toBe(false);
       expect(found?.chargingRange).toBeNull();
@@ -330,6 +332,51 @@ describe('PiSugarService', () => {
 
       // poll() should swallow the error (not throw)
       await expect(service.poll()).resolves.toBeUndefined();
+    });
+
+    it('rejects sendCommand with Command timeout after 5 seconds', async () => {
+      vi.useFakeTimers();
+      service.start();
+      const connectHandler = getHandler('connect');
+      connectHandler?.();
+
+      await Promise.resolve();
+      vi.advanceTimersByTime(5_001);
+      await Promise.resolve();
+
+      expect(mockSocket.write).toHaveBeenCalledWith('get battery\n');
+
+      vi.useRealTimers();
+    });
+
+    it('rejects sendCommand via rejectNext when socket error fires while command is pending', async () => {
+      service.start();
+      const connectHandler = getHandler('connect');
+      connectHandler?.();
+
+      await Promise.resolve();
+
+      const errorHandler = getHandler('error');
+      errorHandler?.(new Error('ECONNRESET'));
+
+      await Promise.resolve();
+
+      expect(mockSocket.write).toHaveBeenCalledWith('get battery\n');
+    });
+
+    it('rejects sendCommand via rejectNext when socket close fires while command is pending', async () => {
+      service.start();
+      const connectHandler = getHandler('connect');
+      connectHandler?.();
+
+      await Promise.resolve();
+
+      const closeHandler = getHandler('close');
+      closeHandler?.();
+
+      await Promise.resolve();
+
+      expect(mockSocket.write).toHaveBeenCalledWith('get battery\n');
     });
   });
 

@@ -12,6 +12,7 @@ meRouter.get('/api/me', requireAuth, (c) => {
     email: user.email,
     role: user.role,
     avatarUrl: user.avatarUrl ?? null,
+    /* c8 ignore next -- requireAuth blocks banned users before this handler runs */
     bannedAt: user.bannedAt?.toISOString() ?? null,
     mutedAt: user.mutedAt?.toISOString() ?? null,
   });

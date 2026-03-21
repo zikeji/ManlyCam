@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { defineComponent } from 'vue';
 import { useAdminUsers, handleAdminUserUpdate, users as usersRef } from './useAdminUsers';
 import type { AdminUser } from './useAdminUsers';
 import { apiFetch } from '@/lib/api';
@@ -121,6 +123,15 @@ describe('useAdminUsers', () => {
     expect(error.value).toBe('Fetch failed');
   });
 
+  it('sets fallback error message when thrown error has no message', async () => {
+    vi.mocked(apiFetch).mockRejectedValue({});
+
+    const { error, fetchUsers } = useAdminUsers();
+    await fetchUsers();
+
+    expect(error.value).toBe('Failed to fetch users');
+  });
+
   it('throws error on updateRole failure', async () => {
     vi.mocked(apiFetch).mockRejectedValue(new Error('Update failed'));
     const { updateRole } = useAdminUsers();
@@ -192,6 +203,38 @@ describe('useAdminUsers', () => {
       const { clearUserTag } = useAdminUsers();
 
       await expect(clearUserTag('u1')).rejects.toThrow('Clear failed');
+    });
+  });
+
+  describe('onMounted auto-fetch', () => {
+    it('calls fetchUsers when users list is empty', () => {
+      usersRef.value = [];
+      const TestComponent = defineComponent({
+        setup() {
+          useAdminUsers();
+          return {};
+        },
+        template: '<div/>',
+      });
+
+      mount(TestComponent);
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/admin/users');
+    });
+
+    it('does not call fetchUsers when users list is not empty', () => {
+      usersRef.value = [{ id: 'u1' } as AdminUser];
+      const TestComponent = defineComponent({
+        setup() {
+          useAdminUsers();
+          return {};
+        },
+        template: '<div/>',
+      });
+
+      mount(TestComponent);
+
+      expect(apiFetch).not.toHaveBeenCalled();
     });
   });
 });
