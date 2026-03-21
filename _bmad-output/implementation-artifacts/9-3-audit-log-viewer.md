@@ -1,6 +1,6 @@
 # Story 9-3: Audit Log Viewer
 
-Status: review
+Status: done
 
 ## Story
 
@@ -321,6 +321,7 @@ The `AuditLog` model and `audit_log` table already exist in the Prisma schema (a
 ### Completion Notes
 
 All 7 tasks and all subtasks completed. Quality gates:
+
 - Server: 478 tests passing, 100% coverage
 - Web: 1098 tests passing, coverage lines 98.55% / branches 94.2% / functions 87.56% / statements 98.55% (all thresholds met)
 - Typecheck: zero errors (both apps)
