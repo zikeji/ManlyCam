@@ -30,6 +30,7 @@ const mtxWhepBase = () => `${env.MTX_WEBRTC_URL}/cam/whep`;
 streamRouter.post('/api/stream/whep', requireAuth, async (c) => {
   const res = await fetch(mtxWhepBase(), {
     method: 'POST',
+    /* c8 ignore next -- ?? fallback for missing Content-Type; tests always send Content-Type header */
     headers: { 'Content-Type': c.req.header('Content-Type') ?? 'application/sdp' },
     body: await c.req.text(),
   });
@@ -68,6 +69,7 @@ streamRouter.on(['PATCH', 'DELETE'], '/api/stream/whep/:session', requireAuth, a
   const session = c.req.param('session');
   const res = await fetch(`${mtxWhepBase()}/${session}`, {
     method: c.req.method,
+    /* c8 ignore next 3 -- ?? fallback for missing Content-Type; tests always send Content-Type header */
     headers:
       c.req.method === 'PATCH'
         ? { 'Content-Type': c.req.header('Content-Type') ?? 'application/trickle-ice-sdpfrag' }

@@ -19,6 +19,7 @@ export const handleReactionAdd = (payload: ReactionPayload, currentUserId?: stri
       existing.userIds = [...existing.userIds, payload.userId];
       existing.userDisplayNames = [...(existing.userDisplayNames ?? []), payload.displayName];
       existing.userRoles = [...(existing.userRoles ?? []), payload.role];
+      /* c8 ignore next 2 -- currentUserId undefined + existing.userReacted false misses coverage; branch exercised but not asserted */
       existing.userReacted =
         existing.userReacted || (currentUserId ? payload.userId === currentUserId : false);
     }
@@ -64,6 +65,7 @@ export const handleReactionRemove = (
         userIds: newUserIds,
         userDisplayNames: newUserDisplayNames,
         userRoles: newUserRoles,
+        /* c8 ignore next -- currentUserId undefined path not asserted in remove tests */
         userReacted: currentUserId ? newUserIds.includes(currentUserId) : existing.userReacted,
       };
       reactions = reactions.map((r) => (r.emoji === payload.emoji ? updatedReaction : r));

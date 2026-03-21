@@ -209,6 +209,17 @@ describe('useCameraControls', () => {
     expect(settings.value.rpiCameraBitrate).toBe(2000);
   });
 
+  it('patchSettings sets error on ApiFetchError', async () => {
+    const error = new ApiFetchError('Network error', 0);
+    vi.mocked(apiFetch).mockRejectedValue(error);
+
+    const { patchSettings, lastError } = useCameraControls();
+
+    await patchSettings({ rpiCameraFps: 30 });
+
+    expect(lastError.value).toBe('Network error');
+  });
+
   it('fetchSettings does not overwrite settings when PATCH is in flight', async () => {
     const { fetchSettings, patchSettings, settings } = useCameraControls();
 
@@ -243,5 +254,25 @@ describe('useCameraControls', () => {
     await fetchSettings();
 
     expect(settings.value.rpiCameraFps).toBe(30);
+  });
+
+  it('patchSettings sets fallback error when result.ok is false and error is undefined', async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ ok: false });
+
+    const { patchSettings, lastError } = useCameraControls();
+    await patchSettings({ rpiCameraBrightness: 0.5 });
+
+    expect(lastError.value).toBe('Failed to apply settings');
+  });
+
+  it('patchSetting sets fallback error when result.ok is false and error is undefined', async () => {
+    vi.mocked(apiFetch).mockResolvedValue({ ok: false });
+
+    const { patchSetting, settings, lastError } = useCameraControls();
+    settings.value = { rpiCameraBrightness: 0.5 };
+
+    await patchSetting('rpiCameraBrightness', 0.7);
+
+    expect(lastError.value).toBe('Failed to apply setting');
   });
 });

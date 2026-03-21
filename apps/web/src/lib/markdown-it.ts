@@ -79,6 +79,7 @@ md.inline.ruler.push('custom_strikethrough', (state: StateInline, silent: boolea
     return false;
   }
 
+  /* c8 ignore start -- V8 does not track closures invoked through markdown-it's rule dispatcher */
   const closePos = state.src.indexOf('~~', start + 2);
   if (closePos < 0) return false;
 

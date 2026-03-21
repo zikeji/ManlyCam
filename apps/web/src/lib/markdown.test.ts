@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   renderMarkdownLite,
   renderMarkdown,
@@ -7,6 +7,9 @@ import {
   renderEmojiShortcodes,
   isEmojiOnlyMessage,
 } from './markdown';
+import { md } from './markdown-it';
+import Token from 'markdown-it/lib/token.mjs';
+import hljs from 'highlight.js/lib/core';
 
 describe('renderMarkdownLite', () => {
   it('renders bold text', () => {
@@ -296,6 +299,14 @@ describe('renderMarkdown', () => {
     expect(result).toContain('class="emoji-inline"');
   });
 
+  it('leaves unknown emoji shortcodes as-is in renderMarkdown', () => {
+    const result = renderMarkdown('Hello :unknownemoji999: world');
+    expect(result).toContain('Hello');
+    expect(result).toContain(':unknownemoji999:');
+    expect(result).toContain('world');
+    expect(result).not.toContain('<img');
+  });
+
   it('uses emoji-large class for emoji-only messages', () => {
     const result = renderMarkdown(':grinning_face:');
     expect(result).toContain('class="emoji-large"');
@@ -318,6 +329,60 @@ describe('renderMarkdown', () => {
     const result = renderMarkdown('**:grinning_face:**');
     expect(result).toContain('<strong>');
     expect(result).toContain('/emojis/');
+  });
+
+  describe('markdown-it custom rules', () => {
+    it('falls back to plain text if highlight throws an error', () => {
+      const highlightSpy = vi.spyOn(hljs, 'highlight').mockImplementationOnce(() => {
+        throw new Error('Highlight error');
+      });
+      const result = renderMarkdown('```js\nconst x = 1;\n```');
+      expect(result).toContain('const x = 1;');
+      expect(result).not.toContain('class="hljs-keyword"');
+      highlightSpy.mockRestore();
+    });
+
+    it('overwrites existing rel attribute on links', () => {
+      const token = new Token('link_open', 'a', 1);
+      token.attrs = [
+        ['href', 'https://example.com'],
+        ['rel', 'nofollow'],
+      ];
+      const html = md.renderer.rules.link_open!([token], 0, md.options, {}, md.renderer);
+      expect(html).toContain('rel="noopener noreferrer"');
+      expect(html).not.toContain('nofollow');
+    });
+
+    it('overwrites existing target attribute on links', () => {
+      const token = new Token('link_open', 'a', 1);
+      token.attrs = [
+        ['href', 'https://example.com'],
+        ['target', '_self'],
+      ];
+      const html = md.renderer.rules.link_open!([token], 0, md.options, {}, md.renderer);
+      expect(html).toContain('target="_blank"');
+      expect(html).not.toContain('_self');
+    });
+
+    it('sanitizes unsafe image URLs', () => {
+      const result = renderMarkdown('![alt](javascript:alert(1))');
+      expect(result).not.toContain('<img');
+      expect(result).not.toContain('src="javascript:');
+    });
+
+    it('sanitizes unsafe link URLs', () => {
+      const token = new Token('link_open', 'a', 1);
+      token.attrs = [['href', 'javascript:alert(1)']];
+      const html = md.renderer.rules.link_open!([token], 0, md.options, {}, md.renderer);
+      expect(html).toContain('href="#"');
+      expect(html).not.toContain('javascript:');
+    });
+
+    it('custom strikethrough rule handles unclosed tags', () => {
+      const result = renderMarkdown('~~unclosed');
+      expect(result).toContain('~~unclosed');
+      expect(result).not.toContain('<s>');
+    });
   });
 });
 

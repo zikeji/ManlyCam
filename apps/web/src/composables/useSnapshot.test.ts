@@ -216,6 +216,29 @@ describe('useSnapshot', () => {
 
       expect(mockAppendChild).not.toHaveBeenCalled();
     });
+
+    it('uses getPetName fallback when petName argument is not provided', async () => {
+      const mockVideo = {
+        videoWidth: 640,
+        videoHeight: 480,
+      } as HTMLVideoElement;
+
+      mockGetPetName.mockReturnValue('FallbackPet');
+
+      createElementSpy.mockReturnValueOnce(mockCanvas as unknown as HTMLCanvasElement);
+      createElementSpy.mockReturnValueOnce(mockAnchor as unknown as HTMLAnchorElement);
+
+      const { useSnapshot } = await import('./useSnapshot');
+      const { takeSnapshot } = useSnapshot();
+
+      // Call without second argument
+      takeSnapshot(mockVideo);
+      invokeToBlobCallback();
+
+      expect(mockGetPetName).toHaveBeenCalled();
+      const filename = mockAnchor.download;
+      expect(filename).toContain('FallbackPet');
+    });
   });
 
   describe('Firefox black-row crop fix', () => {

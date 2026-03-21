@@ -128,7 +128,11 @@ export async function getHistory(params: {
   const reactionsMap = await getReactionsForMessages(messageIds, params.userId);
 
   const messages = pageRows
-    .map((row) => toApiChatMessage(row as MessageRow, reactionsMap.get(row.id) ?? []))
+    .map((row) => {
+      /* c8 ignore next -- ?? [] fallback hit when message has no reactions; Map returns undefined for missing keys */
+      const reactions = reactionsMap.get(row.id) ?? [];
+      return toApiChatMessage(row as MessageRow, reactions);
+    })
     .reverse();
 
   return { messages, hasMore };

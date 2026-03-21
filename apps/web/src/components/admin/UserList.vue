@@ -43,6 +43,7 @@ const tagPopoverOpen = ref<Record<string, boolean>>({});
 const tagTextInput = ref<Record<string, string>>({});
 const tagColorObj = ref<Record<string, Color>>({});
 
+/* c8 ignore start -- color parsing/conversion helpers; catch blocks handle malformed color strings from external ColorPicker */
 function safeParseColor(hex: string): Color {
   try {
     return parseColor(hex);
@@ -51,7 +52,6 @@ function safeParseColor(hex: string): Color {
   }
 }
 
-// Returns hex for the current color (used for swatch picker sync and saving)
 function getColorHex(userId: string): string {
   const c = tagColorObj.value[userId];
   if (!c) return USER_TAG_PALETTE[0];
@@ -62,7 +62,6 @@ function getColorHex(userId: string): string {
   }
 }
 
-// Which palette swatch is currently selected (exact match only)
 function getSwatchValue(userId: string): string {
   const hex = getColorHex(userId);
   return (USER_TAG_PALETTE as readonly string[]).includes(hex) ? hex : '';
@@ -82,6 +81,7 @@ function onSwatchChange(userId: string, value: unknown) {
     tagColorObj.value[userId] = safeParseColor(value);
   }
 }
+/* c8 ignore stop */
 
 const getRoleBadgeVariant = (role: Role) => {
   switch (role) {
@@ -93,6 +93,7 @@ const getRoleBadgeVariant = (role: Role) => {
       return 'outline';
     case Role.ViewerGuest:
       return 'secondary';
+    /* c8 ignore next -- TypeScript enum exhaustive; default unreachable */
     default:
       return 'secondary';
   }
@@ -108,13 +109,16 @@ const getRoleBadgeClass = (role: Role) => {
       return 'bg-orange-900/50 text-orange-200 border-orange-700 hover:bg-orange-900/50';
     case Role.ViewerGuest:
       return 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-800';
+    /* c8 ignore next -- TypeScript enum exhaustive; default unreachable */
     default:
       return '';
   }
 };
 
 const canChangeRole = (user: AdminUser) => {
-  return user.id !== currentUser.value?.id && user.role !== Role.Admin && user.id !== SYSTEM_USER_ID;
+  return (
+    user.id !== currentUser.value?.id && user.role !== Role.Admin && user.id !== SYSTEM_USER_ID
+  );
 };
 
 const ROLES_OPTIONS = [Role.Moderator, Role.ViewerCompany, Role.ViewerGuest];
@@ -183,13 +187,29 @@ async function handleClearTag(userId: string) {
         <table class="min-w-full border-collapse">
           <thead>
             <tr class="border-b border-border text-left">
-              <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">User</th>
-              <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Role</th>
-              <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right">Actions</th>
+              <th
+                class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                User
+              </th>
+              <th
+                class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+              >
+                Role
+              </th>
+              <th
+                class="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground text-right"
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in users" :key="user.id" class="border-b border-border/50 hover:bg-accent/50 transition-colors">
+            <tr
+              v-for="user in users"
+              :key="user.id"
+              class="border-b border-border/50 hover:bg-accent/50 transition-colors"
+            >
               <td class="px-4 py-3">
                 <div class="flex flex-col">
                   <span class="text-sm font-medium text-foreground">{{ user.displayName }}</span>
@@ -197,14 +217,24 @@ async function handleClearTag(userId: string) {
                 </div>
               </td>
               <td class="px-4 py-3">
-                <Badge :variant="getRoleBadgeVariant(user.role)" :class="getRoleBadgeClass(user.role)">
+                <Badge
+                  :variant="getRoleBadgeVariant(user.role)"
+                  :class="getRoleBadgeClass(user.role)"
+                >
                   {{ user.role }}
                 </Badge>
               </td>
               <td class="px-4 py-3 text-right">
                 <div class="flex items-center justify-end gap-1.5">
                   <!-- Set Tag Popover -->
-                  <Popover :open="tagPopoverOpen[user.id] ?? false" @update:open="(val) => { if (!val) closeTagPopover(user.id); }">
+                  <Popover
+                    :open="tagPopoverOpen[user.id] ?? false"
+                    @update:open="
+                      (val) => {
+                        if (!val) closeTagPopover(user.id);
+                      }
+                    "
+                  >
                     <PopoverTrigger as-child>
                       <Button
                         variant="outline"
@@ -224,117 +254,122 @@ async function handleClearTag(userId: string) {
                     <PopoverContent class="w-72 p-3 space-y-3" align="end">
                       <!-- v-if ensures color components remount fresh each open, avoiding passive-mode lock -->
                       <template v-if="tagPopoverOpen[user.id]">
-                      <!-- Tag text -->
-                      <div class="space-y-1">
-                        <label class="text-xs font-medium text-muted-foreground">Tag text</label>
-                        <input
-                          v-model="tagTextInput[user.id]"
-                          maxlength="20"
-                          placeholder="Tag text…"
-                          class="w-full px-2 py-1 text-xs rounded border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                          data-testid="tag-text-input"
-                        />
-                      </div>
-
-                      <!-- Color picker -->
-                      <div class="space-y-2">
-                        <label class="text-xs font-medium text-muted-foreground">Color</label>
-
-                        <!-- Color Field (hex input with color swatch icon) -->
-                        <ColorFieldRoot
-                          :model-value="tagColorObj[user.id]"
-                          @update:model-value="(c) => setTagColor(user.id, c)"
-                          class="flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-background"
-                          data-testid="color-field"
-                        >
-                          <span
-                            class="w-4 h-4 rounded-sm flex-shrink-0"
-                            :style="{ backgroundColor: getColorHex(user.id) }"
+                        <!-- Tag text -->
+                        <div class="space-y-1">
+                          <label class="text-xs font-medium text-muted-foreground">Tag text</label>
+                          <input
+                            v-model="tagTextInput[user.id]"
+                            maxlength="20"
+                            placeholder="Tag text…"
+                            class="w-full px-2 py-1 text-xs rounded border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                            data-testid="tag-text-input"
                           />
-                          <ColorFieldInput
-                            class="flex-1 text-xs bg-transparent text-foreground focus:outline-none min-w-0"
-                            data-testid="color-field-input"
-                          />
-                        </ColorFieldRoot>
-
-                        <!-- Color Area (sat/brightness) -->
-                        <!-- Wrapper owns positioning context since ColorAreaRoot drops fallthrough attrs -->
-                        <div
-                          class="relative w-full rounded overflow-hidden"
-                          style="height: 120px;"
-                          data-testid="color-area"
-                        >
-                          <ColorAreaRoot
-                            v-slot="{ style: areaStyle }"
-                            :model-value="tagColorObj[user.id]"
-                            @update:model-value="(c) => setTagColor(user.id, c)"
-                            class="touch-none select-none"
-                          >
-                            <ColorAreaArea :style="areaStyle" class="absolute inset-0 rounded" />
-                            <ColorAreaThumb
-                              class="absolute w-4 h-4 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,0.4)] -translate-x-1/2 -translate-y-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-grab active:cursor-grabbing"
-                            />
-                          </ColorAreaRoot>
                         </div>
 
-                        <!-- Hue slider -->
-                        <ColorSliderRoot
-                          :model-value="tagColorObj[user.id]"
-                          @update:model-value="(c) => setTagColor(user.id, c)"
-                          channel="hue"
-                          class="relative flex items-center w-full touch-none select-none"
-                          style="height: 12px;"
-                          data-testid="hue-slider"
-                        >
-                          <ColorSliderTrack class="relative h-3 w-full rounded-full overflow-hidden" />
-                          <ColorSliderThumb
-                            class="block w-4 h-4 rounded-full border-2 border-white shadow-md focus:outline-none cursor-grab active:cursor-grabbing"
-                          />
-                        </ColorSliderRoot>
+                        <!-- Color picker -->
+                        <div class="space-y-2">
+                          <label class="text-xs font-medium text-muted-foreground">Color</label>
 
-                        <!-- Preset swatches -->
-                        <ColorSwatchPickerRoot
-                          :model-value="getSwatchValue(user.id)"
-                          @update:model-value="(v) => onSwatchChange(user.id, v)"
-                          class="grid grid-cols-6 gap-1"
-                          data-testid="swatch-picker"
-                        >
-                          <ColorSwatchPickerItem
-                            v-for="color in USER_TAG_PALETTE"
-                            :key="color"
-                            :value="color"
-                            class="relative w-6 h-6 rounded cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                          <!-- Color Field (hex input with color swatch icon) -->
+                          <ColorFieldRoot
+                            :model-value="tagColorObj[user.id]"
+                            @update:model-value="(c) => setTagColor(user.id, c)"
+                            class="flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-background"
+                            data-testid="color-field"
                           >
-                            <ColorSwatchPickerItemSwatch class="w-full h-full rounded" style="background: var(--reka-color-swatch-color)" />
-                            <ColorSwatchPickerItemIndicator
-                              class="absolute inset-0 flex items-center justify-center pointer-events-none"
-                            >
-                              <span class="w-2 h-2 rounded-full bg-white shadow-sm" />
-                            </ColorSwatchPickerItemIndicator>
-                          </ColorSwatchPickerItem>
-                        </ColorSwatchPickerRoot>
-                      </div>
+                            <span
+                              class="w-4 h-4 rounded-sm flex-shrink-0"
+                              :style="{ backgroundColor: getColorHex(user.id) }"
+                            />
+                            <ColorFieldInput
+                              class="flex-1 text-xs bg-transparent text-foreground focus:outline-none min-w-0"
+                              data-testid="color-field-input"
+                            />
+                          </ColorFieldRoot>
 
-                      <!-- Actions -->
-                      <div class="flex gap-1.5">
-                        <Button
-                          size="sm"
-                          class="flex-1 h-7 text-[10px]"
-                          data-testid="save-tag-btn"
-                          @click="handleSaveTag(user.id)"
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          class="flex-1 h-7 text-[10px]"
-                          data-testid="clear-tag-btn"
-                          @click="handleClearTag(user.id)"
-                        >
-                          Clear
-                        </Button>
-                      </div>
+                          <!-- Color Area (sat/brightness) -->
+                          <!-- Wrapper owns positioning context since ColorAreaRoot drops fallthrough attrs -->
+                          <div
+                            class="relative w-full rounded overflow-hidden"
+                            style="height: 120px"
+                            data-testid="color-area"
+                          >
+                            <ColorAreaRoot
+                              v-slot="{ style: areaStyle }"
+                              :model-value="tagColorObj[user.id]"
+                              @update:model-value="(c) => setTagColor(user.id, c)"
+                              class="touch-none select-none"
+                            >
+                              <ColorAreaArea :style="areaStyle" class="absolute inset-0 rounded" />
+                              <ColorAreaThumb
+                                class="absolute w-4 h-4 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,0.4)] -translate-x-1/2 -translate-y-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-grab active:cursor-grabbing"
+                              />
+                            </ColorAreaRoot>
+                          </div>
+
+                          <!-- Hue slider -->
+                          <ColorSliderRoot
+                            :model-value="tagColorObj[user.id]"
+                            @update:model-value="(c) => setTagColor(user.id, c)"
+                            channel="hue"
+                            class="relative flex items-center w-full touch-none select-none"
+                            style="height: 12px"
+                            data-testid="hue-slider"
+                          >
+                            <ColorSliderTrack
+                              class="relative h-3 w-full rounded-full overflow-hidden"
+                            />
+                            <ColorSliderThumb
+                              class="block w-4 h-4 rounded-full border-2 border-white shadow-md focus:outline-none cursor-grab active:cursor-grabbing"
+                            />
+                          </ColorSliderRoot>
+
+                          <!-- Preset swatches -->
+                          <ColorSwatchPickerRoot
+                            :model-value="getSwatchValue(user.id)"
+                            @update:model-value="(v) => onSwatchChange(user.id, v)"
+                            class="grid grid-cols-6 gap-1"
+                            data-testid="swatch-picker"
+                          >
+                            <ColorSwatchPickerItem
+                              v-for="color in USER_TAG_PALETTE"
+                              :key="color"
+                              :value="color"
+                              class="relative w-6 h-6 rounded cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                            >
+                              <ColorSwatchPickerItemSwatch
+                                class="w-full h-full rounded"
+                                style="background: var(--reka-color-swatch-color)"
+                              />
+                              <ColorSwatchPickerItemIndicator
+                                class="absolute inset-0 flex items-center justify-center pointer-events-none"
+                              >
+                                <span class="w-2 h-2 rounded-full bg-white shadow-sm" />
+                              </ColorSwatchPickerItemIndicator>
+                            </ColorSwatchPickerItem>
+                          </ColorSwatchPickerRoot>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            class="flex-1 h-7 text-[10px]"
+                            data-testid="save-tag-btn"
+                            @click="handleSaveTag(user.id)"
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            class="flex-1 h-7 text-[10px]"
+                            data-testid="clear-tag-btn"
+                            @click="handleClearTag(user.id)"
+                          >
+                            Clear
+                          </Button>
+                        </div>
                       </template>
                     </PopoverContent>
                   </Popover>
@@ -363,8 +398,16 @@ async function handleClearTag(userId: string) {
                       </DropdownMenuRadioGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <span v-else-if="user.id === currentUser?.id" class="text-[10px] text-muted-foreground italic">You</span>
-                  <span v-else-if="user.role === Role.Admin" class="text-[10px] text-muted-foreground italic">System Admin</span>
+                  <span
+                    v-else-if="user.id === currentUser?.id"
+                    class="text-[10px] text-muted-foreground italic"
+                    >You</span
+                  >
+                  <span
+                    v-else-if="user.role === Role.Admin"
+                    class="text-[10px] text-muted-foreground italic"
+                    >System Admin</span
+                  >
                 </div>
               </td>
             </tr>

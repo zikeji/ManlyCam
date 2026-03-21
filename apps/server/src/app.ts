@@ -50,6 +50,7 @@ export function createApp() {
   app.route('/', createWsRouter(upgradeWebSocket));
 
   // SPA catch-all: serve Vue dist in production
+  /* c8 ignore next -- production-only SPA serving, env is mocked as test in all test runs */
   if (env.NODE_ENV === 'production') {
     const distPath = join(__dirname, '../../web/dist');
     // Emoji SVGs are content-addressed (npm package version) — cache aggressively.

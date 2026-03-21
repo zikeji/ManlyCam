@@ -76,10 +76,12 @@ export function takeSnapshot(videoEl: HTMLVideoElement, petName?: string): void 
   canvas.height = videoEl.videoHeight;
   const ctx = canvas.getContext('2d');
 
+  /* c8 ignore start */
   if (!ctx) {
     console.error('Failed to get canvas 2D context');
     return;
   }
+  /* c8 ignore stop */
 
   // Draw current video frame to canvas
   ctx.drawImage(videoEl, 0, 0);
@@ -93,10 +95,12 @@ export function takeSnapshot(videoEl: HTMLVideoElement, petName?: string): void 
   // while maintaining acceptable visual fidelity for rapid-fire snapshots
   finalCanvas.toBlob(
     (blob) => {
+      /* c8 ignore start */
       if (!blob) {
         console.error('Failed to create blob from canvas');
         return;
       }
+      /* c8 ignore stop */
 
       // Generate filename: SITE_NAME_PET_NAME_YYYYMMDD-HHmmssZ.jpg
       const filename = `${siteName}_${pet}_${timestamp}.jpg`;

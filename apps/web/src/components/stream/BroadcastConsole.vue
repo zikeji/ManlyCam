@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch, onBeforeUnmount, withDefaults } from 'vue';
-import { Settings2, Video, VideoOff, Camera, ArrowLeftFromLine, ArrowRightFromLine } from 'lucide-vue-next';
+import {
+  Settings2,
+  Video,
+  VideoOff,
+  Camera,
+  ArrowLeftFromLine,
+  ArrowRightFromLine,
+} from 'lucide-vue-next';
 import type { ClientStreamState } from '@/composables/useStream';
 import { useAuth } from '@/composables/useAuth';
 import { useAdminStream } from '@/composables/useAdminStream';
@@ -17,26 +24,29 @@ import BatteryIndicator from './BatteryIndicator.vue';
 import { viewers } from '@/composables/usePresence';
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue';
 
-const props = withDefaults(defineProps<{
-  streamState: ClientStreamState;
-  isAdmin?: boolean;
-  adminPanelOpen?: boolean;
-  chatSidebarOpen?: boolean;
-  unreadCount?: number;
-  isDesktop?: boolean;
-  showChatToggle?: boolean;
-  showViewerCount?: boolean;
-  videoRef?: HTMLVideoElement | null;
-}>(), {
-  isAdmin: false,
-  adminPanelOpen: false,
-  chatSidebarOpen: false,
-  unreadCount: 0,
-  isDesktop: true,
-  showChatToggle: true,
-  showViewerCount: true,
-  videoRef: null,
-});
+const props = withDefaults(
+  defineProps<{
+    streamState: ClientStreamState;
+    isAdmin?: boolean;
+    adminPanelOpen?: boolean;
+    chatSidebarOpen?: boolean;
+    unreadCount?: number;
+    isDesktop?: boolean;
+    showChatToggle?: boolean;
+    showViewerCount?: boolean;
+    videoRef?: HTMLVideoElement | null;
+  }>(),
+  {
+    isAdmin: false,
+    adminPanelOpen: false,
+    chatSidebarOpen: false,
+    unreadCount: 0,
+    isDesktop: true,
+    showChatToggle: true,
+    showViewerCount: true,
+    videoRef: null,
+  },
+);
 
 const emit = defineEmits<{
   toggleAdminPanel: [];
@@ -72,6 +82,7 @@ const handleOpenPreferences = () => {
   preferencesOpen.value = true;
 };
 
+/* c8 ignore start -- pulse animation timer cleanup and watcher require real DOM timing */
 onBeforeUnmount(() => {
   if (pulseTimer !== null) {
     clearTimeout(pulseTimer);
@@ -79,15 +90,19 @@ onBeforeUnmount(() => {
   }
 });
 
-watch(() => props.unreadCount, (newVal, oldVal) => {
-  if (newVal > (oldVal ?? 0)) {
-    isPulsing.value = true;
-    pulseTimer = window.setTimeout(() => {
-      isPulsing.value = false;
-      pulseTimer = null;
-    }, 400);
-  }
-});
+watch(
+  () => props.unreadCount,
+  (newVal, oldVal) => {
+    if (newVal > (oldVal ?? 0)) {
+      isPulsing.value = true;
+      pulseTimer = window.setTimeout(() => {
+        isPulsing.value = false;
+        pulseTimer = null;
+      }, 400);
+    }
+  },
+);
+/* c8 ignore stop */
 
 const handleStreamToggle = async () => {
   if (props.streamState === 'explicit-offline') {
@@ -122,11 +137,12 @@ const chatToggleAriaLabel = computed(() => {
 const streamToggleLabel = computed(() => {
   return props.streamState === 'explicit-offline' ? 'Start Stream' : 'Stop Stream';
 });
-
 </script>
 
 <template>
-  <div class="h-14 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))] flex items-center justify-between px-3 shrink-0 w-full z-20">
+  <div
+    class="h-14 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))] flex items-center justify-between px-3 shrink-0 w-full z-20"
+  >
     <!-- Left Flank -->
     <div class="flex items-center gap-1 flex-1 justify-start">
       <!-- Mobile landscape: chat collapse visible to all users -->
@@ -143,7 +159,10 @@ const streamToggleLabel = computed(() => {
         </Button>
         <Badge
           v-if="!chatSidebarOpen && unreadCount > 0"
-          :class="['absolute top-0 right-0 h-4 min-w-4 px-1 text-[10px] border-2 border-[hsl(var(--background))] pointer-events-none transform translate-x-1/4 -translate-y-1/4', isPulsing && 'badge-pulse']"
+          :class="[
+            'absolute top-0 right-0 h-4 min-w-4 px-1 text-[10px] border-2 border-[hsl(var(--background))] pointer-events-none transform translate-x-1/4 -translate-y-1/4',
+            isPulsing && 'badge-pulse',
+          ]"
           aria-hidden="true"
         >
           {{ unreadCount > 99 ? '99+' : unreadCount }}
@@ -174,11 +193,17 @@ const streamToggleLabel = computed(() => {
               >
                 <template v-if="streamState === 'explicit-offline'">
                   <VideoOff v-if="!isLoading" class="w-5 h-5" />
-                  <div v-else class="w-5 h-5 border-2 border-t-transparent border-foreground rounded-full animate-spin"></div>
+                  <div
+                    v-else
+                    class="w-5 h-5 border-2 border-t-transparent border-foreground rounded-full animate-spin"
+                  ></div>
                 </template>
                 <template v-else>
                   <Video v-if="!isLoading" class="w-5 h-5" />
-                  <div v-else class="w-5 h-5 border-2 border-t-transparent border-foreground rounded-full animate-spin"></div>
+                  <div
+                    v-else
+                    class="w-5 h-5 border-2 border-t-transparent border-foreground rounded-full animate-spin"
+                  ></div>
                 </template>
               </Button>
             </TooltipTrigger>
@@ -190,16 +215,17 @@ const streamToggleLabel = computed(() => {
       </template>
 
       <!-- Battery indicator (admin only, both orientations) -->
-      <BatteryIndicator
-        v-if="isAdmin && piSugarStatus !== null"
-        :status="piSugarStatus"
-      />
+      <BatteryIndicator v-if="isAdmin && piSugarStatus !== null" :status="piSugarStatus" />
     </div>
 
     <!-- Center Flank -->
     <div class="flex items-center gap-2 flex-1 justify-center text-sm font-medium">
       <StreamStatusBadge :state="streamState" :compact="!isDesktop" />
-      <span v-if="showViewerCount" class="text-muted-foreground whitespace-nowrap hidden sm:inline">{{ viewerText }}</span>
+      <span
+        v-if="showViewerCount"
+        class="text-muted-foreground whitespace-nowrap hidden sm:inline"
+        >{{ viewerText }}</span
+      >
     </div>
 
     <!-- Right Flank -->
@@ -246,7 +272,12 @@ const streamToggleLabel = computed(() => {
             <button
               v-if="!isDesktop"
               class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
-              @click="() => { isProfileOpen = false; emit('toggleAdminPanel'); }"
+              @click="
+                () => {
+                  isProfileOpen = false;
+                  emit('toggleAdminPanel');
+                }
+              "
             >
               Camera Controls
             </button>
@@ -254,13 +285,23 @@ const streamToggleLabel = computed(() => {
               v-if="!isDesktop"
               class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
               :disabled="isLoading"
-              @click="() => { isProfileOpen = false; void handleStreamToggle(); }"
+              @click="
+                () => {
+                  isProfileOpen = false;
+                  void handleStreamToggle();
+                }
+              "
             >
               {{ streamToggleLabel }}
             </button>
             <button
               class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
-              @click="() => { isProfileOpen = false; emit('openUserManager'); }"
+              @click="
+                () => {
+                  isProfileOpen = false;
+                  emit('openUserManager');
+                }
+              "
             >
               Users
             </button>
@@ -281,7 +322,7 @@ const streamToggleLabel = computed(() => {
           >
             Log out
           </button>
-          
+
           <p v-if="error" class="px-2 py-1 text-xs text-destructive">{{ error }}</p>
         </PopoverContent>
       </Popover>
@@ -299,7 +340,10 @@ const streamToggleLabel = computed(() => {
         </Button>
         <Badge
           v-if="!chatSidebarOpen && unreadCount > 0"
-          :class="['absolute top-0 right-0 h-4 min-w-4 px-1 text-[10px] border-2 border-[hsl(var(--background))] pointer-events-none transform translate-x-1/4 -translate-y-1/4', isPulsing && 'badge-pulse']"
+          :class="[
+            'absolute top-0 right-0 h-4 min-w-4 px-1 text-[10px] border-2 border-[hsl(var(--background))] pointer-events-none transform translate-x-1/4 -translate-y-1/4',
+            isPulsing && 'badge-pulse',
+          ]"
           aria-hidden="true"
         >
           {{ unreadCount > 99 ? '99+' : unreadCount }}
@@ -312,9 +356,15 @@ const streamToggleLabel = computed(() => {
 
 <style scoped>
 @keyframes badge-pulse {
-  0%   { transform: scale(1) translate(25%, -25%); }
-  50%  { transform: scale(1.25) translate(25%, -25%); }
-  100% { transform: scale(1) translate(25%, -25%); }
+  0% {
+    transform: scale(1) translate(25%, -25%);
+  }
+  50% {
+    transform: scale(1.25) translate(25%, -25%);
+  }
+  100% {
+    transform: scale(1) translate(25%, -25%);
+  }
 }
 
 .badge-pulse {

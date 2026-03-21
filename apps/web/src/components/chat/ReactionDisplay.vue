@@ -42,6 +42,7 @@ function handleClick(reaction: Reaction) {
   emit('toggle', reaction.emoji);
 }
 
+/* c8 ignore start -- document-level pointer listeners and requestAnimationFrame require real DOM event propagation */
 function handleOutsidePointer() {
   showDetail.value = false;
   document.removeEventListener('pointerdown', handleOutsidePointer);
@@ -55,14 +56,15 @@ function openDetail(clientX: number, clientY: number) {
     document.addEventListener('pointerdown', handleOutsidePointer);
   });
 }
+/* c8 ignore stop */
 
+/* c8 ignore start -- context menu + touch handlers require real DOM event dispatch unavailable in jsdom */
 function handleContextMenu(e: MouseEvent) {
   e.preventDefault();
   e.stopPropagation();
   openDetail(e.clientX, e.clientY);
 }
 
-// Long-press for mobile detail popover
 function handleAreaTouchStart(e: TouchEvent) {
   e.stopPropagation();
   const touch = e.touches[0];
@@ -79,6 +81,7 @@ function handleAreaTouchEnd(e: TouchEvent) {
     longPressTimer = null;
   }
 }
+/* c8 ignore stop */
 
 function showModButton(reaction: Reaction, idx: number, uid: string): boolean {
   if (!props.canModerate) return false;
