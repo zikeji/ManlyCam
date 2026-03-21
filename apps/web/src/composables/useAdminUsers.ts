@@ -1,4 +1,5 @@
-import { ref, onMounted } from 'vue';
+import { ref } from 'vue';
+import { toast } from 'vue-sonner';
 import { apiFetch } from '@/lib/api';
 import { Role } from '@manlycam/types';
 import type { UserProfile } from '@manlycam/types';
@@ -101,11 +102,27 @@ export function useAdminUsers() {
     }
   };
 
-  onMounted(() => {
-    if (users.value.length === 0) {
-      fetchUsers();
+  const banUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/ban`, { method: 'DELETE' });
+      handleAdminUserUpdate({ id: userId, bannedAt: new Date().toISOString() } as never);
+      toast.success('User banned');
+    } catch (err: unknown) {
+      console.error('Failed to ban user:', err);
+      toast.error('Failed to ban user');
     }
-  });
+  };
+
+  const unbanUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/unban`, { method: 'POST' });
+      handleAdminUserUpdate({ id: userId, bannedAt: null } as never);
+      toast.success('User unbanned');
+    } catch (err: unknown) {
+      console.error('Failed to unban user:', err);
+      toast.error('Failed to unban user');
+    }
+  };
 
   return {
     users,
@@ -115,5 +132,7 @@ export function useAdminUsers() {
     updateRole,
     updateUserTag,
     clearUserTag,
+    banUserById,
+    unbanUserById,
   };
 }

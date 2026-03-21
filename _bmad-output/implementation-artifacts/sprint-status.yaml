@@ -127,7 +127,7 @@ development_status:
   9-1-camera-settings-enhancements: done
   9-2-allowlist-management-web-ui: done # Code review: findings resolved (spec updated for toast.info pattern, error handling verified). Smoke tests passed. All ACs implemented.
   9-3-audit-log-viewer: done # Code review findings fixed (default sort state, NaN handling, error handling, type guards). All ACs implemented. 480 server tests, 1098+ web tests passing.
-  9-4-users-list-enhancements: ready-for-dev
+  9-4-users-list-enhancements: review
   9-5-stream-scroll-pinch-to-zoom: ready-for-dev
   epic-9-retrospective: optional
 

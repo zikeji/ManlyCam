@@ -6,6 +6,10 @@ import type { AdminUser } from './useAdminUsers';
 import { apiFetch } from '@/lib/api';
 import { Role } from '@manlycam/types';
 
+vi.mock('vue-sonner', () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+}));
+
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
 }));
@@ -206,8 +210,8 @@ describe('useAdminUsers', () => {
     });
   });
 
-  describe('onMounted auto-fetch', () => {
-    it('calls fetchUsers when users list is empty', () => {
+  describe('no auto-fetch on composable init', () => {
+    it('does not call fetchUsers on composable init', () => {
       usersRef.value = [];
       const TestComponent = defineComponent({
         setup() {
@@ -219,22 +223,62 @@ describe('useAdminUsers', () => {
 
       mount(TestComponent);
 
-      expect(apiFetch).toHaveBeenCalledWith('/api/admin/users');
+      expect(apiFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('banUserById', () => {
+    it('calls DELETE /api/users/:id/ban and updates bannedAt on success', async () => {
+      const mockUser = { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany, bannedAt: null };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, banUserById } = useAdminUsers();
+      await banUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/ban', { method: 'DELETE' });
+      expect(users.value[0].bannedAt).not.toBeNull();
     });
 
-    it('does not call fetchUsers when users list is not empty', () => {
-      usersRef.value = [{ id: 'u1' } as AdminUser];
-      const TestComponent = defineComponent({
-        setup() {
-          useAdminUsers();
-          return {};
-        },
-        template: '<div/>',
-      });
+    it('calls toast.error on banUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { banUserById } = useAdminUsers();
 
-      mount(TestComponent);
+      await banUserById('u1');
 
-      expect(apiFetch).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledWith('Failed to ban user');
+    });
+  });
+
+  describe('unbanUserById', () => {
+    it('calls POST /api/users/:id/unban and clears bannedAt on success', async () => {
+      const mockUser = {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        bannedAt: '2026-01-01T00:00:00Z',
+      };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, unbanUserById } = useAdminUsers();
+      await unbanUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/unban', { method: 'POST' });
+      expect(users.value[0].bannedAt).toBeNull();
+    });
+
+    it('calls toast.error on unbanUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { unbanUserById } = useAdminUsers();
+
+      await unbanUserById('u1');
+
+      expect(toast.error).toHaveBeenCalledWith('Failed to unban user');
     });
   });
 });

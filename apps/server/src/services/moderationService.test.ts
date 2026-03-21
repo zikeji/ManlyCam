@@ -27,7 +27,7 @@ vi.mock('../services/wsHub.js', () => ({
 
 import { prisma } from '../db/client.js';
 import { wsHub } from '../services/wsHub.js';
-import { muteUser, unmuteUser, banUser } from './moderationService.js';
+import { muteUser, unmuteUser, banUser, unbanUser } from './moderationService.js';
 import { AppError } from '../lib/errors.js';
 
 const viewerTarget = { id: 'target-001', role: 'ViewerCompany', mutedAt: null, bannedAt: null };
@@ -230,5 +230,74 @@ describe('unmuteUser', () => {
     await expect(
       unmuteUser({ actorId: 'actor-admin', actorRole: 'Admin', targetUserId: 'target-admin' }),
     ).rejects.toMatchObject({ code: 'INSUFFICIENT_ROLE', statusCode: 403 });
+  });
+});
+
+describe('unbanUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('throws FORBIDDEN when actor is Moderator', async () => {
+    await expect(
+      unbanUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'target-001' }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN', statusCode: 403 });
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_FOUND when target user does not exist', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    await expect(
+      unbanUser({ actorId: 'actor-001', actorRole: 'Admin', targetUserId: 'nonexistent' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND', statusCode: 404 });
+  });
+
+  it('throws INSUFFICIENT_ROLE when Admin tries to unban Admin', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(adminTarget as never);
+    await expect(
+      unbanUser({ actorId: 'actor-admin', actorRole: 'Admin', targetUserId: 'target-admin' }),
+    ).rejects.toMatchObject({ code: 'INSUFFICIENT_ROLE', statusCode: 403 });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('clears bannedAt and creates unban audit log entry in transaction', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(viewerTarget as never);
+    const txMock = {
+      user: { update: vi.fn().mockResolvedValue({}) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
+
+    await unbanUser({ actorId: 'actor-001', actorRole: 'Admin', targetUserId: 'target-001' });
+
+    expect(txMock.user.update).toHaveBeenCalledWith({
+      where: { id: 'target-001' },
+      data: { bannedAt: null },
+    });
+    expect(txMock.auditLog.create).toHaveBeenCalledWith({
+      data: { id: 'test-ulid-001', action: 'unban', actorId: 'actor-001', targetId: 'target-001' },
+    });
+  });
+
+  it('completes without error when user bannedAt is already null (idempotent)', async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue(viewerTarget as never);
+    const txMock = {
+      user: { update: vi.fn().mockResolvedValue({}) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
+
+    await expect(
+      unbanUser({ actorId: 'actor-001', actorRole: 'Admin', targetUserId: 'target-001' }),
+    ).resolves.toBeUndefined();
+    expect(txMock.user.update).toHaveBeenCalled();
   });
 });
