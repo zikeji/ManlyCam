@@ -59,12 +59,14 @@ so that I can grant or revoke registration eligibility without SSH or CLI access
   - [x] Static informational note below the panel: "Removing an entry does not revoke active sessions — it only affects future sign-ins."
   - [x] Add `AllowlistPanel.test.ts` with `afterEach(() => { wrapper?.unmount(); wrapper = null; })` cleanup
 
-- [x] Task 5: Integrate `AllowlistPanel` into `AdminPanel.vue` (AC: #1)
-  - [x] Add a tab/section for "Allowlist" in the admin panel using existing shadcn-vue `Tabs` components (`apps/web/src/components/ui/tabs/`)
-  - [x] `AdminPanel.vue` currently only shows `CameraControls` — restructure to show tabs: "Camera" (existing controls) and "Allowlist" (new panel)
-  - [x] Preserve the existing `CameraControls` + `ScrollArea` structure inside the Camera tab
-  - [x] The Allowlist tab renders `AllowlistPanel`
-  - [x] Update `AdminPanel.test.ts` — the existing tests check for `"Camera Controls"` header text and a flat `CameraControls`-only structure; both will change after the tab refactor. Update/add tests to cover: tab structure renders; Camera tab contains CameraControls; Allowlist tab contains AllowlistPanel; close button and previewActive prop still work
+- [ ] Task 5: Integrate `AllowlistPanel` into `AdminDialog.vue` (AC: #1)
+  - [ ] Convert `AdminDialog.vue` to a tabbed dialog using shadcn-vue `Tabs` components (`apps/web/src/components/ui/tabs/`)
+  - [ ] Tab 1: "Users" — contains existing `UserList` component
+  - [ ] Tab 2: "Allowlist" — contains `AllowlistPanel` component
+  - [ ] Preserve existing `AlertDialog` structure; add `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` inside `AlertDialogContent`
+  - [ ] Update dialog title from "User Management" to "Admin"
+  - [ ] In `BroadcastConsole.vue`, rename the admin button from "Users" to "Admin" (reflects broader scope)
+  - [ ] Update `AdminDialog.test.ts` to cover: tab structure renders; Users tab contains UserList; Allowlist tab contains AllowlistPanel; dialog open/close still works
 
 - [x] Task 6: Run quality gates (AC: all)
   - [x] `pnpm run typecheck` from `apps/server` and `apps/web` — zero errors
@@ -167,36 +169,54 @@ const DOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0
 
 Validate domain input against `DOMAIN_REGEX` and email input against `EMAIL_REGEX` before calling `addEntry`. Show error inline (not a toast) below the input.
 
-### Web: AdminPanel.vue refactor to tabs
+### Web: AdminDialog.vue refactor to tabs
 
-`apps/web/src/components/admin/AdminPanel.vue` currently renders:
-
-```html
-<ScrollArea class="flex-1">
-  <CameraControls :preview-active="previewActive" />
-</ScrollArea>
-```
-
-Refactor using shadcn-vue `Tabs` components already in `apps/web/src/components/ui/tabs/` (`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`):
+`apps/web/src/components/admin/AdminDialog.vue` currently renders only `UserList`:
 
 ```html
-<Tabs default-value="camera" class="flex flex-col flex-1 overflow-hidden">
-  <TabsList class="shrink-0 ...">
-    <TabsTrigger value="camera">Camera</TabsTrigger>
-    <TabsTrigger value="allowlist">Allowlist</TabsTrigger>
-  </TabsList>
-  <TabsContent value="camera" class="flex-1 overflow-hidden">
-    <ScrollArea class="h-full">
-      <CameraControls :preview-active="previewActive" />
-    </ScrollArea>
-  </TabsContent>
-  <TabsContent value="allowlist" class="flex-1 overflow-hidden">
-    <AllowlistPanel />
-  </TabsContent>
-</Tabs>
+<AlertDialogContent>
+  <AlertDialogHeader>
+    <AlertDialogTitle>User Management</AlertDialogTitle>
+  </AlertDialogHeader>
+  <div class="flex-1 min-h-0">
+    <UserList />
+  </div>
+</AlertDialogContent>
 ```
 
-Rename the "Camera Controls" header to "Admin Panel" — the panel now covers multiple domains (Camera, Allowlist) and the tab triggers identify individual content. Update the header text in `AdminPanel.vue` and the corresponding assertion in `AdminPanel.test.ts`.
+Refactor to a tabbed structure using shadcn-vue `Tabs` components:
+
+```html
+<AlertDialogContent class="max-w-4xl h-[80vh] flex flex-col p-0 overflow-hidden">
+  <AlertDialogHeader
+    class="px-6 py-4 border-b border-border flex flex-row items-center justify-between space-y-0"
+  >
+    <AlertDialogTitle>Admin</AlertDialogTitle>
+    <AlertDialogCancel class="mt-0 p-1 h-auto bg-transparent border-none hover:bg-accent">
+      <X class="w-4 h-4" />
+    </AlertDialogCancel>
+  </AlertDialogHeader>
+  <Tabs default-value="users" class="flex-1 flex flex-col overflow-hidden">
+    <TabsList class="px-6 pt-2 shrink-0">
+      <TabsTrigger value="users">Users</TabsTrigger>
+      <TabsTrigger value="allowlist">Allowlist</TabsTrigger>
+    </TabsList>
+    <TabsContent value="users" class="flex-1 overflow-hidden m-0">
+      <UserList />
+    </TabsContent>
+    <TabsContent value="allowlist" class="flex-1 overflow-hidden m-0">
+      <AllowlistPanel />
+    </TabsContent>
+  </Tabs>
+</AlertDialogContent>
+```
+
+**Important:**
+
+- Camera controls remain in `CameraControlsPanel.vue` (left sidebar). Do NOT add camera controls to AdminDialog.
+- Import `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` from `@/components/ui/tabs`
+- The `TabsContent` needs `class="m-0"` to remove default margin that causes layout issues
+- Rename the button in `BroadcastConsole.vue` from "Users" to "Admin" to reflect the broader admin scope
 
 ### Web: AllowlistPanel.vue structure
 
@@ -269,8 +289,9 @@ Files to create:
 - `apps/web/src/composables/useAdminAllowlist.test.ts` — create new
 - `apps/web/src/components/admin/AllowlistPanel.vue` — create new
 - `apps/web/src/components/admin/AllowlistPanel.test.ts` — create new
-- `apps/web/src/components/admin/AdminPanel.vue` — modify (add tabs, integrate AllowlistPanel)
-- `apps/web/src/components/admin/AdminPanel.test.ts` — create new (if not exists) or modify
+- `apps/web/src/components/admin/AdminDialog.vue` — modify (add tabs, integrate AllowlistPanel, rename title to "Admin")
+- `apps/web/src/components/admin/AdminDialog.test.ts` — modify (add tab structure tests)
+- `apps/web/src/components/stream/BroadcastConsole.vue` — modify (rename "Users" button to "Admin")
 
 ### References
 
@@ -279,7 +300,8 @@ Files to create:
 - `admin.test.ts`: `apps/server/src/routes/admin.test.ts` — canonical pattern for mocking and testing admin routes
 - `useAdminUsers.ts`: `apps/web/src/composables/useAdminUsers.ts` — composable pattern to follow exactly
 - `useAdminUsers.test.ts`: `apps/web/src/composables/useAdminUsers.test.ts` — test pattern (mock `apiFetch`, reset module-level ref in `beforeEach`)
-- `AdminPanel.vue`: `apps/web/src/components/admin/AdminPanel.vue` — file to modify for tabs
+- `AdminDialog.vue`: `apps/web/src/components/admin/AdminDialog.vue` — file to modify for tabs (currently contains only UserList)
+- `BroadcastConsole.vue`: `apps/web/src/components/stream/BroadcastConsole.vue` — rename "Users" button to "Admin"
 - Tabs components: `apps/web/src/components/ui/tabs/` — `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` already installed
 - `api.ts`: `apps/web/src/lib/api.ts` — `apiFetch` with `ApiFetchError` class
 - Prisma schema: `apps/server/prisma/schema.prisma` — `AllowlistEntry { id, type, value, createdAt }`; unique constraint `@@unique([type, value])`

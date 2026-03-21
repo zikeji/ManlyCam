@@ -71,10 +71,11 @@ So that I can review what happened, who acted, and when — without database acc
   - [ ] Subtask 5.7: Pass `hasMore` from `useAuditLog` as a prop to `DataTable.vue` (add `hasMore?: boolean` prop); when TanStack Table is on its last accumulated page AND `hasMore === true`, `DataTable.vue` renders a "Load more" button below the table that emits `loadMore`; `AuditLogTable.vue` listens to `loadMore` and calls `fetchNextPage()`. **Note:** client-side sort (AC #5) operates on the accumulated entries array only — sorting after multiple cursor pages are loaded may produce a page-boundary discontinuity (older entries from page N+1 interleaved with newer from page N). This is a known MVP limitation and does not need to be fixed.
   - [ ] Subtask 5.8: Show loading spinner on initial fetch
 
-- [ ] Task 6: Wire AuditLogTable into admin UI (AC: #10)
-  - [ ] Subtask 6.1: Identify where to surface the audit log — see Dev Notes (dialog or new tab in existing admin section)
-  - [ ] Subtask 6.2: Gate the audit log trigger/tab on `user.value?.role === Role.Admin`
-  - [ ] Subtask 6.3: Add a trigger in `BroadcastConsole.vue` profile popover (admin-only) OR add a tab to `UserManagerDialog.vue` (see Dev Notes)
+- [ ] Task 6: Add Audit Log tab to AdminDialog (AC: #10)
+  - [ ] Subtask 6.1: Add "Audit Log" as third tab in `AdminDialog.vue` (after Users, Allowlist)
+  - [ ] Subtask 6.2: The Audit Log tab renders `AuditLogTable` component
+  - [ ] Subtask 6.3: No additional trigger needed in BroadcastConsole — the existing "Admin" button (renamed from "Users" in Story 9-2) opens AdminDialog with all three tabs accessible
+  - [ ] Subtask 6.4: Update `AdminDialog.test.ts` to verify Audit Log tab renders `AuditLogTable`
 
 - [ ] Task 7: Tests (AC: All)
   - [ ] Subtask 7.1: `apps/server/src/routes/admin.test.ts` — add tests for `GET /api/admin/audit-log`: 403 for non-Admin, 200 with entries, cursor pagination, empty result. **Follow the existing mock pattern:** add `vi.mock('../services/auditLogService.js', () => ({ getAuditLogPage: vi.fn() }))` alongside the existing `vi.mock('../services/userService.js', ...)` — do NOT mock Prisma directly. The existing admin.test.ts uses service mocks throughout; the audit log route must follow the same pattern (which is why `getAuditLogPage` lives in a service file, not inline in the route).
@@ -82,7 +83,7 @@ So that I can review what happened, who acted, and when — without database acc
   - [ ] Subtask 7.3: `apps/web/src/components/ui/data-table/DataTable.test.ts` — test column rendering, sort toggling, empty state, pagination controls
   - [ ] Subtask 7.4: `apps/web/src/components/admin/AuditLogTable.test.ts` — test action label mapping (all 6 known: `message_delete`, `mute`, `unmute`, `ban`, `unban`, `reaction_remove` + unknown fallback), empty state message, timestamp format
   - [ ] Subtask 7.5: `apps/server/src/routes/admin.test.ts` — also assert that `limit` is clamped to 50 when a larger value is passed
-  - [ ] Subtask 7.6: `apps/web/src/components/admin/AuditLogDialog.test.ts` — test dialog open/close and that `AuditLogTable` is rendered inside it
+  - [ ] Subtask 7.6: `apps/web/src/components/admin/AdminDialog.test.ts` — add test for Audit Log tab rendering `AuditLogTable`
 
 ## Dev Notes
 
@@ -90,14 +91,14 @@ So that I can review what happened, who acted, and when — without database acc
 
 The epics file uses examples like `chat:delete`, `user:ban`, `user:mute` — **these are NOT the actual strings in the database.** The real action strings recorded by the server are:
 
-| Service | Action string stored in `audit_log.action` |
-|---|---|
-| `chatService.ts` (`deleteMessage`) | `message_delete` |
-| `moderationService.ts` (`muteUser`) | `mute` |
-| `moderationService.ts` (`unmuteUser`) | `unmute` |
-| `moderationService.ts` (`banUser`) | `ban` |
-| `reactionsService.ts` (`modRemoveReaction`) | `reaction_remove` |
-| `moderationService.ts` (`unbanUser`) — added in Story 9-4 | `unban` |
+| Service                                                   | Action string stored in `audit_log.action` |
+| --------------------------------------------------------- | ------------------------------------------ |
+| `chatService.ts` (`deleteMessage`)                        | `message_delete`                           |
+| `moderationService.ts` (`muteUser`)                       | `mute`                                     |
+| `moderationService.ts` (`unmuteUser`)                     | `unmute`                                   |
+| `moderationService.ts` (`banUser`)                        | `ban`                                      |
+| `reactionsService.ts` (`modRemoveReaction`)               | `reaction_remove`                          |
+| `moderationService.ts` (`unbanUser`) — added in Story 9-4 | `unban`                                    |
 
 Map these exactly in `ACTION_LABELS`. Do not invent new strings.
 
@@ -116,9 +117,13 @@ interface Props {
   data: TData[];
   pageSize?: number;
   emptyMessage?: string;
-  hasMore?: boolean;  // for audit log "Load more" flow
+  hasMore?: boolean; // for audit log "Load more" flow
 }
-const props = withDefaults(defineProps<Props>(), { pageSize: 10, emptyMessage: 'No data.', hasMore: false });
+const props = withDefaults(defineProps<Props>(), {
+  pageSize: 10,
+  emptyMessage: 'No data.',
+  hasMore: false,
+});
 const emit = defineEmits<{ loadMore: [] }>();
 </script>
 ```
@@ -143,13 +148,12 @@ This matches the epics requirement for cursor pagination while using TanStack Ta
 
 ### Where to Surface the Audit Log in the UI
 
-The existing admin UI has:
-- `AdminPanel.vue` — left-side camera controls panel (desktop sidebar / mobile sheet)
-- `UserManagerDialog.vue` — modal dialog for user management (opens via "User Manager" in profile popover)
+The admin UI structure (after Story 9-2):
 
-**Recommended approach:** Add an "Audit Log" button in the `BroadcastConsole.vue` profile popover (admin-only, next to "User Manager"), which opens a new `AuditLogDialog.vue` modal (similar structure to `UserManagerDialog.vue`). This avoids touching `AdminPanel.vue` (camera controls only) and is consistent with the existing pattern.
+- `CameraControlsPanel.vue` — left-side camera controls sidebar (desktop only)
+- `AdminDialog.vue` — tabbed modal dialog with: Users, Allowlist, Audit Log tabs
 
-If a different approach is chosen, document the deviation.
+**Approach:** Add "Audit Log" as the third tab in `AdminDialog.vue`. The existing "Admin" button in `BroadcastConsole.vue` profile popover (renamed from "Users" in Story 9-2) opens this dialog. No separate `AuditLogDialog.vue` needed — all admin functions consolidated into one dialog.
 
 ### Server Route — `auditLogService.ts` Pattern
 
@@ -158,6 +162,7 @@ All Prisma access lives in `apps/server/src/services/auditLogService.ts`. The ro
 **Why single-key sort (`id DESC` only):** Two-key sort `[performedAt DESC, id DESC]` combined with cursor `id < cursor` produces incorrect pagination when two records share the same `performedAt` (ties). Single-key `id DESC` with `id < cursor` is always correct because ULID IDs are monotonically increasing within a process (time-embedded), making them a reliable sort and cursor key.
 
 Cursor pagination query:
+
 ```typescript
 const rows = await prisma.auditLog.findMany({
   where: cursor ? { id: { lt: cursor } } : undefined,
@@ -166,7 +171,7 @@ const rows = await prisma.auditLog.findMany({
   include: { actor: { select: { displayName: true } } },
 });
 // Flatten nested actor to actorDisplayName
-const entries = rows.map(e => ({
+const entries = rows.map((e) => ({
   id: e.id,
   action: e.action,
   actorId: e.actorId,
@@ -200,13 +205,13 @@ export function formatDateTime(iso: string): string {
 ```typescript
 // Server returns:
 interface AuditLogEntry {
-  id: string;           // ULID
-  action: string;       // e.g. "message_delete", "ban"
+  id: string; // ULID
+  action: string; // e.g. "message_delete", "ban"
   actorId: string;
-  actorDisplayName: string;  // joined from actor.displayName
+  actorDisplayName: string; // joined from actor.displayName
   targetId: string | null;
-  metadata: unknown | null;  // JSON object or null
-  performedAt: string;  // ISO timestamp
+  metadata: unknown | null; // JSON object or null
+  performedAt: string; // ISO timestamp
 }
 
 interface AuditLogResponse {
@@ -230,6 +235,7 @@ Use `apiFetch<AuditLogResponse>('/api/admin/audit-log?...')` from `apps/web/src/
 ### Named Exports
 
 All source files use named exports only. `DataTable.vue` must export from `index.ts`:
+
 ```typescript
 // apps/web/src/components/ui/data-table/index.ts
 export { default as DataTable } from './DataTable.vue';
@@ -239,28 +245,23 @@ export { default as DataTable } from './DataTable.vue';
 
 The `table` shadcn-vue component will generate its own `index.ts` — do not modify it.
 
-### AuditLogDialog.vue — Component Spec
+### AdminDialog.vue — Adding Audit Log Tab
 
-`AuditLogDialog.vue` is a thin wrapper. Use the shadcn-vue `Dialog` primitive (`apps/web/src/components/ui/dialog/`):
+After Story 9-2 converts `AdminDialog.vue` to a tabbed dialog, add the Audit Log tab as the third tab:
 
 ```vue
-<script setup lang="ts">
-const props = defineProps<{ open: boolean }>();
-const emit = defineEmits<{ 'update:open': [value: boolean] }>();
-</script>
-<template>
-  <Dialog :open="props.open" @update:open="emit('update:open', $event)">
-    <DialogContent class="max-w-4xl">
-      <DialogHeader>
-        <DialogTitle>Audit Log</DialogTitle>
-      </DialogHeader>
-      <AuditLogTable />
-    </DialogContent>
-  </Dialog>
-</template>
+<TabsList class="px-6 pt-2 shrink-0">
+  <TabsTrigger value="users">Users</TabsTrigger>
+  <TabsTrigger value="allowlist">Allowlist</TabsTrigger>
+  <TabsTrigger value="audit-log">Audit Log</TabsTrigger>
+</TabsList>
+<!-- ... existing Users and Allowlist TabsContent ... -->
+<TabsContent value="audit-log" class="flex-1 overflow-hidden m-0">
+  <AuditLogTable />
+</TabsContent>
 ```
 
-Opened via a button in `BroadcastConsole.vue`'s profile popover (admin-only). Manage the `open` state in `BroadcastConsole.vue` with a local `ref<boolean>`.
+The dialog is opened via the "Admin" button in `BroadcastConsole.vue`'s profile popover (renamed from "Users" in Story 9-2).
 
 ### Client-Side Role Gating
 
@@ -299,9 +300,8 @@ The `AuditLog` model and `audit_log` table already exist in the Prisma schema (a
 - `apps/web/src/composables/useAuditLog.test.ts` — new
 - `apps/web/src/components/admin/AuditLogTable.vue` — new
 - `apps/web/src/components/admin/AuditLogTable.test.ts` — new
-- `apps/web/src/components/admin/AuditLogDialog.vue` — new
-- `apps/web/src/components/admin/AuditLogDialog.test.ts` — new
-- `apps/web/src/components/stream/BroadcastConsole.vue` — modified (add Audit Log trigger, admin-only)
+- `apps/web/src/components/admin/AdminDialog.vue` — modified (add Audit Log tab)
+- `apps/web/src/components/admin/AdminDialog.test.ts` — modified (add Audit Log tab tests)
 - `apps/web/src/lib/dateFormat.ts` — modified (add `formatDateTime` export)
 - `apps/web/src/lib/dateFormat.test.ts` — modified (add test for `formatDateTime`)
 - `apps/server/src/services/auditLogService.ts` — new
@@ -320,7 +320,7 @@ The `AuditLog` model and `audit_log` table already exist in the Prisma schema (a
 - API fetch utility: `apps/web/src/lib/api.ts`
 - Date format utilities: `apps/web/src/lib/dateFormat.ts`
 - Existing shadcn-vue UI components: `apps/web/src/components/ui/`
-- UserManagerDialog pattern: `apps/web/src/components/admin/UserManagerDialog.vue`
+- UserManagerDialog pattern: `apps/web/src/components/admin/AdminDialog.vue`
 - BroadcastConsole (profile popover): `apps/web/src/components/stream/BroadcastConsole.vue`
 - Web coverage config: `apps/web/vite.config.ts` (test.coverage section)
 - CLAUDE.md project rules (Vue test cleanup, named exports, apiFetch pattern, no default exports)
