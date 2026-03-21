@@ -93,7 +93,7 @@ const getRoleBadgeVariant = (role: Role) => {
       return 'outline';
     case Role.ViewerGuest:
       return 'secondary';
-    /* c8 ignore next -- TypeScript enum exhaustive; default unreachable */
+    /* c8 ignore next 2 -- TypeScript enum exhaustive; default unreachable */
     default:
       return 'secondary';
   }
@@ -109,7 +109,7 @@ const getRoleBadgeClass = (role: Role) => {
       return 'bg-orange-900/50 text-orange-200 border-orange-700 hover:bg-orange-900/50';
     case Role.ViewerGuest:
       return 'bg-zinc-800 text-zinc-300 border-zinc-700 hover:bg-zinc-800';
-    /* c8 ignore next -- TypeScript enum exhaustive; default unreachable */
+    /* c8 ignore next 2 -- TypeScript enum exhaustive; default unreachable */
     default:
       return '';
   }

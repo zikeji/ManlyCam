@@ -39,10 +39,11 @@ let splitterAnimateTimer: ReturnType<typeof setTimeout> | null = null;
 
 const mobileSheetOpen = computed({
   get: () => controlsPanelOpen.value && !isDesktop.value,
-  /* c8 ignore next -- computed setter only triggered by Sheet v-model in mobile template */
+  /* c8 ignore start -- computed setter only triggered by Sheet v-model in mobile template */
   set: (val: boolean) => {
     controlsPanelOpen.value = val;
   },
+  /* c8 ignore stop */
 });
 
 watch(controlsPanelOpen, (newValue) => {

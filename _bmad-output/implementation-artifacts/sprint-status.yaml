@@ -1,5 +1,5 @@
 # generated: 2026-03-06
-# last_updated: 2026-03-16
+# last_updated: 2026-03-21
 # project: ManlyCam
 # project_key: NOKEY
 # tracking_system: file-system
@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-06
-last_updated: 2026-03-20
+last_updated: 2026-03-21
 project: ManlyCam
 project_key: NOKEY
 tracking_system: file-system
@@ -125,7 +125,7 @@ development_status:
 
   epic-9: in-progress
   9-1-camera-settings-enhancements: done
-  9-2-allowlist-management-web-ui: ready-for-dev
+  9-2-allowlist-management-web-ui: review
   9-3-audit-log-viewer: ready-for-dev
   9-4-users-list-enhancements: ready-for-dev
   9-5-stream-scroll-pinch-to-zoom: ready-for-dev

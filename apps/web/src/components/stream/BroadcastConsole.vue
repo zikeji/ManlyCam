@@ -303,7 +303,7 @@ const streamToggleLabel = computed(() => {
                 }
               "
             >
-              Users
+              Admin
             </button>
             <div class="h-px bg-border my-1" />
           </template>

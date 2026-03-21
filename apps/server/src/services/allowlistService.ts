@@ -1,9 +1,20 @@
+import type { AllowlistEntry } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { logger } from '../lib/logger.js';
 
+// Keep in sync with AllowlistPanel.vue EMAIL_REGEX / DOMAIN_REGEX
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const DOMAIN_REGEX = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+
+export async function listEntries(): Promise<AllowlistEntry[]> {
+  return prisma.allowlistEntry.findMany({ orderBy: { createdAt: 'asc' } });
+}
+
+export async function removeById(id: string): Promise<void> {
+  await prisma.allowlistEntry.delete({ where: { id } });
+  // P2025 (record not found) bubbles to the route handler which converts it to 404
+}
 
 export async function addDomain(domain: string): Promise<void> {
   if (!DOMAIN_REGEX.test(domain)) {

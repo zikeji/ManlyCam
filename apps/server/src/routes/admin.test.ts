@@ -5,9 +5,11 @@ import { createAdminRouter } from './admin.js';
 import { getSessionUser } from '../services/authService.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
+import { listEntries, addDomain, addEmail, removeById } from '../services/allowlistService.js';
 import { AppError } from '../lib/errors.js';
 import type { AppEnv } from '../lib/types.js';
 import { Role, SYSTEM_USER_ID } from '@manlycam/types';
+import { Prisma } from '@prisma/client';
 
 vi.mock('../services/authService.js', () => ({
   getSessionUser: vi.fn(),
@@ -18,6 +20,23 @@ vi.mock('../services/userService.js', () => ({
   updateUserRoleById: vi.fn(),
   updateUserTagById: vi.fn(),
 }));
+
+vi.mock('../services/allowlistService.js', () => ({
+  listEntries: vi.fn(),
+  addDomain: vi.fn(),
+  addEmail: vi.fn(),
+  removeById: vi.fn(),
+}));
+
+vi.mock('../db/client.js', () => ({
+  prisma: {
+    allowlistEntry: {
+      findUnique: vi.fn(),
+    },
+  },
+}));
+
+import { prisma } from '../db/client.js';
 
 import type { User } from '@prisma/client';
 
@@ -337,6 +356,225 @@ describe('admin routes', () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error.code).toBe('INVALID_JSON');
+    });
+  });
+
+  describe('GET /api/admin/allowlist', () => {
+    const adminSession = { id: 'u1', role: Role.Admin, bannedAt: null };
+
+    it('returns 403 for non-admin', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'u2',
+        role: Role.Moderator,
+        bannedAt: null,
+      } as never);
+      const res = await app.request('/api/admin/allowlist', {
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('returns list of entries with ISO createdAt', async () => {
+      const now = new Date('2024-01-15T10:00:00.000Z');
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(listEntries).mockResolvedValue([
+        { id: 'e1', type: 'domain', value: 'company.com', createdAt: now },
+        { id: 'e2', type: 'email', value: 'guest@gmail.com', createdAt: now },
+      ]);
+
+      const res = await app.request('/api/admin/allowlist', {
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body).toHaveLength(2);
+      expect(body[0]).toEqual({
+        id: 'e1',
+        type: 'domain',
+        value: 'company.com',
+        createdAt: '2024-01-15T10:00:00.000Z',
+      });
+    });
+  });
+
+  describe('POST /api/admin/allowlist', () => {
+    const adminSession = { id: 'u1', role: Role.Admin, bannedAt: null };
+
+    it('returns 403 for non-admin', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'u2',
+        role: Role.Moderator,
+        bannedAt: null,
+      } as never);
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: JSON.stringify({ type: 'domain', value: 'company.com' }),
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 400 for malformed JSON', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: 'not-json{',
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('returns 422 for invalid type', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: JSON.stringify({ type: 'phone', value: '123' }),
+      });
+      expect(res.status).toBe(422);
+    });
+
+    it('returns 422 for empty value', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: JSON.stringify({ type: 'domain', value: '  ' }),
+      });
+      expect(res.status).toBe(422);
+    });
+
+    it('adds new domain and returns entry with alreadyExists: false', async () => {
+      const now = new Date('2024-01-15T10:00:00.000Z');
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(prisma.allowlistEntry.findUnique)
+        .mockResolvedValueOnce(null) // pre-check: not found
+        .mockResolvedValueOnce({ id: 'e1', type: 'domain', value: 'company.com', createdAt: now }); // re-fetch after create
+      vi.mocked(addDomain).mockResolvedValue(undefined);
+
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: JSON.stringify({ type: 'domain', value: 'company.com' }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.alreadyExists).toBe(false);
+      expect(body.value).toBe('company.com');
+      expect(body.createdAt).toBe('2024-01-15T10:00:00.000Z');
+      expect(addDomain).toHaveBeenCalledWith('company.com');
+    });
+
+    it('adds new email and normalizes to lowercase', async () => {
+      const now = new Date('2024-01-15T10:00:00.000Z');
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(prisma.allowlistEntry.findUnique)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'e2',
+          type: 'email',
+          value: 'guest@gmail.com',
+          createdAt: now,
+        });
+      vi.mocked(addEmail).mockResolvedValue(undefined);
+
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: JSON.stringify({ type: 'email', value: 'Guest@Gmail.com' }),
+      });
+      expect(res.status).toBe(200);
+      expect(addEmail).toHaveBeenCalledWith('guest@gmail.com');
+    });
+
+    it('returns alreadyExists: true for duplicate domain', async () => {
+      const now = new Date('2024-01-15T10:00:00.000Z');
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(prisma.allowlistEntry.findUnique).mockResolvedValueOnce({
+        id: 'e1',
+        type: 'domain',
+        value: 'company.com',
+        createdAt: now,
+      });
+
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: JSON.stringify({ type: 'domain', value: 'company.com' }),
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.alreadyExists).toBe(true);
+      expect(addDomain).not.toHaveBeenCalled();
+    });
+
+    it('returns 422 when addDomain throws (invalid format)', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(prisma.allowlistEntry.findUnique).mockResolvedValueOnce(null);
+      vi.mocked(addDomain).mockRejectedValue(new Error('Invalid domain format: bad domain!'));
+
+      const res = await app.request('/api/admin/allowlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', cookie: 'session_id=s1' },
+        body: JSON.stringify({ type: 'domain', value: 'bad domain!' }),
+      });
+      expect(res.status).toBe(422);
+    });
+  });
+
+  describe('DELETE /api/admin/allowlist/:id', () => {
+    const adminSession = { id: 'u1', role: Role.Admin, bannedAt: null };
+
+    it('returns 403 for non-admin', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'u2',
+        role: Role.Moderator,
+        bannedAt: null,
+      } as never);
+      const res = await app.request('/api/admin/allowlist/e1', {
+        method: 'DELETE',
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 204 on successful delete', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(removeById).mockResolvedValue(undefined);
+
+      const res = await app.request('/api/admin/allowlist/e1', {
+        method: 'DELETE',
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(204);
+      expect(removeById).toHaveBeenCalledWith('e1');
+    });
+
+    it('returns 404 when entry not found (P2025)', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(removeById).mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError('Record not found', {
+          code: 'P2025',
+          clientVersion: '6.0.0',
+        }),
+      );
+
+      const res = await app.request('/api/admin/allowlist/nope', {
+        method: 'DELETE',
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(404);
+    });
+
+    it('rethrows non-P2025 errors as 500', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(removeById).mockRejectedValue(new Error('DB connection lost'));
+
+      const res = await app.request('/api/admin/allowlist/e1', {
+        method: 'DELETE',
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(500);
     });
   });
 });
