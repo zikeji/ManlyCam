@@ -28,7 +28,7 @@ vi.mock('@/composables/useAdminAllowlist', async () => {
 });
 
 vi.mock('vue-sonner', () => ({
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn() }),
 }));
 
 import { useAdminAllowlist } from '@/composables/useAdminAllowlist';
@@ -175,7 +175,7 @@ describe('AllowlistPanel', () => {
     await wrapper.vm.$nextTick();
     await wrapper.vm.$nextTick();
 
-    expect(toast).toHaveBeenCalledWith('Already in allowlist', expect.any(Object));
+    expect(toast.info).toHaveBeenCalledWith('Already in allowlist — this entry is already active.');
   });
 
   it('calls removeEntry when delete button is clicked', async () => {

@@ -47,7 +47,7 @@ async function handleAddDomain() {
   try {
     const result = await addEntry('domain', value);
     if (result.alreadyExists) {
-      toast('Already in allowlist', { description: 'This entry already exists and is active.' });
+      toast.info('Already in allowlist — this entry is already active.');
     }
     domainInput.value = '';
   } catch {
@@ -72,7 +72,7 @@ async function handleAddEmail() {
   try {
     const result = await addEntry('email', value);
     if (result.alreadyExists) {
-      toast('Already in allowlist', { description: 'This entry already exists and is active.' });
+      toast.info('Already in allowlist — this entry is already active.');
     }
     emailInput.value = '';
   } catch {

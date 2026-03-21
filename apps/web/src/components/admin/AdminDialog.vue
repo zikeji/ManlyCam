@@ -24,7 +24,7 @@ const isOpen = defineModel<boolean>('open', { default: false });
         </AlertDialogCancel>
       </AlertDialogHeader>
       <Tabs default-value="users" class="flex-1 flex flex-col overflow-hidden">
-        <TabsList class="px-6 pt-2 shrink-0 justify-start bg-transparent border-b border-border rounded-none h-auto pb-0 gap-0">
+        <TabsList class="flex w-full p-0 px-6 pt-2 shrink-0 justify-start bg-transparent border-b border-border rounded-none h-auto pb-0 gap-0">
           <TabsTrigger value="users" class="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent pb-2">
             Users
           </TabsTrigger>
