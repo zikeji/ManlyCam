@@ -23,6 +23,10 @@ vi.mock('./AllowlistPanel.vue', () => ({
   default: { template: '<div data-testid="allowlist-panel">AllowlistPanel</div>' },
 }));
 
+vi.mock('./AuditLogTable.vue', () => ({
+  default: { template: '<div data-testid="audit-log-table">AuditLogTable</div>' },
+}));
+
 describe('AdminDialog', () => {
   let wrapper: VueWrapper | null = null;
 
@@ -40,10 +44,11 @@ describe('AdminDialog', () => {
     expect(wrapper.text()).toContain('Admin');
   });
 
-  it('renders Users and Allowlist tab triggers', () => {
+  it('renders Users, Allowlist, and Audit Log tab triggers', () => {
     wrapper = mount(AdminDialog, { props: { open: true } });
     expect(wrapper.text()).toContain('Users');
     expect(wrapper.text()).toContain('Allowlist');
+    expect(wrapper.text()).toContain('Audit Log');
   });
 
   it('renders UserList in the Users tab content', () => {
@@ -62,6 +67,11 @@ describe('AdminDialog', () => {
     // Cancel button rendered in the header (X icon button)
     const cancelBtn = wrapper.find('button');
     expect(cancelBtn.exists()).toBe(true);
+  });
+
+  it('renders AuditLogTable in the Audit Log tab content', () => {
+    wrapper = mount(AdminDialog, { props: { open: true } });
+    expect(wrapper.find('[data-testid="audit-log-table"]').exists()).toBe(true);
   });
 
   it('does not render content when closed', () => {

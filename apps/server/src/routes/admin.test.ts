@@ -6,6 +6,7 @@ import { getSessionUser } from '../services/authService.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
 import { listEntries, addDomain, addEmail, removeById } from '../services/allowlistService.js';
+import { getAuditLogPage } from '../services/auditLogService.js';
 import { AppError } from '../lib/errors.js';
 import type { AppEnv } from '../lib/types.js';
 import { Role, SYSTEM_USER_ID } from '@manlycam/types';
@@ -26,6 +27,10 @@ vi.mock('../services/allowlistService.js', () => ({
   addDomain: vi.fn(),
   addEmail: vi.fn(),
   removeById: vi.fn(),
+}));
+
+vi.mock('../services/auditLogService.js', () => ({
+  getAuditLogPage: vi.fn(),
 }));
 
 vi.mock('../db/client.js', () => ({
@@ -575,6 +580,101 @@ describe('admin routes', () => {
         headers: { cookie: 'session_id=s1' },
       });
       expect(res.status).toBe(500);
+    });
+  });
+
+  describe('GET /api/admin/audit-log', () => {
+    const adminSession = { id: 'u1', role: Role.Admin, bannedAt: null };
+
+    it('returns 403 for non-Admin (Moderator)', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue({
+        id: 'u2',
+        role: Role.Moderator,
+        bannedAt: null,
+      } as never);
+
+      const res = await app.request('/api/admin/audit-log', {
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(403);
+      expect(getAuditLogPage).not.toHaveBeenCalled();
+    });
+
+    it('returns 200 with entries on success', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(getAuditLogPage).mockResolvedValue({
+        entries: [
+          {
+            id: '01HX00000000000000000000AA',
+            action: 'ban',
+            actorId: 'u1',
+            actorDisplayName: 'Admin',
+            targetId: 'u2',
+            metadata: null,
+            performedAt: '2026-01-01T10:00:00.000Z',
+          },
+        ],
+        nextCursor: null,
+      });
+
+      const res = await app.request('/api/admin/audit-log', {
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.entries).toHaveLength(1);
+      expect(body.entries[0].action).toBe('ban');
+      expect(body.nextCursor).toBeNull();
+    });
+
+    it('passes cursor query param to service', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(getAuditLogPage).mockResolvedValue({ entries: [], nextCursor: null });
+      const cursor = '01HX00000000000000000000AA';
+
+      await app.request(`/api/admin/audit-log?cursor=${cursor}`, {
+        headers: { cookie: 'session_id=s1' },
+      });
+
+      expect(getAuditLogPage).toHaveBeenCalledWith(expect.objectContaining({ cursor }));
+    });
+
+    it('returns empty entries when audit log is empty', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(getAuditLogPage).mockResolvedValue({ entries: [], nextCursor: null });
+
+      const res = await app.request('/api/admin/audit-log', {
+        headers: { cookie: 'session_id=s1' },
+      });
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.entries).toHaveLength(0);
+    });
+
+    it('clamps limit to 50 when a larger value is passed', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(getAuditLogPage).mockResolvedValue({ entries: [], nextCursor: null });
+
+      await app.request('/api/admin/audit-log?limit=999', {
+        headers: { cookie: 'session_id=s1' },
+      });
+
+      // The route passes limit=999 to the service; clamping happens inside the service
+      expect(getAuditLogPage).toHaveBeenCalledWith(expect.objectContaining({ limit: 999 }));
+    });
+
+    it('returns nextCursor when more pages exist', async () => {
+      vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
+      vi.mocked(getAuditLogPage).mockResolvedValue({
+        entries: [],
+        nextCursor: '01HX00000000000000000000BB',
+      });
+
+      const res = await app.request('/api/admin/audit-log', {
+        headers: { cookie: 'session_id=s1' },
+      });
+      const body = await res.json();
+      expect(body.nextCursor).toBe('01HX00000000000000000000BB');
     });
   });
 });

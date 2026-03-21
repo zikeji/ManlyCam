@@ -126,7 +126,7 @@ development_status:
   epic-9: in-progress
   9-1-camera-settings-enhancements: done
   9-2-allowlist-management-web-ui: done # Code review: findings resolved (spec updated for toast.info pattern, error handling verified). Smoke tests passed. All ACs implemented.
-  9-3-audit-log-viewer: ready-for-dev
+  9-3-audit-log-viewer: in-progress
   9-4-users-list-enhancements: ready-for-dev
   9-5-stream-scroll-pinch-to-zoom: ready-for-dev
   epic-9-retrospective: optional

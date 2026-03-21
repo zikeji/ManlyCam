@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
 import { listEntries, addDomain, addEmail, removeById } from '../services/allowlistService.js';
+import { getAuditLogPage } from '../services/auditLogService.js';
 import { prisma } from '../db/client.js';
 import { AppError } from '../lib/errors.js';
 import type { AppEnv } from '../lib/types.js';
@@ -175,6 +176,14 @@ export function createAdminRouter() {
       createdAt: newEntry!.createdAt.toISOString(),
       alreadyExists: false,
     });
+  });
+
+  router.get('/audit-log', async (c) => {
+    const cursor = c.req.query('cursor');
+    const limitRaw = c.req.query('limit');
+    const limit = limitRaw ? parseInt(limitRaw, 10) : 50;
+    const result = await getAuditLogPage({ cursor, limit });
+    return c.json(result);
   });
 
   router.delete('/allowlist/:id', async (c) => {

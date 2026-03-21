@@ -1,5 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { formatTime, initials, formatDayLabel, isSameDay } from './dateFormat';
+import { formatTime, formatDateTime, initials, formatDayLabel, isSameDay } from './dateFormat';
+
+describe('formatDateTime', () => {
+  it('returns a non-empty string for a valid ISO timestamp', () => {
+    const result = formatDateTime('2026-03-19T15:45:00.000Z');
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it('includes year in the formatted output', () => {
+    const result = formatDateTime('2026-03-19T15:45:00.000Z');
+    expect(result).toContain('2026');
+  });
+
+  it('produces different results for different timestamps', () => {
+    const a = formatDateTime('2026-03-19T10:00:00.000Z');
+    const b = formatDateTime('2026-03-20T10:00:00.000Z');
+    expect(a).not.toBe(b);
+  });
+});
 
 describe('formatTime', () => {
   it('formats ISO timestamp to human-readable time', () => {
