@@ -148,41 +148,6 @@ describe('ReactionBar.vue', () => {
     expect(wrapper.find('[data-testid="emoji-picker"]').exists()).toBe(false);
   });
 
-  it('emits pickerChange(true) when "More" button is clicked', async () => {
-    wrapper = mount(ReactionBar);
-    const moreBtn = wrapper.find('button[aria-label="More emoji reactions"]');
-    await moreBtn.trigger('click');
-    await nextTick();
-    const events = wrapper.emitted('pickerChange');
-    expect(events).toBeTruthy();
-    expect(events![0]).toEqual([true]);
-  });
-
-  it('emits pickerChange(false) when picker is toggled off', async () => {
-    wrapper = mount(ReactionBar);
-    const moreBtn = wrapper.find('button[aria-label="More emoji reactions"]');
-    await moreBtn.trigger('click');
-    await nextTick();
-    await moreBtn.trigger('click');
-    await nextTick();
-    const events = wrapper.emitted('pickerChange');
-    expect(events).toBeTruthy();
-    expect(events![0]).toEqual([true]);
-    expect(events![1]).toEqual([false]);
-  });
-
-  it('emits pickerChange(false) when EmojiPicker emits close', async () => {
-    wrapper = mount(ReactionBar);
-    const moreBtn = wrapper.find('button[aria-label="More emoji reactions"]');
-    await moreBtn.trigger('click');
-    await nextTick();
-    const picker = wrapper.findComponent({ name: 'EmojiPicker' });
-    await picker.vm.$emit('close');
-    await nextTick();
-    const events = wrapper.emitted('pickerChange');
-    expect(events![events!.length - 1]).toEqual([false]);
-  });
-
   it('shows fallback span when emoji is not in EMOJI_MAP', async () => {
     EMOJI_MAP.delete('thumbs_up');
     wrapper = mount(ReactionBar);

@@ -48,7 +48,7 @@ vi.mock('@/components/ui/tooltip', () => ({
 vi.mock('./ReactionBar.vue', () => ({
   default: defineComponent({
     name: 'ReactionBar',
-    emits: ['select', 'close', 'pickerChange'],
+    emits: ['select', 'close'],
     template: '<div data-reaction-bar></div>',
   }),
 }));
@@ -838,65 +838,6 @@ describe('ChatMessage.vue', () => {
       await listitem.trigger('mouseleave');
       await nextTick();
       expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
-    });
-
-    it('keeps ReactionBar visible on mouseleave while emoji picker is open', async () => {
-      wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isCurrentUserMuted: false },
-      });
-      const listitem = wrapper.find('[role="listitem"]');
-      await listitem.trigger('mouseenter');
-      await nextTick();
-      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
-
-      // Simulate picker opening
-      const reactionBar = wrapper.findComponent({ name: 'ReactionBar' });
-      await reactionBar.vm.$emit('pickerChange', true);
-      await nextTick();
-
-      // Mouseleave should NOT hide the bar while picker is open
-      await listitem.trigger('mouseleave');
-      await nextTick();
-      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
-    });
-
-    it('hides ReactionBar when picker closes after mouseleave', async () => {
-      wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isCurrentUserMuted: false },
-      });
-      const listitem = wrapper.find('[role="listitem"]');
-      await listitem.trigger('mouseenter');
-      await nextTick();
-
-      // Open picker, then leave message area
-      const reactionBar = wrapper.findComponent({ name: 'ReactionBar' });
-      await reactionBar.vm.$emit('pickerChange', true);
-      await nextTick();
-      await listitem.trigger('mouseleave');
-      await nextTick();
-      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true); // still open
-
-      // Now picker closes — bar should collapse since mouse is outside
-      await reactionBar.vm.$emit('pickerChange', false);
-      await nextTick();
-      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
-    });
-
-    it('keeps ReactionBar visible when picker closes while mouse is still inside', async () => {
-      wrapper = mount(ChatMessage, {
-        props: { message: baseMessage, isCurrentUserMuted: false },
-      });
-      const listitem = wrapper.find('[role="listitem"]');
-      await listitem.trigger('mouseenter');
-      await nextTick();
-
-      const reactionBar = wrapper.findComponent({ name: 'ReactionBar' });
-      await reactionBar.vm.$emit('pickerChange', true);
-      await nextTick();
-      // No mouseleave — mouse is still inside
-      await reactionBar.vm.$emit('pickerChange', false);
-      await nextTick();
-      expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
     });
 
     it('does NOT show ReactionBar when isCurrentUserMuted=true', async () => {

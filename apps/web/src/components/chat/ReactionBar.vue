@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import { EMOJI_MAP, getEmojiUrl } from '@/lib/emoji-data';
 import EmojiPicker from './EmojiPicker.vue';
 import type { Emoji } from '@/lib/emoji-data';
@@ -21,14 +21,9 @@ defineProps<{
 const emit = defineEmits<{
   select: [emoji: string]; // shortcode without colons
   close: [];
-  pickerChange: [open: boolean];
 }>();
 
 const showPicker = ref(false);
-
-watch(showPicker, (open) => {
-  emit('pickerChange', open);
-});
 const moreButtonRef = ref<HTMLButtonElement | null>(null);
 const pickerPosition = ref<{ bottom: number; right: number } | null>(null);
 
@@ -92,6 +87,19 @@ function handlePickerSelect(emoji: Emoji) {
       >
         +
       </button>
+      <!-- Invisible bridge: covers the 8px gap between the reaction bar and the
+           fixed-position picker so slow mouse traversal doesn't fire mouseleave
+           on the message container before the cursor reaches the picker. -->
+      <div
+        v-if="showPicker && pickerPosition"
+        class="fixed z-[199]"
+        :style="{
+          bottom: pickerPosition.bottom - 8 + 'px',
+          right: pickerPosition.right + 'px',
+          width: '320px',
+          height: '8px',
+        }"
+      />
       <EmojiPicker
         :visible="showPicker"
         :position="pickerPosition ?? undefined"

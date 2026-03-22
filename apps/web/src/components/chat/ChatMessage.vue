@@ -93,8 +93,6 @@ const showBanDialog = ref(false);
 // Reaction bar (hover = desktop, long-press = mobile)
 const showReactionBar = ref(false);
 const reactionBarJustOpened = ref(false);
-const mouseIsOverMessage = ref(false);
-const reactionPickerOpen = ref(false);
 let barOpenedByLongPress = false;
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 let barTouchDismissCleanup: (() => void) | null = null;
@@ -123,23 +121,12 @@ function setupBarTouchDismiss() {
 function handleMouseEnter() {
   if (props.isEphemeral) return;
   barOpenedByLongPress = false;
-  mouseIsOverMessage.value = true;
   showReactionBar.value = true;
 }
 
 function handleMouseLeave() {
-  mouseIsOverMessage.value = false;
-  if (reactionPickerOpen.value) return; // picker is open — don't collapse until it closes
   showReactionBar.value = false;
   clearBarTouchDismiss();
-}
-
-function handlePickerChange(open: boolean) {
-  reactionPickerOpen.value = open;
-  if (!open && !mouseIsOverMessage.value) {
-    // Picker closed while mouse is outside the message row — collapse the bar now
-    showReactionBar.value = false;
-  }
 }
 
 function handleTouchStart() {
@@ -302,7 +289,6 @@ function executeBan() {
               :disabled="isCurrentUserMuted || reactionBarJustOpened"
               @select="handleReactionSelect"
               @close="showReactionBar = false"
-              @picker-change="handlePickerChange"
             />
           </div>
           <div
@@ -386,7 +372,6 @@ function executeBan() {
           :disabled="isCurrentUserMuted || reactionBarJustOpened"
           @select="handleReactionSelect"
           @close="showReactionBar = false"
-          @picker-change="handlePickerChange"
         />
       </div>
       <div
@@ -469,7 +454,6 @@ function executeBan() {
             :disabled="isCurrentUserMuted || reactionBarJustOpened"
             @select="handleReactionSelect"
             @close="showReactionBar = false"
-            @picker-change="handlePickerChange"
           />
         </div>
 
@@ -613,7 +597,6 @@ function executeBan() {
         :disabled="isCurrentUserMuted || reactionBarJustOpened"
         @select="handleReactionSelect"
         @close="showReactionBar = false"
-        @picker-change="handlePickerChange"
       />
     </div>
 
