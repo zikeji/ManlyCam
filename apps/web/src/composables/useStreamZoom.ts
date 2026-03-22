@@ -93,11 +93,15 @@ export function useStreamZoom() {
       isDragging.value = true;
     }
 
-    // Capture pointer so pointermove fires even outside the element
-    /* c8 ignore next -- setPointerCapture not implemented in jsdom */
-    (
-      event.currentTarget as { setPointerCapture?: (id: number) => void } | null
-    )?.setPointerCapture?.(event.pointerId);
+    // Only capture when tracking is needed: pan (scale>1) or pinch (2nd pointer).
+    // At scale=1 with a single pointer, capturing would redirect pointerup to the container
+    // and prevent click from firing on child elements (e.g. the "Preview Stream" button).
+    if (activePointers.size === 2 || scale.value > 1) {
+      /* c8 ignore next 3 -- setPointerCapture not implemented in jsdom */
+      (
+        event.currentTarget as { setPointerCapture?: (id: number) => void } | null
+      )?.setPointerCapture?.(event.pointerId);
+    }
   }
 
   function onPointerMove(event: PointerEvent) {
