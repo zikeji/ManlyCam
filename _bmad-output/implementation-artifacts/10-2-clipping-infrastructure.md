@@ -10,7 +10,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 
 ## Acceptance Criteria
 
-1. **Given** the server-side mediamtx config is updated **When** mediamtx is running and the Pi RTSP stream is connected **Then** HLS segments are written to the configured segment path with `EXT-X-PROGRAM-DATE-TIME` tags on each segment; the rolling buffer retains content according to `hlsSegmentMaxCount * hlsSegmentDuration`; the WHEP live viewer endpoint is unaffected
+1. **Given** the server-side mediamtx config is updated **When** mediamtx is running and the Pi RTSP stream is connected **Then** HLS segments are written to the configured segment path with original frame timestamps preserved (via `useAbsoluteTimestamp: true` on the path); the rolling buffer retains content according to `hlsSegmentCount * hlsSegmentDuration`; the WHEP live viewer endpoint is unaffected
 2. **Given** the `docker-compose.yml` is updated **When** `docker compose up` is run **Then** a `hls_segments` named volume exists; the mediamtx container mounts it read-write at the segment output path; the server container mounts it read-only at the same path
 3. **Given** `apps/server/src/env.ts` is updated **When** the server starts **Then** it validates `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL`, `S3_FORCE_PATH_STYLE` (boolean, default `true`), `HLS_SEGMENTS_PATH` (string, default `/hls`), and `MTX_STREAM_PATH` (string, default `cam`) via Zod; missing vars produce a descriptive startup error
 4. **Given** an S3 client singleton is created at `apps/server/src/lib/s3-client.ts` **When** other modules import it **Then** it exports a single `S3Client` instance configured from env vars; no other file constructs an `S3Client` directly
@@ -69,7 +69,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
   - [ ] Verify existing consumers compile (build types package)
 
 - [ ] Task 7: Update mediamtx config for HLS output (AC: #1)
-  - [ ] Update `docs/deploy/mediamtx-server.yml`: enable HLS, set `hlsAddress`, `hlsSegmentDuration`, `hlsSegmentMaxCount`, segment output path, `hlsProgramDateTime: yes`
+  - [ ] Update `docs/deploy/mediamtx-server.yml`: enable HLS (`hls: true`), set `hlsAddress`, `hlsSegmentDuration`, `hlsSegmentCount`, segment output path (`hlsDirectory`), `hlsAlwaysRemux: true`, and `useAbsoluteTimestamp: true` on the path
   - [ ] HLS address should remain `:0` (disabled for external access) but output must be written to the volume path
 
 - [ ] Task 8: Update docker-compose files for shared HLS volume (AC: #2)
@@ -113,7 +113,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 
 - Use `forcePathStyle: env.S3_FORCE_PATH_STYLE` in the S3Client config — `true` for RustFS/MinIO path-style access (`http://host:port/bucket/key`), `false` for AWS virtual-hosted-style (`http://bucket.host/key`)
 - The presigner (`@aws-sdk/s3-request-presigner`) is needed for Story 10-3 download URLs but should be installed now to avoid a dep-add story later
-- S3 bucket must have per-object ACL support enabled (not owner-enforced mode) — this is a bucket config prerequisite, not code
+- S3 bucket should support `PutObjectAcl` for object-level ACL operations (used by clip visibility toggle). RustFS supports this at the object level.
 - S3 object keys follow pattern `clips/{clipId}/video.mp4` and `clips/{clipId}/thumbnail.jpg` — derive from clipId, no separate key storage needed
 
 **Prisma Migration Notes**
@@ -134,7 +134,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 **mediamtx HLS Configuration**
 
 - HLS output is enabled via `hlsAddress` in `mediamtx-server.yml` but should only write segments to the shared volume
-- `hlsProgramDateTime: yes` is required for absolute timestamp seeking in ffmpeg (Story 10-3)
+- `useAbsoluteTimestamp: true` on the path preserves original frame timestamps from the RTSP stream, enabling accurate timestamp seeking in ffmpeg (Story 10-3)
 - The mediamtx HTTP API endpoint for flushing HLS paths uses `MTX_API_URL` (already in env.ts, default `http://127.0.0.1:9997`) — no new env var needed
 - The API call to flush HLS is: `DELETE {MTX_API_URL}/v3/hlsmuxers/delete/{MTX_STREAM_PATH}` or the appropriate mediamtx v3 API endpoint
 
@@ -202,7 +202,7 @@ Review conducted: 2026-03-22
 
 1. **~No S3 connectivity validation at startup~** — ACKNOWLEDGED. Add `S3_FORCE_PATH_STYLE` env var (boolean, default `true`) per Finding #10 below. Startup connectivity check is out of scope for infrastructure story; S3 operations will fail fast at runtime with clear errors.
 
-2. **~HLS segment storage has no cleanup policy~** — NOT A CONCERN. mediamtx maintains the rolling buffer per `hlsSegmentMaxCount * hlsSegmentDuration`. The container's lifecycle management handles segment cleanup.
+2. **~HLS segment storage has no cleanup policy~** — NOT A CONCERN. mediamtx maintains the rolling buffer per `hlsSegmentCount * hlsSegmentDuration`. The container's lifecycle management handles segment cleanup.
 
 3. **S3 key design** — CLARIFIED. The `s3_key` field should be derived from `clipId` (ULID) for consistency: `clips/{clipId}/video.mp4`. Update AC #5 to reflect this pattern — no separate arbitrary S3 key storage needed.
 

@@ -17,31 +17,39 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY_OWNER:-zikeji}/manlycam:latest
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       # HTTP server port (must match the exposed port above)
-      PORT: "3000"
+      PORT: '3000'
       # Public base URL — e.g. https://cam.example.com (used for OAuth redirects)
-      BASE_URL: "${BASE_URL}"
+      BASE_URL: '${BASE_URL}'
       # PostgreSQL connection string — references the postgres service below
-      DATABASE_URL: "postgresql://manlycam:${POSTGRES_PASSWORD}@postgres:5432/manlycam"
+      DATABASE_URL: 'postgresql://manlycam:${POSTGRES_PASSWORD}@postgres:5432/manlycam'
       # Secret used to sign sessions (min 32 chars)
-      SESSION_SECRET: "${SESSION_SECRET}"
+      SESSION_SECRET: '${SESSION_SECRET}'
       # Google OAuth 2.0 credentials
-      GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
-      GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID}'
+      GOOGLE_CLIENT_SECRET: '${GOOGLE_CLIENT_SECRET}'
       # frp host and remote ports — server connects to frps on the Docker-internal network
       # FRP_HOST is the Docker service name for frps; server reaches it via Docker bridge DNS
       FRP_HOST: frps
-      FRP_RTSP_PORT: "${FRP_RTSP_PORT:-11935}"
-      FRP_API_PORT: "${FRP_API_PORT:-11936}"
+      FRP_RTSP_PORT: '${FRP_RTSP_PORT:-11935}'
+      FRP_API_PORT: '${FRP_API_PORT:-11936}'
       # mediamtx base URLs — server reaches mediamtx over Docker bridge DNS
-      # WebRTC (8888) and API (9997) are internal-only; Hono proxies WHEP signaling
-      MTX_API_URL: "http://mediamtx:9997"
-      MTX_WEBRTC_URL: "http://mediamtx:8888"
+      # WebRTC (8888), API (9997), and HLS (8090) are internal-only
+      MTX_API_URL: 'http://mediamtx:9997'
+      MTX_WEBRTC_URL: 'http://mediamtx:8888'
+      MTX_HLS_URL: '${MTX_HLS_URL:-http://mediamtx:8090}'
       # Configurable instance identity (FR55)
-      PET_NAME: "${PET_NAME:-Manly}"
-      SITE_NAME: "${SITE_NAME:-ManlyCam}"
+      PET_NAME: '${PET_NAME:-Manly}'
+      SITE_NAME: '${SITE_NAME:-ManlyCam}'
+      # S3-compatible storage for clip recording (Story 10-1)
+      S3_ENDPOINT: '${S3_ENDPOINT:-http://rustfs:9000}'
+      S3_BUCKET: '${S3_BUCKET:-manlycam-clips}'
+      S3_ACCESS_KEY: '${S3_ACCESS_KEY:-minioadmin}'
+      S3_SECRET_KEY: '${S3_SECRET_KEY:-minioadmin}'
+      S3_REGION: '${S3_REGION:-us-east-1}'
+      S3_PUBLIC_BASE_URL: '${S3_PUBLIC_BASE_URL:-http://localhost:9000}'
     depends_on:
       postgres:
         condition: service_healthy
@@ -52,8 +60,8 @@ services:
     image: bluenviron/mediamtx:latest
     restart: unless-stopped
     ports:
-      - "8554:8554"     # RTSP — frpc on Pi pushes stream here via frps tunnel
-      - "8189:8189/udp" # WebRTC ICE/STUN — browsers negotiate media transport over UDP
+      - '8554:8554' # RTSP — frpc on Pi pushes stream here via frps tunnel
+      - '8189:8189/udp' # WebRTC ICE/STUN — browsers negotiate media transport over UDP
       # 8888 (WebRTC WHEP signaling) and 9997 (API) are internal-only — server reaches via Docker bridge
     volumes:
       # Copy mediamtx-server.yml alongside this compose file and substitute FRP_HOST/FRP_RTSP_PORT
@@ -63,7 +71,7 @@ services:
     image: snowdreamtech/frps:latest
     restart: unless-stopped
     ports:
-      - "7000:7000"    # frpc client connections — Pi connects here to establish tunnels
+      - '7000:7000' # frpc client connections — Pi connects here to establish tunnels
       # 11935 and 11936 are not published — the server container reaches frps directly
       # over the Docker network using the service name (frps:11935, frps:11936)
     volumes:
@@ -77,15 +85,29 @@ services:
       POSTGRES_DB: manlycam
       POSTGRES_USER: manlycam
       # Set POSTGRES_PASSWORD in your .env file — never hardcode this value
-      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD}'
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U manlycam"]
+      test: ['CMD-SHELL', 'pg_isready -U manlycam']
       interval: 5s
       timeout: 5s
       retries: 5
 
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    ports:
+      - '9000:9000' # S3 API endpoint
+      - '9001:9001' # Web console (bucket management)
+    environment:
+      RUSTFS_ROOT_USER: minioadmin
+      RUSTFS_ROOT_PASSWORD: minioadmin
+    volumes:
+      - rustfsdata:/data
+
 volumes:
   # Named volume for PostgreSQL data — persists across container restarts
   pgdata:
+  # RustFS data persistence for S3-compatible object storage
+  rustfsdata:

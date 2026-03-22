@@ -30,11 +30,11 @@ flowchart LR
 
 Your server's firewall must allow inbound traffic on these ports:
 
-| Port | Protocol | Purpose |
-|---|---|---|
-| `80` / `443` | TCP | HTTP/HTTPS (Traefik or your reverse proxy) |
-| `7000` | TCP | frps control — Pi's frpc connects here to establish tunnels |
-| `8189` | UDP | WebRTC ICE/STUN — browsers use this for media transport |
+| Port         | Protocol | Purpose                                                     |
+| ------------ | -------- | ----------------------------------------------------------- |
+| `80` / `443` | TCP      | HTTP/HTTPS (Traefik or your reverse proxy)                  |
+| `7000`       | TCP      | frps control — Pi's frpc connects here to establish tunnels |
+| `8189`       | UDP      | WebRTC ICE/STUN — browsers use this for media transport     |
 
 Port 8189 is mediamtx's default `webrtcLocalUDPAddress`. It can be customized in `mediamtx-server.yml` — see the [mediamtx configuration reference](https://mediamtx.org/docs/references/configuration-file) for details. If WebRTC connections fail (video never loads despite WHEP signaling succeeding), port 8189/UDP is almost always the cause. See the [mediamtx WebRTC troubleshooting guide](https://mediamtx.org/docs/other/webrtc-specific-features) for further diagnostics.
 
@@ -44,11 +44,11 @@ Port 8189 is mediamtx's default `webrtcLocalUDPAddress`. It can be customized in
 
 Two Docker Compose variants are provided, plus guidance for bare-metal installs:
 
-| Variant | File | TLS Handling |
-|---|---|---|
-| **Simple** | `docker-compose.yml` | External — host-level Caddy, nginx, or other reverse proxy handles TLS |
-| **Traefik** | `traefik/docker-compose.yml` | Docker-native — Traefik manages Let's Encrypt certificates automatically |
-| **Bare-metal** | N/A | Manual — install mediamtx and frps directly on the server host |
+| Variant        | File                         | TLS Handling                                                             |
+| -------------- | ---------------------------- | ------------------------------------------------------------------------ |
+| **Simple**     | `docker-compose.yml`         | External — host-level Caddy, nginx, or other reverse proxy handles TLS   |
+| **Traefik**    | `traefik/docker-compose.yml` | Docker-native — Traefik manages Let's Encrypt certificates automatically |
+| **Bare-metal** | N/A                          | Manual — install mediamtx and frps directly on the server host           |
 
 ## Environment Variables
 
@@ -60,29 +60,41 @@ cp apps/server/.env.example .env
 
 ### Required variables
 
-| Variable | Description | Example |
-|---|---|---|
-| `PORT` | Server HTTP port | `3000` |
-| `BASE_URL` | Public URL (used for OAuth redirects) | `https://cam.example.com` |
-| `DATABASE_URL` | PostgreSQL connection string | `postgresql://manlycam:pass@postgres:5432/manlycam` |
-| `POSTGRES_PASSWORD` | PostgreSQL password (used in Docker Compose) | *(generate with `openssl rand -hex 16`)* |
-| `SESSION_SECRET` | Session signing secret (min 32 chars) | *(generate with `openssl rand -hex 32`)* |
-| `GOOGLE_CLIENT_ID` | Google OAuth 2.0 client ID (see [setup guide below](#google-oauth-setup)) | `xxx.apps.googleusercontent.com` |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret | `GOCSPX-xxx` |
-| `FRP_HOST` | frps hostname | Docker: `frps` / Bare-metal: `localhost` |
-| `FRP_RTSP_PORT` | frps remote port for RTSP tunnel | `11935` |
-| `FRP_API_PORT` | frps remote port for mediamtx API tunnel | `11936` |
-| `MTX_API_URL` | mediamtx API base URL | Docker: `http://mediamtx:9997` / Bare-metal: `http://127.0.0.1:9997` |
-| `MTX_WEBRTC_URL` | mediamtx WebRTC WHEP base URL | Docker: `http://mediamtx:8888` / Bare-metal: `http://127.0.0.1:8888` |
-| `PET_NAME` | Camera subject name (shown in UI) | `Manly` |
-| `SITE_NAME` | Site display name | `ManlyCam` |
+| Variable               | Description                                                               | Example                                                              |
+| ---------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `PORT`                 | Server HTTP port                                                          | `3000`                                                               |
+| `BASE_URL`             | Public URL (used for OAuth redirects)                                     | `https://cam.example.com`                                            |
+| `DATABASE_URL`         | PostgreSQL connection string                                              | `postgresql://manlycam:pass@postgres:5432/manlycam`                  |
+| `POSTGRES_PASSWORD`    | PostgreSQL password (used in Docker Compose)                              | _(generate with `openssl rand -hex 16`)_                             |
+| `SESSION_SECRET`       | Session signing secret (min 32 chars)                                     | _(generate with `openssl rand -hex 32`)_                             |
+| `GOOGLE_CLIENT_ID`     | Google OAuth 2.0 client ID (see [setup guide below](#google-oauth-setup)) | `xxx.apps.googleusercontent.com`                                     |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth 2.0 client secret                                            | `GOCSPX-xxx`                                                         |
+| `FRP_HOST`             | frps hostname                                                             | Docker: `frps` / Bare-metal: `localhost`                             |
+| `FRP_RTSP_PORT`        | frps remote port for RTSP tunnel                                          | `11935`                                                              |
+| `FRP_API_PORT`         | frps remote port for mediamtx API tunnel                                  | `11936`                                                              |
+| `MTX_API_URL`          | mediamtx API base URL                                                     | Docker: `http://mediamtx:9997` / Bare-metal: `http://127.0.0.1:9997` |
+| `MTX_WEBRTC_URL`       | mediamtx WebRTC WHEP base URL                                             | Docker: `http://mediamtx:8888` / Bare-metal: `http://127.0.0.1:8888` |
+| `PET_NAME`             | Camera subject name (shown in UI)                                         | `Manly`                                                              |
+| `SITE_NAME`            | Site display name                                                         | `ManlyCam`                                                           |
 
 ### Traefik-only variables
 
-| Variable | Description | Example |
-|---|---|---|
-| `SITE_DOMAIN` | Domain without scheme | `cam.example.com` |
-| `ACME_EMAIL` | Let's Encrypt notification email | `admin@example.com` |
+| Variable      | Description                      | Example             |
+| ------------- | -------------------------------- | ------------------- |
+| `SITE_DOMAIN` | Domain without scheme            | `cam.example.com`   |
+| `ACME_EMAIL`  | Let's Encrypt notification email | `admin@example.com` |
+
+### Clipping/S3 variables (required for clip recording)
+
+| Variable             | Description                    | Dev (RustFS)            | Production (Backblaze B2)             |
+| -------------------- | ------------------------------ | ----------------------- | ------------------------------------- |
+| `S3_ENDPOINT`        | S3-compatible endpoint URL     | `http://localhost:9000` | `https://s3.{region}.backblazeb2.com` |
+| `S3_BUCKET`          | Bucket name for clip storage   | _(your bucket)_         | _(your B2 bucket)_                    |
+| `S3_ACCESS_KEY`      | S3 access key                  | `minioadmin`            | _(your B2 key)_                       |
+| `S3_SECRET_KEY`      | S3 secret key                  | `minioadmin`            | _(your B2 secret)_                    |
+| `S3_REGION`          | S3 region identifier           | `us-east-1`             | _(your B2 region)_                    |
+| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails | `http://localhost:9000` | `https://f{n}.backblazeb2.com/file`   |
+| `MTX_HLS_URL`        | mediamtx HLS server base URL   | `http://mediamtx:8090`  | `http://mediamtx:8090`                |
 
 ### Container image
 
@@ -115,12 +127,15 @@ Use this variant when you already have a reverse proxy (Caddy, nginx, etc.) hand
 1. **Prepare `.env`** — copy and fill in as described above. Set `BASE_URL` to your public HTTPS URL.
 
 2. **Set up frps token** — edit `docs/deploy/frps.toml` and replace the token with a secure random secret:
+
    ```bash
    openssl rand -hex 32
    ```
+
    This token must match the `--frp-token` value used when running `install.sh` on the Pi.
 
 3. **Prepare mediamtx-server.yml** — the file at `docs/deploy/mediamtx-server.yml` has `FRP_HOST` and `FRP_RTSP_PORT` placeholders. Replace them with actual values. In Docker Compose, frps is reachable by service name:
+
    ```yaml
    # In docs/deploy/mediamtx-server.yml, change:
    source: rtsp://FRP_HOST:FRP_RTSP_PORT/cam
@@ -129,6 +144,7 @@ Use this variant when you already have a reverse proxy (Caddy, nginx, etc.) hand
    ```
 
 4. **Start the stack:**
+
    ```bash
    cd docs/deploy
    docker compose --env-file ../../.env up -d
@@ -144,12 +160,12 @@ Use this variant when you already have a reverse proxy (Caddy, nginx, etc.) hand
 
 The simple variant runs 4 services:
 
-| Service | Image | Purpose |
-|---|---|---|
-| `server` | `ghcr.io/.../manlycam:latest` | Hono application server (port 3000) |
-| `mediamtx` | `bluenviron/mediamtx:latest` | RTSP-to-WebRTC relay |
-| `frps` | `snowdreamtech/frps:latest` | frp tunnel server (port 7000) |
-| `postgres` | `postgres:16-alpine` | PostgreSQL database |
+| Service    | Image                         | Purpose                             |
+| ---------- | ----------------------------- | ----------------------------------- |
+| `server`   | `ghcr.io/.../manlycam:latest` | Hono application server (port 3000) |
+| `mediamtx` | `bluenviron/mediamtx:latest`  | RTSP-to-WebRTC relay                |
+| `frps`     | `snowdreamtech/frps:latest`   | frp tunnel server (port 7000)       |
+| `postgres` | `postgres:16-alpine`          | PostgreSQL database                 |
 
 ## Docker Compose — Traefik (Docker-Native TLS)
 
@@ -162,6 +178,7 @@ Use this variant for a fully self-contained deployment where Traefik manages Let
 2. **Set up frps token** — edit `docs/deploy/traefik/frps.toml` and replace the token with a secure random secret (must match the Pi's `--frp-token`).
 
 3. **Prepare mediamtx-server.yml** — copy `docs/deploy/mediamtx-server.yml` to `docs/deploy/traefik/mediamtx-server.yml` and substitute `FRP_HOST`/`FRP_RTSP_PORT`:
+
    ```yaml
    source: rtsp://frps:11935/cam
    ```
@@ -169,6 +186,7 @@ Use this variant for a fully self-contained deployment where Traefik manages Let
 4. **Update traefik.yml** — edit `docs/deploy/traefik/traefik.yml` and replace `admin@example.com` with your actual email for Let's Encrypt.
 
 5. **Start the stack:**
+
    ```bash
    cd docs/deploy/traefik
    docker compose --env-file ../../../.env up -d
@@ -182,13 +200,13 @@ Use this variant for a fully self-contained deployment where Traefik manages Let
 
 The Traefik variant runs 5 services (same 4 as simple, plus Traefik):
 
-| Service | Purpose |
-|---|---|
-| `traefik` | Reverse proxy with automatic Let's Encrypt TLS (ports 80, 443) |
-| `server` | Hono application server |
-| `mediamtx` | RTSP-to-WebRTC relay |
-| `frps` | frp tunnel server (port 7000) |
-| `postgres` | PostgreSQL database |
+| Service    | Purpose                                                        |
+| ---------- | -------------------------------------------------------------- |
+| `traefik`  | Reverse proxy with automatic Let's Encrypt TLS (ports 80, 443) |
+| `server`   | Hono application server                                        |
+| `mediamtx` | RTSP-to-WebRTC relay                                           |
+| `frps`     | frp tunnel server (port 7000)                                  |
+| `postgres` | PostgreSQL database                                            |
 
 ## Bare-Metal / Non-Docker
 
@@ -300,6 +318,87 @@ FRP_API_PORT=11936
 
 A reference systemd unit for the Hono server is available at `docs/deploy/manlycam-server.service`.
 
+### 6. Install ffmpeg (required for clip recording)
+
+The clipping feature requires ffmpeg for extracting video segments and generating thumbnails.
+
+**Ubuntu/Debian:**
+
+```bash
+sudo apt update
+sudo apt install ffmpeg
+```
+
+**macOS:**
+
+```bash
+brew install ffmpeg
+```
+
+**Verify the installation:**
+
+```bash
+ffmpeg -version
+```
+
+### 7. Run RustFS standalone (development S3 storage)
+
+For local development without Backblaze B2, run RustFS as a standalone binary. In production, you would use Backblaze B2 or another S3-compatible service.
+
+**Download RustFS:**
+
+```bash
+# Download the latest release for your platform (linux-amd64 example)
+curl -fsSL https://github.com/rustfs/rustfs/releases/latest/download/rustfs-linux-amd64 -o /usr/local/bin/rustfs
+sudo chmod +x /usr/local/bin/rustfs
+```
+
+**Create data directory:**
+
+```bash
+sudo mkdir -p /var/lib/rustfs
+```
+
+**Create systemd service:**
+
+```bash
+sudo tee /etc/systemd/system/rustfs.service > /dev/null <<'EOF'
+[Unit]
+Description=RustFS S3-compatible object storage (ManlyCam)
+After=network.target
+
+[Service]
+ExecStart=/usr/local/bin/rustfs server /var/lib/rustfs --console-address :9001
+Restart=on-failure
+RestartSec=5
+Environment="RUSTFS_ROOT_USER=minioadmin"
+Environment="RUSTFS_ROOT_PASSWORD=minioadmin"
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now rustfs
+```
+
+**Access the web console** at `http://localhost:9001` and create a bucket with ACL support enabled (not owner-enforced mode). The default credentials are `minioadmin` / `minioadmin`.
+
+**Configure Hono server environment variables:**
+
+Add these to your server environment:
+
+```bash
+S3_ENDPOINT=http://localhost:9000
+S3_BUCKET=manlycam-clips
+S3_ACCESS_KEY=minioadmin
+S3_SECRET_KEY=minioadmin
+S3_REGION=us-east-1
+S3_PUBLIC_BASE_URL=http://localhost:9000
+HLS_SEGMENTS_PATH=/hls
+MTX_STREAM_PATH=cam
+```
+
 ## First-Run Admin Steps
 
 After the stack is running, you must add yourself to the allowlist before you can sign in. Without this, Google OAuth sign-in will be rejected even for the server owner.
@@ -357,7 +456,7 @@ To use custom commands in Docker without rebuilding the image, mount the `custom
 services:
   server:
     volumes:
-      - ./custom:/repo/apps/server/custom  # Mount custom commands
+      - ./custom:/repo/apps/server/custom # Mount custom commands
 ```
 
 Or with `docker run`:
@@ -396,3 +495,99 @@ Use this to verify the entire ManlyCam stack is operational:
 4. **Hono server:** health check passes — `curl http://localhost:3000/api/health`
 5. **Browser:** navigate to your `BASE_URL`, sign in with Google, and confirm the live stream loads
 6. **Pi:** camera streaming — see [`pi/README.md`](../../pi/README.md) for Pi-side troubleshooting
+
+## Clipping Infrastructure (Development)
+
+This section covers the additional infrastructure required for the clip recording and sharing feature. In production, clips are stored in Backblaze B2. For local development, use RustFS (an S3-compatible object storage server) instead of requiring a B2 account.
+
+### Overview
+
+The clipping pipeline uses:
+
+- **HLS segments**: mediamtx writes HLS segments to a shared volume for rolling buffer storage
+- **RustFS**: Local S3-compatible storage for clip files and thumbnails
+- **ffmpeg**: Extracts clip segments from the HLS buffer and generates thumbnails
+
+### Docker Compose Additions
+
+Both Docker Compose variants (simple and Traefik) include these additions for clipping:
+
+#### Named Volume
+
+The `hls_segments` volume is shared between mediamtx (writes) and the server (reads):
+
+```yaml
+volumes:
+  pgdata:
+  hls_segments: # Shared HLS segment buffer between mediamtx and server
+```
+
+#### RustFS Service
+
+```yaml
+  rustfs:
+    image: rustfs/rustfs:latest
+    restart: unless-stopped
+    ports:
+      - "9000:9000"   # S3 API endpoint
+      - "9001:9001"   # Web console (bucket management)
+    environment:
+      RUSTFS_ROOT_USER: minioadmin
+      RUSTFS_ROOT_PASSWORD: minioadmin
+    volumes:
+      - rustfsdata:/data
+
+volumes:
+  # ... existing volumes ...
+  rustfsdata:  # RustFS data persistence
+```
+
+### RustFS Bucket Setup
+
+After starting the stack for the first time:
+
+1. **Open the RustFS web console** at `http://localhost:9001`
+2. **Log in** with default credentials: `minioadmin` / `minioadmin`
+3. **Create a bucket** (e.g., `manlycam-clips`)
+
+The clip visibility toggle uses `PutObjectAcl` to switch video objects between private and public-read ACLs. This is supported by RustFS at the object level.
+
+### mediamtx HLS Configuration
+
+The `mediamtx-server.yml` includes HLS output settings for the clipping buffer:
+
+```yaml
+hls: true # Enable HLS output
+hlsAddress: ':8090' # HLS output (internal-only, not exposed to browsers)
+hlsSegmentDuration: '2s' # Segment length
+hlsSegmentCount: 450 # Rolling buffer depth (~15 min at 2s segments)
+hlsVariant: mpegts # Use MPEG-TS format for better clip extraction compatibility
+hlsAlwaysRemux: true # Generate HLS segments continuously
+```
+
+**HLS Access:** The HLS playlist is served via HTTP at `{MTX_HLS_URL}/cam/video1_stream.m3u8` (internal network only). The server container accesses this URL directly for clip extraction. No shared volume is required.
+
+**Timestamp synchronization:** The path configuration includes `useAbsoluteTimestamp: true` which preserves the original frame timestamps from the RTSP stream. This ensures accurate time alignment between the UI and extracted clips.
+
+The HLS path is flushed when the stream goes offline using the existing `MTX_API_URL` environment variable (already present in `env.ts` at default `http://127.0.0.1:9997`). No additional environment variable is needed.
+
+### Environment Variables
+
+Add these to your `.env` file for clipping support:
+
+| Variable             | Dev Default             | Production (B2)                       | Description                    |
+| -------------------- | ----------------------- | ------------------------------------- | ------------------------------ |
+| `S3_ENDPOINT`        | `http://localhost:9000` | `https://s3.{region}.backblazeb2.com` | S3-compatible endpoint URL     |
+| `S3_BUCKET`          | _(required)_            | _(required)_                          | Bucket name for clip storage   |
+| `S3_ACCESS_KEY`      | `minioadmin`            | _(your B2 key)_                       | S3 access key                  |
+| `S3_SECRET_KEY`      | `minioadmin`            | _(your B2 secret)_                    | S3 secret key                  |
+| `S3_REGION`          | `us-east-1`             | _(your B2 region)_                    | S3 region identifier           |
+| `S3_PUBLIC_BASE_URL` | `http://localhost:9000` | `https://f{n}.backblazeb2.com/file`   | Public URL base for thumbnails |
+| `MTX_HLS_URL`        | `http://mediamtx:8090`  | `http://mediamtx:8090`                | mediamtx HLS server base URL   |
+
+**`S3_PUBLIC_BASE_URL` notes:**
+
+- **Development (RustFS)**: `http://localhost:9000` — serves files directly from RustFS
+- **Production (Backblaze B2)**: `https://f{n}.backblazeb2.com/file` — replace `{n}` with your B2 CDN hostname number (supplied by your B2 bucket info)
+
+The `MTX_HLS_URL` is the base URL for the mediamtx HLS server (e.g., `http://mediamtx:8090`). The server constructs the full playlist URL as `{MTX_HLS_URL}/cam/video1_stream.m3u8` for ffmpeg clip extraction.

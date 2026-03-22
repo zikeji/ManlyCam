@@ -12,7 +12,7 @@ So that I can deploy the full clipping feature without guessing at configuration
 
 1. **B2 bucket setup section** documents: creating a private B2 bucket, creating an application key scoped to the bucket with read/write permissions, configuring per-object ACLs (B2 supports `s3:PutObjectAcl` -- operator must enable it on the bucket policy), and which env vars map to B2 settings (`S3_ENDPOINT` = `https://s3.{region}.backblazeb2.com`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL` = `https://f{n}.backblazeb2.com/file` -- operator must supply the correct CDN hostname from B2 dashboard).
 
-2. **mediamtx HLS configuration section** documents: enabling HLS output, setting `hlsProgramDateTime: yes`, and the rolling buffer formula: `hlsSegmentMaxCount = desired_buffer_minutes x 60 / hlsSegmentDuration`; example: 15 min buffer with 2s segments = 450 segments; disk space guidance: approximately `bitrate_mbps x buffer_minutes x 7.5` MB (e.g., 2 Mbps x 15 min = 225 MB); recommendation to back the HLS path with sufficient disk space.
+2. **mediamtx HLS configuration section** documents: enabling HLS output, setting `useAbsoluteTimestamp: true` on the path for accurate timestamp synchronization, and the rolling buffer formula: `hlsSegmentCount = desired_buffer_minutes x 60 / hlsSegmentDuration`; example: 15 min buffer with 2s segments = 450 segments; disk space guidance: approximately `bitrate_mbps x buffer_minutes x 7.5` MB (e.g., 2 Mbps x 15 min = 225 MB); recommendation to back the HLS path with sufficient disk space.
 
 3. **Docker Compose production section** documents: the `hls_segments` named volume declaration, read-write mount for mediamtx, read-only mount for the server container, and how to verify the volume is functioning after deploy.
 
@@ -37,7 +37,7 @@ So that I can deploy the full clipping feature without guessing at configuration
   - [ ] 1.4 Add B2 egress cost warning for public clips at scale
 - [ ] Task 2: Add mediamtx HLS configuration section to `docs/deploy/README.md` (AC: #2)
   - [ ] 2.1 Document enabling HLS output in `mediamtx-server.yml`
-  - [ ] 2.2 Document `hlsProgramDateTime: yes` requirement
+  - [ ] 2.2 Document `useAbsoluteTimestamp: true` on the path for accurate timestamp synchronization
   - [ ] 2.3 Document rolling buffer formula with worked example (15 min / 2s segments = 450)
   - [ ] 2.4 Document disk space guidance formula with worked example
 - [ ] Task 3: Update Docker Compose sections for clipping volumes (AC: #3)
@@ -87,26 +87,30 @@ This is a **documentation-only story** -- no application code changes. All modif
 
 These env vars will be added to `apps/server/src/env.ts` by Story 10-2. This story documents them for operators:
 
-| Variable | Description | Example (Production) |
-|---|---|---|
-| `S3_ENDPOINT` | S3-compatible endpoint URL | `https://s3.us-west-004.backblazeb2.com` |
-| `S3_BUCKET` | Bucket name | `manlycam-clips` |
-| `S3_ACCESS_KEY` | B2 application key ID | *(from B2 dashboard)* |
-| `S3_SECRET_KEY` | B2 application key secret | *(from B2 dashboard)* |
-| `S3_REGION` | B2 region | `us-west-004` |
-| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails | `https://f004.backblazeb2.com/file/manlycam-clips` |
-| `HLS_SEGMENTS_PATH` | Absolute path where mediamtx writes HLS segments | `/hls` (default) |
-| `MTX_STREAM_PATH` | mediamtx path name matching Pi RTSP stream | `cam` (default) |
+| Variable             | Description                                      | Example (Production)                               |
+| -------------------- | ------------------------------------------------ | -------------------------------------------------- |
+| `S3_ENDPOINT`        | S3-compatible endpoint URL                       | `https://s3.us-west-004.backblazeb2.com`           |
+| `S3_BUCKET`          | Bucket name                                      | `manlycam-clips`                                   |
+| `S3_ACCESS_KEY`      | B2 application key ID                            | _(from B2 dashboard)_                              |
+| `S3_SECRET_KEY`      | B2 application key secret                        | _(from B2 dashboard)_                              |
+| `S3_REGION`          | B2 region                                        | `us-west-004`                                      |
+| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails                   | `https://f004.backblazeb2.com/file/manlycam-clips` |
+| `HLS_SEGMENTS_PATH`  | Absolute path where mediamtx writes HLS segments | `/hls` (default)                                   |
+| `MTX_STREAM_PATH`    | mediamtx path name matching Pi RTSP stream       | `cam` (default)                                    |
 
 ### mediamtx HLS Configuration
 
 The current `mediamtx-server.yml` has `hlsAddress: ":0"` (disabled). The clipping feature requires HLS output enabled so the server can read the rolling buffer for ffmpeg clip extraction. Key settings to document:
 
 ```yaml
-hlsAddress: ":8888"            # or appropriate port -- internal only
-hlsSegmentDuration: 2s         # recommended
-hlsSegmentMaxCount: 450        # 15 min buffer at 2s segments
-hlsProgramDateTime: yes        # required for absolute timestamp scrubbing
+hls: true # enable HLS output
+hlsAddress: ':8888' # or appropriate port -- internal only
+hlsSegmentDuration: 2s # recommended
+hlsSegmentCount: 450 # 15 min buffer at 2s segments
+hlsDirectory: /hls # segment output path
+hlsAlwaysRemux: true # generate segments continuously for clip buffer
+# On the path:
+useAbsoluteTimestamp: true # preserves original frame timestamps for accurate clip/UI sync
 ```
 
 The HLS segments path must be a shared volume: mediamtx writes (read-write), server reads (read-only).
@@ -122,6 +126,7 @@ hls_segments (named volume)
 ### B2 Per-Object ACL Requirement
 
 B2 buckets default to "owner-enforced" ACL mode. The clipping feature requires per-object ACL support because:
+
 - Video clips are uploaded with **private** ACL (served via presigned URLs)
 - Thumbnails are uploaded with **`public-read`** ACL (served directly via `S3_PUBLIC_BASE_URL`)
 - Visibility changes toggle ACL between private and public-read on the video object
@@ -131,6 +136,7 @@ If the bucket uses owner-enforced mode, `PutObjectAcl` calls will fail with `Acc
 ### Existing Deployment Doc Structure
 
 The current `docs/deploy/README.md` has this structure:
+
 1. Architecture Overview (mermaid diagram)
 2. Required Ports
 3. Deployment Paths
@@ -161,6 +167,7 @@ Story 10-1 covers the dev environment setup (RustFS instead of B2, local Docker 
 ### Testing
 
 This is a documentation story. No automated tests are required. Quality gate is:
+
 - All documented env var names verified against `apps/server/src/env.ts` (after Story 10-2 lands)
 - Docker Compose files are valid YAML
 - mediamtx config additions are valid YAML

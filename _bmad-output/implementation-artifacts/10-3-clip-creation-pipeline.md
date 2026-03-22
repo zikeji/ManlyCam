@@ -12,7 +12,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 1. **Clip button in Broadcast Console** -- A clip button (lucide `Videotape` icon, tooltip "Clip Stream") appears in the Broadcast Console to the right of the snapshot button. Visible to all authenticated roles including ViewerGuest.
 
-2. **Clip modal UI** -- Clicking the clip button opens a modal overlay with: an HLS scrubber populated from the live `.m3u8` playlist (using `EXT-X-PROGRAM-DATE-TIME` timestamps); preset buttons (30s, 1min, 2min) that preselect the corresponding tail of the available buffer as the initial range; drag handles on both ends for manual adjustment; name and description input fields; a "Share to chat when ready" checkbox; a Submit button.
+2. **Clip modal UI** -- Clicking the clip button opens a modal overlay with: an HLS scrubber populated from the live `.m3u8` playlist (using segment timestamps derived from the HLS playlist); preset buttons (30s, 1min, 2min) that preselect the corresponding tail of the available buffer as the initial range; drag handles on both ends for manual adjustment; name and description input fields; a "Share to chat when ready" checkbox; a Submit button.
 
 3. **POST /api/clips validation** -- `POST /api/clips` accepts `{ startTime: ISO8601, endTime: ISO8601, name: string, description?: string, shareToChat?: boolean }`. Validation: `stream_started_at` must exist in `stream_config` (else 422 "Stream has not started"); `startTime >= stream_started_at` (else 422); `startTime` and `endTime` fall within available HLS segment range parsed from m3u8 (else 422); `endTime > startTime`; duration <= 15 minutes (else 422); `name` <= 200 chars (else 422); `description` <= 500 chars if provided (else 422). Requires active session (401 if unauthenticated).
 
@@ -20,7 +20,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 5. **ffmpeg processing** -- Async processing calls ffmpeg: `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (duration = `Math.ceil((new Date(endTime) - new Date(startTime)) / 1000)` -- do NOT use `-to`). Thumbnail: `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`. Video uploaded to S3 with **private** ACL. Thumbnail uploaded with **`public-read`** ACL. Clip record updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, `durationSeconds`. Temp files deleted after upload or on error. Non-zero ffmpeg exit or short output: retry once silently, then set `status: 'failed'` on second failure. On any failure, abort and clean up any pending/partial S3 multipart uploads.
 
-6. **Client timestamp derivation** -- Client derives `startTime`/`endTime` exclusively from `EXT-X-PROGRAM-DATE-TIME` timestamps parsed from the live `.m3u8` playlist. Using `Date.now()` or any wall-clock source is prohibited.
+6. **Client timestamp derivation** -- Client derives `startTime`/`endTime` from segment timestamps parsed from the live `.m3u8` playlist (with `useAbsoluteTimestamp: true`, segment timestamps correspond to original frame timestamps). Using `Date.now()` or any wall-clock source is prohibited.
 
 7. **Share-to-chat on ready** -- When clip record's `shareToChat` is `true` and processing succeeds: update clip `visibility` to `shared` and create `Message` record atomically via `prisma.$transaction()`; broadcast `chat:message` with `messageType: 'clip'` and clip card payload; broadcast `clip:status-changed` with `status: 'ready'`; broadcast `clip:visibility-changed` with `{ clipId, visibility: 'shared', chatClipIds: [new message id], clip: {card data} }`.
 
@@ -101,7 +101,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 - [ ] Task 11: Create clip composable `apps/web/src/composables/useClipCreate.ts` (AC: #2, #6, #10)
   - [ ] `fetchPlaylist()` -- fetch and parse `.m3u8` from `{HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8` (via API proxy or direct)
-  - [ ] Parse `EXT-X-PROGRAM-DATE-TIME` tags for segment timestamps
+  - [ ] Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
   - [ ] `submitClip()` -- call `POST /api/clips` via `apiFetch`
   - [ ] Track pending clip IDs for toast state
   - [ ] Handle `clip:status-changed` WsMessage for toast updates
@@ -159,7 +159,7 @@ Story 10-2 delivers the infrastructure foundation. If 10-2 is not yet merged, th
 
 **ffmpeg invocation:**
 
-- `-ss` before `-i` is fast input seek; with `EXT-X-PROGRAM-DATE-TIME` tags, ffmpeg interprets ISO8601 `-ss` as absolute calendar timestamp
+- `-ss` before `-i` is fast input seek; with `useAbsoluteTimestamp: true` preserving original frame timestamps, ffmpeg interprets ISO8601 `-ss` as absolute calendar timestamp
 - Use `-t {durationSeconds}` for duration. NEVER use `-to {endTime}` -- `-to` is output-stream position, not wall-clock
 - Duration computed as `Math.round((new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000)`
 - Temp files named by clip ULID to prevent collision: `/tmp/{clipId}.mp4`, `/tmp/{clipId}-thumb.jpg`
@@ -169,7 +169,7 @@ Story 10-2 delivers the infrastructure foundation. If 10-2 is not yet merged, th
 
 - Video: uploaded with **private** ACL (default)
 - Thumbnail: uploaded with **`public-read`** ACL -- always accessible via `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`, never presigned
-- Bucket must have per-object ACL support enabled (not owner-enforced)
+- S3 provider must support `PutObjectAcl` for clip visibility toggling (RustFS and B2 both support this at the object level)
 
 **shareToChat persistence:**
 
@@ -187,7 +187,7 @@ Story 10-2 delivers the infrastructure foundation. If 10-2 is not yet merged, th
 **M3u8 parsing:**
 
 - Read `{HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8` from filesystem (the server container has read-only access to the HLS volume)
-- Parse `#EXT-X-PROGRAM-DATE-TIME` tags to extract segment timestamps
+- Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
 - Validate that requested startTime/endTime fall within available segment range
 
 **WS broadcast patterns:**

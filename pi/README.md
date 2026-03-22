@@ -56,18 +56,18 @@ sudo ./install.sh --endpoint cam.example.com --frp-token your-secret-token
 
 ### Required flags
 
-| Flag | Description |
-|---|---|
-| `--endpoint <host\|host:port\|url>` | frps server address. Port defaults to 7000 if omitted. |
-| `--frp-token <token>` | Authentication token. Must match the `[auth] token` in your server's `frps.toml`. |
+| Flag                                | Description                                                                       |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| `--endpoint <host\|host:port\|url>` | frps server address. Port defaults to 7000 if omitted.                            |
+| `--frp-token <token>`               | Authentication token. Must match the `[auth] token` in your server's `frps.toml`. |
 
 ### Optional flags
 
-| Flag | Description |
-|---|---|
-| `--frpc-version <version>` | frpc version to install (default: `0.61.0`) |
-| `--mediamtx-version <version>` | mediamtx version to install (default: `1.9.2`) |
-| `-h`, `--help` | Show usage help |
+| Flag                           | Description                                     |
+| ------------------------------ | ----------------------------------------------- |
+| `--frpc-version <version>`     | frpc version to install (default: `0.61.0`)     |
+| `--mediamtx-version <version>` | mediamtx version to install (default: `1.17.0`) |
+| `-h`, `--help`                 | Show usage help                                 |
 
 The script:
 
@@ -99,15 +99,15 @@ Look for a log line containing `[path cam] [source] ready` — this means the ca
 
 ### Service names and paths
 
-| Item | Value |
-|---|---|
-| frpc service | `frpc` (unit: `/etc/systemd/system/frpc.service`) |
+| Item             | Value                                                     |
+| ---------------- | --------------------------------------------------------- |
+| frpc service     | `frpc` (unit: `/etc/systemd/system/frpc.service`)         |
 | mediamtx service | `mediamtx` (unit: `/etc/systemd/system/mediamtx.service`) |
-| Config directory | `/etc/manlycam/` |
-| frpc config | `/etc/manlycam/frpc.toml` |
-| mediamtx config | `/etc/manlycam/mediamtx.yml` |
-| frpc binary | `/usr/local/bin/frpc` |
-| mediamtx binary | `/usr/local/bin/mediamtx` |
+| Config directory | `/etc/manlycam/`                                          |
+| frpc config      | `/etc/manlycam/frpc.toml`                                 |
+| mediamtx config  | `/etc/manlycam/mediamtx.yml`                              |
+| frpc binary      | `/usr/local/bin/frpc`                                     |
+| mediamtx binary  | `/usr/local/bin/mediamtx`                                 |
 
 ### Checking status
 
@@ -180,6 +180,7 @@ paths:
     rpiCameraWidth: 1280
     rpiCameraHeight: 720
     rpiCameraFPS: 25
+    useAbsoluteTimestamp: true
 ```
 
 1280x720 at 25fps is a well-tested fallback for the Pi Zero W 2.
@@ -193,16 +194,16 @@ paths:
 libcamera ships per-sensor ISP tuning files that can dramatically improve image quality (color accuracy, noise reduction, exposure) compared to the generic default. If you know your camera module's sensor, point mediamtx at the correct tuning file:
 
 ```yaml
-    rpiCameraTuningFile: /usr/share/libcamera/ipa/rpi/vc4/imx519.json
+rpiCameraTuningFile: /usr/share/libcamera/ipa/rpi/vc4/imx519.json
 ```
 
 Common tuning files (in `/usr/share/libcamera/ipa/rpi/vc4/`):
 
-| File | Camera Module |
-|---|---|
-| `imx519.json` | Arducam 16MP (IMX519) |
-| `imx477.json` | Raspberry Pi HQ Camera (IMX477) |
-| `imx708.json` | Raspberry Pi Camera Module 3 (IMX708) |
+| File          | Camera Module                          |
+| ------------- | -------------------------------------- |
+| `imx519.json` | Arducam 16MP (IMX519)                  |
+| `imx477.json` | Raspberry Pi HQ Camera (IMX477)        |
+| `imx708.json` | Raspberry Pi Camera Module 3 (IMX708)  |
 | `ov5647.json` | Raspberry Pi Camera Module v1 (OV5647) |
 | `imx219.json` | Raspberry Pi Camera Module v2 (IMX219) |
 
@@ -213,11 +214,15 @@ Run `ls /usr/share/libcamera/ipa/rpi/vc4/` on your Pi to see what's available. U
 If the camera module is mounted upside down or mirrored:
 
 ```yaml
-    rpiCameraHFlip: yes   # horizontal mirror
-    rpiCameraVFlip: yes   # vertical flip (combine with HFlip for 180-degree rotation)
+rpiCameraHFlip: yes # horizontal mirror
+rpiCameraVFlip: yes # vertical flip (combine with HFlip for 180-degree rotation)
 ```
 
-### Full option reference
+### Timestamp synchronization (clipping feature)
+
+The install script sets `useAbsoluteTimestamp: true` by default. This preserves the original frame timestamps from the camera, which is required for accurate clip extraction on the server. Without this setting, clip timestamps would not align with the UI scrubber.
+
+If you are not using the clipping feature and experience issues, you can set this to `false`, though this is not recommended.
 
 These options are all part of mediamtx's rpiCamera source. See the [mediamtx documentation](https://mediamtx.org/docs/publish/raspberry-pi-cameras) for the full option list.
 

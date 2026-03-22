@@ -234,81 +234,81 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 
 ### FR Coverage Map
 
-| FR   | Epic   | Description                                                                                                             |
-| ---- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
-| FR1  | Epic 2 | Unauthenticated landing page                                                                                            |
-| FR2  | Epic 2 | Google OAuth sign-in                                                                                                    |
-| FR3  | Epic 2 | Domain allowlist enforcement                                                                                            |
-| FR4  | Epic 2 | Individual email allowlist enforcement                                                                                  |
-| FR5  | Epic 2 | Rejection state post-OAuth                                                                                              |
-| FR6  | Epic 2 | No ghost accounts for rejected users                                                                                    |
-| FR7  | Epic 2 | Persistent session across visits                                                                                        |
-| FR8  | Epic 2 | Avatar from Google OAuth / Gravatar fallback                                                                            |
-| FR9  | Epic 3 | Authenticated live stream access                                                                                        |
-| FR10 | Epic 3 | 4-state stream UI (live / offline / unreachable-live / unreachable-offline)                                             |
-| FR11 | Epic 3 | Admin stream start/stop from web UI                                                                                     |
-| FR12 | Epic 3 | "Check back soon" state when Pi unreachable + toggle live                                                               |
-| FR13 | Epic 3 | Real-time state broadcast to all viewers on admin toggle                                                                |
-| FR14 | Epic 3 | Camera settings controls with real-time v4l2-ctl effect                                                                 |
-| FR15 | Epic 3 | Collapsible camera settings sidebar (admin only)                                                                        |
-| FR16 | Epic 4 | Real-time chat via WebSocket                                                                                            |
-| FR17 | Epic 4 | Markdown formatting in chat messages                                                                                    |
-| FR18 | Epic 4 | Avatar + display name with each message                                                                                 |
-| FR19 | Epic 4 | Load last 200 messages on page load                                                                                     |
-| FR20 | Epic 4 | Auto-collapse on small screens, auto-expand on large                                                                    |
-| FR21 | Epic 4 | Unread message count indicator on collapsed sidebar                                                                     |
-| FR22 | Epic 4 | Manual expand/collapse of chat sidebar                                                                                  |
-| FR23 | Epic 4 | Edit/delete own messages; revision history; soft-delete                                                                 |
-| FR24 | Epic 4 | Viewer presence list (all authenticated users)                                                                          |
-| FR25 | Epic 4 | Infinite scroll with day-boundary delineators                                                                           |
-| FR26 | Epic 5 | Moderator/Admin delete any message; soft-delete                                                                         |
-| FR27 | Epic 5 | Moderator/Admin mute user (chat-silenced, stream retained)                                                              |
-| FR28 | Epic 5 | Moderator/Admin ban user (access revoked + immediate session termination)                                               |
-| FR29 | Epic 5 | Moderator/Admin unmute user                                                                                             |
-| FR30 | Epic 5 | Audit log for all moderation actions                                                                                    |
-| FR31 | Epic 5 | Non-privileged users see no elevated options                                                                            |
-| FR32 | Epic 5 | Four-tier role hierarchy: Admin > Moderator > Viewer Company > Viewer Guest                                             |
-| FR33 | Epic 5 | Auto-assign base viewer tier on first login from allowlist match                                                        |
-| FR34 | Epic 5 | Admin role CLI-only assignment                                                                                          |
-| FR35 | Epic 5 | Admin promote/demote Moderator via web UI                                                                               |
-| FR36 | Epic 5 | Admin promote/demote any role via CLI                                                                                   |
-| FR37 | Epic 5 | Admin view all users with first-seen / last-seen timestamps                                                             |
-| FR38 | Epic 5 | Server-computed UserTag on all user profiles; default Guest UserTag for ViewerGuest                                     |
-| FR39 | Epic 5 | Admin set custom UserTag text on any user                                                                               |
-| FR40 | Epic 5 | Admin set custom UserTag color on any user                                                                              |
-| FR41 | Epic 2 | CLI add/remove domain allowlist entries                                                                                 |
-| FR42 | Epic 2 | CLI add/remove individual email allowlist entries                                                                       |
-| FR43 | Epic 2 | CLI ban/unban user accounts                                                                                             |
-| FR44 | Epic 2 | Immediate active session enforcement on allowlist/blocklist change                                                      |
-| FR45 | Epic 6 | frpc systemd service: stream proxy tunnel on boot                                                                       |
-| FR46 | Epic 6 | frpc systemd service: API proxy tunnel on boot (camera control)                                                         |
-| FR47 | Epic 6 | frpc + mediamtx systemd restart-on-failure                                                                              |
-| FR48 | Epic 6 | frpc.toml + mediamtx.yml: sensitive config in native config files                                                       |
-| FR49 | N/A    | REMOVED — no Go binary; no self-update mechanism                                                                        |
-| FR50 | Epic 6 | Install script + operator README: OS flash → camera verify → frpc/mediamtx setup                                        |
-| FR51 | Epic 6 | WiFi config: operator's choice; wifi-connect optionally documented in README                                            |
-| FR52 | Epic 3 | Single-page application constraint                                                                                      |
-| FR53 | Epic 3 | Graceful Pi tunnel-drop handling (no server crash, state broadcast)                                                     |
-| FR54 | Epic 1 | GitHub Actions CI/CD: server + web Docker images; agent CI removed                                                      |
-| FR55 | Epic 1 | Deploy-time config: pet name, site name, OAuth creds, DB URL                                                            |
-| FR56 | Epic 7 | Editable stream title in Broadcast Console (Admin/Mod); changes broadcast via WS                                        |
-| FR57 | Epic 7 | Snapshot button in Broadcast Console; client-side JPEG frame capture + download                                         |
-| FR58 | Epic 7 | PiSugar battery monitor: server TCP poller + admin-only WS broadcast + UI indicator                                     |
-| FR59 | Epic 7 | Resizable chat sidebar (desktop drag handle); width persisted to localStorage                                           |
-| FR60 | Epic 8 | Chat Emojis & Emoji Picker — full emoji picker with search and categories; `:emoji_name:` shortcuts with autocomplete   |
-| FR61 | Epic 8 | Message Reactions — react to messages with emojis; mod/admin can remove; muted users see disabled controls              |
-| FR62 | Epic 8 | Expanded Markdown — code blocks with syntax highlighting, blockquotes, links, italics, strikethrough, images, multiline |
-| FR63 | Epic 8 | @Mentions — `@Full Name` with autocomplete, highlighted messages, titlebar flash on mention                             |
-| FR64 | Epic 8 | Browser Notifications — chat, mention, stream state notifications with granular preferences                             |
-| FR65 | Epic 8  | Programmable Slash Commands — admin-defined JS commands with role-based visibility, ephemeral option                                         |
+| FR   | Epic    | Description                                                                                                                                 |
+| ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR1  | Epic 2  | Unauthenticated landing page                                                                                                                |
+| FR2  | Epic 2  | Google OAuth sign-in                                                                                                                        |
+| FR3  | Epic 2  | Domain allowlist enforcement                                                                                                                |
+| FR4  | Epic 2  | Individual email allowlist enforcement                                                                                                      |
+| FR5  | Epic 2  | Rejection state post-OAuth                                                                                                                  |
+| FR6  | Epic 2  | No ghost accounts for rejected users                                                                                                        |
+| FR7  | Epic 2  | Persistent session across visits                                                                                                            |
+| FR8  | Epic 2  | Avatar from Google OAuth / Gravatar fallback                                                                                                |
+| FR9  | Epic 3  | Authenticated live stream access                                                                                                            |
+| FR10 | Epic 3  | 4-state stream UI (live / offline / unreachable-live / unreachable-offline)                                                                 |
+| FR11 | Epic 3  | Admin stream start/stop from web UI                                                                                                         |
+| FR12 | Epic 3  | "Check back soon" state when Pi unreachable + toggle live                                                                                   |
+| FR13 | Epic 3  | Real-time state broadcast to all viewers on admin toggle                                                                                    |
+| FR14 | Epic 3  | Camera settings controls with real-time v4l2-ctl effect                                                                                     |
+| FR15 | Epic 3  | Collapsible camera settings sidebar (admin only)                                                                                            |
+| FR16 | Epic 4  | Real-time chat via WebSocket                                                                                                                |
+| FR17 | Epic 4  | Markdown formatting in chat messages                                                                                                        |
+| FR18 | Epic 4  | Avatar + display name with each message                                                                                                     |
+| FR19 | Epic 4  | Load last 200 messages on page load                                                                                                         |
+| FR20 | Epic 4  | Auto-collapse on small screens, auto-expand on large                                                                                        |
+| FR21 | Epic 4  | Unread message count indicator on collapsed sidebar                                                                                         |
+| FR22 | Epic 4  | Manual expand/collapse of chat sidebar                                                                                                      |
+| FR23 | Epic 4  | Edit/delete own messages; revision history; soft-delete                                                                                     |
+| FR24 | Epic 4  | Viewer presence list (all authenticated users)                                                                                              |
+| FR25 | Epic 4  | Infinite scroll with day-boundary delineators                                                                                               |
+| FR26 | Epic 5  | Moderator/Admin delete any message; soft-delete                                                                                             |
+| FR27 | Epic 5  | Moderator/Admin mute user (chat-silenced, stream retained)                                                                                  |
+| FR28 | Epic 5  | Moderator/Admin ban user (access revoked + immediate session termination)                                                                   |
+| FR29 | Epic 5  | Moderator/Admin unmute user                                                                                                                 |
+| FR30 | Epic 5  | Audit log for all moderation actions                                                                                                        |
+| FR31 | Epic 5  | Non-privileged users see no elevated options                                                                                                |
+| FR32 | Epic 5  | Four-tier role hierarchy: Admin > Moderator > Viewer Company > Viewer Guest                                                                 |
+| FR33 | Epic 5  | Auto-assign base viewer tier on first login from allowlist match                                                                            |
+| FR34 | Epic 5  | Admin role CLI-only assignment                                                                                                              |
+| FR35 | Epic 5  | Admin promote/demote Moderator via web UI                                                                                                   |
+| FR36 | Epic 5  | Admin promote/demote any role via CLI                                                                                                       |
+| FR37 | Epic 5  | Admin view all users with first-seen / last-seen timestamps                                                                                 |
+| FR38 | Epic 5  | Server-computed UserTag on all user profiles; default Guest UserTag for ViewerGuest                                                         |
+| FR39 | Epic 5  | Admin set custom UserTag text on any user                                                                                                   |
+| FR40 | Epic 5  | Admin set custom UserTag color on any user                                                                                                  |
+| FR41 | Epic 2  | CLI add/remove domain allowlist entries                                                                                                     |
+| FR42 | Epic 2  | CLI add/remove individual email allowlist entries                                                                                           |
+| FR43 | Epic 2  | CLI ban/unban user accounts                                                                                                                 |
+| FR44 | Epic 2  | Immediate active session enforcement on allowlist/blocklist change                                                                          |
+| FR45 | Epic 6  | frpc systemd service: stream proxy tunnel on boot                                                                                           |
+| FR46 | Epic 6  | frpc systemd service: API proxy tunnel on boot (camera control)                                                                             |
+| FR47 | Epic 6  | frpc + mediamtx systemd restart-on-failure                                                                                                  |
+| FR48 | Epic 6  | frpc.toml + mediamtx.yml: sensitive config in native config files                                                                           |
+| FR49 | N/A     | REMOVED — no Go binary; no self-update mechanism                                                                                            |
+| FR50 | Epic 6  | Install script + operator README: OS flash → camera verify → frpc/mediamtx setup                                                            |
+| FR51 | Epic 6  | WiFi config: operator's choice; wifi-connect optionally documented in README                                                                |
+| FR52 | Epic 3  | Single-page application constraint                                                                                                          |
+| FR53 | Epic 3  | Graceful Pi tunnel-drop handling (no server crash, state broadcast)                                                                         |
+| FR54 | Epic 1  | GitHub Actions CI/CD: server + web Docker images; agent CI removed                                                                          |
+| FR55 | Epic 1  | Deploy-time config: pet name, site name, OAuth creds, DB URL                                                                                |
+| FR56 | Epic 7  | Editable stream title in Broadcast Console (Admin/Mod); changes broadcast via WS                                                            |
+| FR57 | Epic 7  | Snapshot button in Broadcast Console; client-side JPEG frame capture + download                                                             |
+| FR58 | Epic 7  | PiSugar battery monitor: server TCP poller + admin-only WS broadcast + UI indicator                                                         |
+| FR59 | Epic 7  | Resizable chat sidebar (desktop drag handle); width persisted to localStorage                                                               |
+| FR60 | Epic 8  | Chat Emojis & Emoji Picker — full emoji picker with search and categories; `:emoji_name:` shortcuts with autocomplete                       |
+| FR61 | Epic 8  | Message Reactions — react to messages with emojis; mod/admin can remove; muted users see disabled controls                                  |
+| FR62 | Epic 8  | Expanded Markdown — code blocks with syntax highlighting, blockquotes, links, italics, strikethrough, images, multiline                     |
+| FR63 | Epic 8  | @Mentions — `@Full Name` with autocomplete, highlighted messages, titlebar flash on mention                                                 |
+| FR64 | Epic 8  | Browser Notifications — chat, mention, stream state notifications with granular preferences                                                 |
+| FR65 | Epic 8  | Programmable Slash Commands — admin-defined JS commands with role-based visibility, ephemeral option                                        |
 | FR66 | Epic 10 | Clip Creation — any authenticated user clips from HLS rolling buffer; presets + adjustable range; rate-limited except Moderator+            |
 | FR67 | Epic 10 | Clip Processing — server-side ffmpeg stream-copy, S3 upload, pending/ready/failed status, Sonner processing toast, thumbnail capture        |
-| FR68 | Epic 10 | Clip Visibility Tiers — private/shared/public; public requires Admin/Moderator; tombstone on private; live restore on shared/public in chat  |
-| FR69 | Epic 10 | My Clips Page — manage own clips, edit title/description/visibility, shared clips toggle, admin all-clips view, copy-link + share-to-chat    |
+| FR68 | Epic 10 | Clip Visibility Tiers — private/shared/public; public requires Admin/Moderator; tombstone on private; live restore on shared/public in chat |
+| FR69 | Epic 10 | My Clips Page — manage own clips, edit title/description/visibility, shared clips toggle, admin all-clips view, copy-link + share-to-chat   |
 | FR70 | Epic 10 | Chat Clip Sharing — share at creation or from My Clips; clip message type; Watch modal overlay; URL updates to /clips/[id]                  |
-| FR71 | Epic 10 | Chat Clip Tombstone — private clip replaced with placeholder on next history load; active viewers unaffected until reload                    |
+| FR71 | Epic 10 | Chat Clip Tombstone — private clip replaced with placeholder on next history load; active viewers unaffected until reload                   |
 | FR72 | Epic 10 | Public Clip Pages — /clips/[id] unauthenticated; OG meta server-injected; stream-status CTA for auth users; 403 for non-public clips        |
-| FR73 | Epic 10 | Clipper Attribution — per-clip show-clipper toggle + avatar toggle + custom name field (Admin/Mod only, stored on clip record)               |
+| FR73 | Epic 10 | Clipper Attribution — per-clip show-clipper toggle + avatar toggle + custom name field (Admin/Mod only, stored on clip record)              |
 
 ## Epic List
 
@@ -2064,7 +2064,7 @@ So that I can run a fully functional clipping stack locally without a Backblaze 
 
 **Given** a developer reads the mediamtx configuration section
 **When** they follow it
-**Then** it documents the HLS output additions to `mediamtx-server.yml`: enabling HLS output, setting `hlsSegmentDuration` and `hlsSegmentMaxCount`, the segment output path matching the shared volume mount, and enabling `hlsProgramDateTime: yes` (required for absolute timestamp scrubbing); it also notes that the HLS path flush on stream offline uses the existing `MTX_API_URL` env var (already present in `env.ts` at default `http://127.0.0.1:9997`) — no new env var is needed for this purpose
+**Then** it documents the HLS output additions to `mediamtx-server.yml`: enabling HLS (`hls: true`), setting `hlsSegmentDuration` and `hlsSegmentCount`, the segment output path matching the shared volume mount, `hlsAlwaysRemux: true` (ensures continuous segment generation for the clip buffer), and `useAbsoluteTimestamp: true` on the path (preserves original frame timestamps for accurate clip/UI synchronization); it also notes that the HLS path flush on stream offline uses the existing `MTX_API_URL` env var (already present in `env.ts` at default `http://127.0.0.1:9997`) — no new env var is needed for this purpose
 
 **Given** a developer reads the non-Docker / bare-metal section
 **When** they follow the clipping prerequisites
@@ -2074,7 +2074,7 @@ So that I can run a fully functional clipping stack locally without a Backblaze 
 
 **And** all env var names documented here exactly match those validated in `apps/server/src/env.ts`
 
-**And** the documentation notes that the RustFS dev bucket must be created with ACL support enabled (not owner-enforced mode); `PutObjectAcl` calls will return `AccessControlListNotSupported` on owner-enforced buckets, making the public↔private visibility transition path untestable in development; this is a bucket creation flag, not a code change
+**And** the documentation notes that RustFS supports `PutObjectAcl` for object-level ACL operations (used by the clip visibility toggle)
 
 **And** the documentation notes that `S3_PUBLIC_BASE_URL` for RustFS dev is `http://localhost:9000` and for Backblaze B2 is `https://f{n}.backblazeb2.com/file` (operator must supply correct B2 CDN hostname)
 
@@ -2090,7 +2090,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 
 **Given** the server-side mediamtx config is updated
 **When** mediamtx is running and the Pi RTSP stream is connected
-**Then** HLS segments are written to the configured segment path with `EXT-X-PROGRAM-DATE-TIME` tags on each segment; the rolling buffer retains content according to `hlsSegmentMaxCount × hlsSegmentDuration`; the WHEP live viewer endpoint is unaffected
+**Then** HLS segments are written to the configured segment path with original frame timestamps preserved (via `useAbsoluteTimestamp: true`); the rolling buffer retains content according to `hlsSegmentCount × hlsSegmentDuration`; the WHEP live viewer endpoint is unaffected
 
 **Given** the `docker-compose.yml` is updated
 **When** `docker compose up` is run
@@ -2115,6 +2115,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 **Given** the `packages/types/src/ws.ts` WsMessage union is updated
 **When** other packages import it
 **Then** it adds three new entries to the existing `WsMessage` **discriminated union at line 85 of `ws.ts`** (splice into the union — do not create a separate export or a parallel union type):
+
 - `{ type: 'clip:status-changed'; payload: { clipId: string; status: 'ready'; s3Key: string; thumbnailKey: string; durationSeconds: number } | { clipId: string; status: 'failed' } }` — discriminated on `status`; `s3Key`, `thumbnailKey`, and `durationSeconds` are required (non-optional) on `ready` and absent on `failed`; do not use `status: 'ready' | 'failed'` with optional fields — TypeScript will not enforce presence on the `ready` branch
 - `{ type: 'clip:visibility-changed'; payload: { clipId: string; visibility: 'private' | 'shared' | 'public' | 'deleted'; chatClipIds: string[]; clip?: { name: string; clipThumbnailUrl: string; durationSeconds: number; clipperDisplayName?: string; clipperAvatarUrl?: string } } }` (`clip` card data is included only when restoring from tombstone, i.e., when visibility moves to `shared` or `public`; `chatClipIds` is capped at the first 100 message IDs; `clipThumbnailUrl` is always `{S3_PUBLIC_BASE_URL}/{thumbnailKey}` — thumbnails are `public-read` and never require presigning; if `clipperAvatarUrl` is null, omit the field — do not serialize `null`)
 - The `ChatMessage` interface is split into a discriminated union: `TextChatMessage` = existing `ChatMessage` interface with `messageType: 'text'` added (all existing fields are preserved); `ClipChatMessage` = all base fields from `ChatMessage` with exact field names matching the interface — `id: string`, `userId: string`, `displayName: string`, `avatarUrl: string | null`, `authorRole: Role`, `userTag: UserTag | null`, `content: string`, `createdAt: string`, `editHistory: { content: string; editedAt: string }[] | null`, `updatedAt: string | null`, `deletedAt: string | null`, `deletedBy: string | null`, `reactions?: Reaction[]`, `ephemeral?: boolean` — plus `messageType: 'clip'`, `clipId: string`, `clipThumbnailUrl: string` (`{S3_PUBLIC_BASE_URL}/{thumbnailKey}` — thumbnails are always `public-read`, no presigning), `clipName: string`, `clipDurationSeconds: number`, `tombstone?: true` (present and `true` only when the clip is unavailable — deleted, private, or soft-deleted; absent on live clip messages; clients narrow on `payload.tombstone === true` to render the "clip unavailable" card); `ChatMessage` is retained as a type alias `export type ChatMessage = TextChatMessage | ClipChatMessage` so all existing consumers (`createMessage()`, moderation service, reactions service, etc.) continue to compile without changes; the `chat:message` union member's payload type is updated from `ChatMessage` to `TextChatMessage | ClipChatMessage`; existing `chat:message` consumers must narrow on `payload.messageType` to distinguish text vs. clip messages
@@ -2133,7 +2134,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 
 **And** `ffmpeg` is present in the server Dockerfile and available at runtime
 
-**And** the S3 bucket (both RustFS dev and B2 production) must have per-object ACL support enabled (not owner-enforced mode); `PutObjectAcl` calls will fail silently or with `AccessControlListNotSupported` on owner-enforced buckets; this is a bucket configuration prerequisite documented in Story 10-1 and Story 10-7 respectively
+**And** the S3 bucket must support `PutObjectAcl` for clip visibility toggling; ACL behavior and configuration vary by provider (RustFS dev vs B2 production) — refer to Story 10-1 (dev) and Story 10-7 (production) for provider-specific notes
 
 **And** Story 10-2 is a prerequisite for Stories 10-3, 10-4, and 10-5; the WsMessage type additions and `chatService.ts` changes must be merged before implementing those stories to ensure TypeScript type safety
 
@@ -2153,7 +2154,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 **Given** a user clicks the clip button
 **When** the clip UI opens
-**Then** a modal overlay renders with: an HLS scrubber populated from the live `.m3u8` playlist (using `EXT-X-PROGRAM-DATE-TIME` timestamps); preset buttons (30s, 1min, 2min) that preselect the corresponding tail of the available buffer as the initial range; drag handles on both ends for manual adjustment; name and description input fields; a "Share to chat when ready" checkbox; a Submit button
+**Then** a modal overlay renders with: an HLS scrubber populated from the live `.m3u8` playlist (using segment timestamps derived from the HLS playlist); preset buttons (30s, 1min, 2min) that preselect the corresponding tail of the available buffer as the initial range; drag handles on both ends for manual adjustment; name and description input fields; a "Share to chat when ready" checkbox; a Submit button
 
 **Given** the user submits a clip request
 **When** `POST /api/clips` is called with `{ startTime: ISO8601, endTime: ISO8601, name: string, description?: string, shareToChat?: boolean }`
@@ -2165,11 +2166,11 @@ So that I can capture memorable moments with an optional name, description, chat
 
 **Given** the clip record is created
 **When** async processing runs
-**Then** ffmpeg is called with `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (`-ss` before `-i` is fast input seek; for HLS input with `EXT-X-PROGRAM-DATE-TIME` tags, ffmpeg correctly interprets the ISO8601 `-ss` value as an absolute calendar timestamp seek; `-t` takes duration in seconds computed server-side as `Math.round((new Date(endTime) - new Date(startTime)) / 1000)` — **do not use `-to {endTime}`** as `-to` takes an output-stream position, not a wall-clock timestamp, and will produce wrong output; `{MTX_STREAM_PATH}` is resolved from the `MTX_STREAM_PATH` env var, e.g., `cam`); a thumbnail JPEG is extracted with a separate invocation: `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`; both temp files are named by clip ULID to prevent collision between concurrent invocations; the video file is uploaded to S3 with **private** ACL (default); the thumbnail file is uploaded to S3 with **`public-read`** ACL — thumbnails are always publicly accessible via `S3_PUBLIC_BASE_URL` and never require presigned URLs; `thumbnailUrl` is always constructed as `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`; the clip record is updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, and `durationSeconds`; temp files are deleted after upload or on error; if ffmpeg exits with a non-zero code or produces output shorter than expected (TOCTOU: a segment may have rolled out of the buffer between validation and processing), the clip is set to `status: 'failed'`; concurrent ffmpeg invocation count is not capped in MVP — documented as a known limitation for constrained hosts
+**Then** ffmpeg is called with `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (`-ss` before `-i` is fast input seek; with `useAbsoluteTimestamp: true` preserving original frame timestamps, ffmpeg correctly interprets the ISO8601 `-ss` value as an absolute calendar timestamp seek; `-t` takes duration in seconds computed server-side as `Math.round((new Date(endTime) - new Date(startTime)) / 1000)` — **do not use `-to {endTime}`** as `-to` takes an output-stream position, not a wall-clock timestamp, and will produce wrong output; `{MTX_STREAM_PATH}` is resolved from the `MTX_STREAM_PATH` env var, e.g., `cam`); a thumbnail JPEG is extracted with a separate invocation: `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`; both temp files are named by clip ULID to prevent collision between concurrent invocations; the video file is uploaded to S3 with **private** ACL (default); the thumbnail file is uploaded to S3 with **`public-read`** ACL — thumbnails are always publicly accessible via `S3_PUBLIC_BASE_URL` and never require presigned URLs; `thumbnailUrl` is always constructed as `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`; the clip record is updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, and `durationSeconds`; temp files are deleted after upload or on error; if ffmpeg exits with a non-zero code or produces output shorter than expected (TOCTOU: a segment may have rolled out of the buffer between validation and processing), the clip is set to `status: 'failed'`; concurrent ffmpeg invocation count is not capped in MVP — documented as a known limitation for constrained hosts
 
 **Given** the clip creation request contains `startTime` and `endTime`
 **When** the client computes these values
-**Then** the client derives them exclusively from `EXT-X-PROGRAM-DATE-TIME` timestamps parsed from the live `.m3u8` playlist; using `Date.now()` or any other wall-clock source is prohibited — the scrubber must be driven entirely by playlist-reported timestamps to ensure correct HLS segment mapping
+**Then** the client derives them from segment timestamps parsed from the live `.m3u8` playlist (with `useAbsoluteTimestamp: true`, segment timestamps correspond to original frame timestamps); using `Date.now()` or any other wall-clock source is prohibited — the scrubber must be driven entirely by playlist-reported timestamps to ensure correct HLS segment mapping
 
 **Given** processing completes successfully with `shareToChat: true`
 **When** the clip is ready
@@ -2395,7 +2396,7 @@ So that I can deploy the full clipping feature without guessing at configuration
 
 **Given** an operator reads the mediamtx HLS configuration section
 **When** they follow it
-**Then** it documents: enabling HLS output, setting `hlsProgramDateTime: yes`, and the rolling buffer formula: `hlsSegmentMaxCount = desired_buffer_minutes × 60 / hlsSegmentDuration`; example: 15 min buffer with 2s segments = 450 segments; disk space guidance: approximately `bitrate_mbps × buffer_minutes × 7.5` MB (e.g., 2 Mbps × 15 min ≈ 225 MB); recommendation to back the HLS path with sufficient disk space
+**Then** it documents: enabling HLS output, setting `useAbsoluteTimestamp: true` on the path for accurate timestamp synchronization, and the rolling buffer formula: `hlsSegmentCount = desired_buffer_minutes × 60 / hlsSegmentDuration`; example: 15 min buffer with 2s segments = 450 segments; disk space guidance: approximately `bitrate_mbps × buffer_minutes × 7.5` MB (e.g., 2 Mbps × 15 min ≈ 225 MB); recommendation to back the HLS path with sufficient disk space
 
 **Given** an operator reads the Docker Compose production section
 **When** they follow it
