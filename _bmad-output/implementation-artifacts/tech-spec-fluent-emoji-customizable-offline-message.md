@@ -1,5 +1,5 @@
 ---
-status: ready-for-review
+status: done
 slug: fluent-emoji-customizable-offline-message
 ---
 
@@ -69,6 +69,7 @@ model StreamConfig {
 ```
 
 **Migration SQL** — must be hand-written (Prisma cannot auto-diff a structural retype). The SQL must:
+
 1. Rename existing `stream_config` to a temp name
 2. Create the new key/value `stream_config` table
 3. Migrate any existing `adminToggle` row: `INSERT INTO stream_config (key, value) SELECT 'adminToggle', admin_toggle FROM <temp> WHERE id = 'cfg'`
@@ -121,12 +122,12 @@ Add optional offline message fields to `StreamState` (populated by the server on
 
 ```typescript
 export interface StreamState {
-  state: 'live' | 'unreachable' | 'explicit-offline'
-  adminToggle?: 'live' | 'offline'
-  piReachable?: boolean
-  offlineEmoji?: string | null
-  offlineTitle?: string | null
-  offlineDescription?: string | null
+  state: 'live' | 'unreachable' | 'explicit-offline';
+  adminToggle?: 'live' | 'offline';
+  piReachable?: boolean;
+  offlineEmoji?: string | null;
+  offlineTitle?: string | null;
+  offlineDescription?: string | null;
 }
 ```
 
@@ -174,6 +175,7 @@ This task builds on Task 0 (wrapper already in place for adminToggle). Add:
 **Files:** `apps/web/src/views/RejectedView.vue`, `apps/web/src/views/BannedView.vue`
 
 Replace each `<span>` unicode emoji with `<img>`:
+
 - RejectedView: `<img src="/emojis/1f512.svg" aria-hidden="true" class="w-12 h-12" alt="" />`
 - BannedView: `<img src="/emojis/1f6ab.svg" aria-hidden="true" class="w-12 h-12" alt="" />`
 
@@ -198,6 +200,7 @@ Include all three in the returned object.
 **File:** `apps/web/src/components/stream/StateOverlay.vue`
 
 In the `explicit-offline` variant:
+
 - Import `useStream` and `getEmojiUrl`
 - Compute `emojiUrl = getEmojiUrl(offlineEmoji.value ?? '1f634')`
 - Compute `displayTitle = offlineTitle.value || \`${petName} needs their Zzzs\``
@@ -239,6 +242,7 @@ Internal state: `draftEmoji: string | null`, `draftTitle: string`, `draftDescrip
 On open (watch `open` true → fetch via `useOfflineMessage.fetchOfflineMessage()` → populate drafts).
 
 Layout inside Dialog:
+
 - Emoji row: `<img>` of current draft emoji (or `1f634` default), clicking it toggles EmojiPicker. Use existing `EmojiPicker.vue`. On emoji select: set `draftEmoji = emoji.codepoint`, close picker. EmojiPicker must have a z-index higher than the Dialog overlay.
 - Title `<input>`: value = `draftTitle`, placeholder = default title text including petName from `getPetName()`
 - Description `<input>`: value = `draftDescription`, placeholder = default description text
@@ -282,6 +286,7 @@ apps/web/src/components/stream/BroadcastConsole.vue
 ```
 
 Plus test files:
+
 ```
 apps/server/src/lib/stream-config.test.ts
 apps/server/src/services/streamService.test.ts
@@ -311,18 +316,21 @@ apps/web/src/views/BannedView.test.ts
 ### Quality Gates (2026-03-22)
 
 **Server** (`apps/server`):
+
 - `pnpm run typecheck` — ✅ zero errors (after `prisma generate`)
-- `pnpm run lint` — ✅ zero errors (after `--fix`)
-- `pnpm run test --coverage` — ✅ 29 files, 516 tests passing, thresholds met
+- `pnpm run lint` — ✅ zero errors
+- `pnpm run test --coverage` — ✅ 29 files, 520 tests passing, thresholds met
 
 **Web** (`apps/web`):
+
 - `pnpm run typecheck` — ✅ zero errors
-- `pnpm run lint` — ✅ zero errors (after `--fix`)
-- `pnpm run test --coverage` — ✅ 62 files, 1200 tests passing (up from 1186), thresholds met (lines 98.4%, branches 94.01%, functions 87.26%)
+- `pnpm run lint` — ✅ zero errors
+- `pnpm run test --coverage` — ✅ 62 files, 1202 tests passing, thresholds met (lines 98.4%, branches 94.01%, functions 87.26%)
 
 ### Smoke Test Required
 
 The following UI interactions need manual smoke-test by Zikeji before story closure:
+
 1. **RejectedView / BannedView**: Fluent emoji images render correctly (not broken-image icons)
 2. **StateOverlay offline screen**: Default emoji/title/description display correctly with no saved config
 3. **BroadcastConsole desktop**: `SquarePen` button visible for admin; tooltip shows "Edit offline message"; clicking opens OfflineMessageDialog
@@ -333,6 +341,7 @@ The following UI interactions need manual smoke-test by Zikeji before story clos
 
 ## Change Log
 
-| Date | Change |
-|------|--------|
-| 2026-03-22 | Implementation complete; all quality gates pass; status set to ready-for-review |
+| Date       | Change                                                                                                                                                                                  |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-03-22 | Implementation complete; all quality gates pass; status set to ready-for-review                                                                                                         |
+| 2026-03-22 | Code review fixes: DB transactions for atomic operations, emoji codepoint validation, empty string normalization, dialog race condition fix, error feedback display; status set to done |
