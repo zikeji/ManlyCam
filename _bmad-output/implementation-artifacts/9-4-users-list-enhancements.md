@@ -20,7 +20,7 @@ So that I can manage user access without hunting through a static list or using 
 
 5. **Given** the users table is visible, **When** I click a sortable column header (Name, Role, Last Seen), **Then** TanStack Table's built-in sort toggles for that column.
 
-6. **Given** the users table is loaded, **Then** banned users are excluded by default using TanStack Table's built-in column filtering on the Status field, **And** a "Show banned users" toggle above the table enables/disables the filter.
+6. **Given** the users table is loaded, **Then** banned users are excluded by default using client-side filtering on the Status field (external pre-filter approach), **And** a "Show banned users" toggle above the table enables/disables the filter. _Note: Implementation uses an external Vue computed ref (`filteredUsers`) rather than TanStack Table's internal `getFilteredRowModel` for simpler integration with `DataTable.vue` and identical UX._
 
 7. **Given** any user row is visible, **When** I open the row's Actions dropdown (using the existing `DropdownMenu` shadcn component), **Then** available actions are shown contextually: Ban (if not banned), Unban (if banned), Change Role, **And** destructive actions (Ban) require a confirmation step before firing.
 
@@ -85,10 +85,10 @@ So that I can manage user access without hunting through a static list or using 
   - [x] Subtask 7.2: Show skeleton loader (using the `Skeleton` shadcn component, or a row of animated placeholders) while `isLoading && users.length === 0`
   - [x] Subtask 7.3: Refresh button calls `fetchUsers()` unconditionally
 
-- [x] Task 8: Implement TanStack Table column filtering for banned users (AC: #6)
-  - [x] Subtask 8.1: Use `@tanstack/vue-table` column filter on the Status column with initial filter value `['Active', 'Muted']` (excludes "Banned")
-  - [x] Subtask 8.2: "Show banned users" toggle adds/removes "Banned" from column filter values
-  - [x] Subtask 8.3: The filter logic is client-side within TanStack Table — no new API query params needed
+- [x] Task 8: Implement client-side filtering for banned users (AC: #6)
+  - [x] Subtask 8.1: Use external Vue computed ref (`filteredUsers`) to pre-filter users based on Status before passing to DataTable; initial filter value excludes "Banned"
+  - [x] Subtask 8.2: "Show banned users" toggle adds/removes "Banned" from filter values
+  - [x] Subtask 8.3: The filter logic is client-side — no new API query params needed; approach avoids wiring `getFilteredRowModel` into `DataTable.vue` for simpler integration
 
 - [x] Task 9: Update tests for `useAdminUsers.ts` (AC: #2, #3, #8)
   - [x] **Add `vi.mock('vue-sonner', () => ({ toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }))` at the top of `useAdminUsers.test.ts`** — this must be file-scoped (hoisted by Vitest), covering all existing and new tests in the file. Without it, adding `toast` calls to the composable will cause `TypeError: toast.success is not a function` in every test that exercises the module.
@@ -140,11 +140,7 @@ export async function unbanUser({ actorId, actorRole, targetUserId }: MuteParams
   const target = await prisma.user.findUnique({ where: { id: targetUserId } });
   if (!target) throw new AppError('User not found.', 'NOT_FOUND', 404);
   if (!canModerateOver(actorRole, target.role as Role)) {
-    throw new AppError(
-      'Cannot unban users with equal or higher role.',
-      'INSUFFICIENT_ROLE',
-      403,
-    );
+    throw new AppError('Cannot unban users with equal or higher role.', 'INSUFFICIENT_ROLE', 403);
   }
 
   await prisma.$transaction(async (tx) => {
@@ -233,8 +229,8 @@ columnHelper.accessor(
     header: 'Status',
     // Enable column filtering
     filterFn: 'arrIncludes', // TanStack built-in: checks if row value is in filter array
-  }
-)
+  },
+);
 ```
 
 Initial column filters state: `[{ id: 'status', value: ['Active', 'Muted'] }]` — this hides Banned rows by default.
@@ -244,7 +240,9 @@ The "Show banned users" toggle updates the filter:
 ```typescript
 const showBanned = ref(false);
 watch(showBanned, (val) => {
-  table.getColumn('status')?.setFilterValue(val ? ['Active', 'Muted', 'Banned'] : ['Active', 'Muted']);
+  table
+    .getColumn('status')
+    ?.setFilterValue(val ? ['Active', 'Muted', 'Banned'] : ['Active', 'Muted']);
 });
 ```
 
@@ -310,12 +308,14 @@ Note: The epics.md source (line 2204) says `user:unban` in a readable prose exam
 ### Test Patterns to Follow
 
 **Server test pattern** (from `moderation.test.ts`):
+
 - Mock modules at top of file: `vi.mock('../services/moderationService.js', ...)`
 - Import `createApp` from `../app.js` for integration-style route tests
 - Import `AppError` for simulating service errors
 - Each `describe` block has `beforeEach(() => vi.clearAllMocks())`
 
 **Web test pattern** (from `UserList.test.ts` — currently doesn't exist, create it):
+
 - `let wrapper: VueWrapper | null = null` at suite level
 - `afterEach(() => { wrapper?.unmount(); wrapper = null; })`
 - Mock `useAdminUsers` composable; provide test data
@@ -325,18 +325,21 @@ Note: The epics.md source (line 2204) says `user:unban` in a readable prose exam
 ### File Locations
 
 Server files touched:
+
 - `apps/server/src/services/moderationService.ts` — add `unbanUser`
 - `apps/server/src/routes/moderation.ts` — add POST `/unban` route
 - `apps/server/src/routes/moderation.test.ts` — add unban tests
 - `apps/server/src/services/moderationService.test.ts` — add unban service tests (if file exists; create if not)
 
 Web files touched:
+
 - `apps/web/src/composables/useAdminUsers.ts` — remove onMounted, add banUserById/unbanUserById
 - `apps/web/src/composables/useAdminUsers.test.ts` — add new action tests
 - `apps/web/src/components/admin/UserList.vue` — full rewrite to use DataTable
 - `apps/web/src/components/admin/UserList.test.ts` — update/create tests
 
 Web files READ (not modified):
+
 - `apps/web/src/components/ui/data-table/DataTable.vue` — from Story 9-3 (depends on it)
 - `apps/web/src/components/ui/alert-dialog/` — use existing components
 - `apps/web/src/components/ui/dropdown-menu/` — use existing components
@@ -408,6 +411,7 @@ Check whether `apps/server/src/services/moderationService.test.ts` exists before
 ### Smoke Test Required
 
 Zikeji must smoke-test the following before story can be closed:
+
 1. Users tab: on-demand load triggers skeleton → table
 2. Table columns render correctly (Avatar+Name, Email, Role badge, Status, Last Seen, Actions)
 3. Column sort toggles (Role, Last Seen)

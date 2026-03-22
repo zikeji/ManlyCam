@@ -40,9 +40,11 @@ describe('banUser', () => {
   });
 
   it('bans a ViewerCompany as Moderator — success', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(viewerTarget as never);
     const txMock = {
-      user: { update: vi.fn().mockResolvedValue({}) },
+      user: {
+        findUnique: vi.fn().mockResolvedValue(viewerTarget),
+        update: vi.fn().mockResolvedValue({}),
+      },
       session: { deleteMany: vi.fn().mockResolvedValue({ count: 2 }) },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
@@ -75,18 +77,31 @@ describe('banUser', () => {
   });
 
   it('throws NOT_FOUND when target user does not exist', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    const txMock = {
+      user: { findUnique: vi.fn().mockResolvedValue(null) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
     await expect(
       banUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'nonexistent' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND', statusCode: 404 });
   });
 
   it('throws INSUFFICIENT_ROLE when Moderator tries to ban another Moderator', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(modTarget as never);
+    const txMock = {
+      user: { findUnique: vi.fn().mockResolvedValue(modTarget) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
     await expect(
       banUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'target-mod' }),
     ).rejects.toMatchObject({ code: 'INSUFFICIENT_ROLE', statusCode: 403 });
-    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 });
 describe('muteUser', () => {
@@ -246,24 +261,39 @@ describe('unbanUser', () => {
   });
 
   it('throws NOT_FOUND when target user does not exist', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+    const txMock = {
+      user: { findUnique: vi.fn().mockResolvedValue(null) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
     await expect(
       unbanUser({ actorId: 'actor-001', actorRole: 'Admin', targetUserId: 'nonexistent' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND', statusCode: 404 });
   });
 
   it('throws INSUFFICIENT_ROLE when Admin tries to unban Admin', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(adminTarget as never);
+    const txMock = {
+      user: { findUnique: vi.fn().mockResolvedValue(adminTarget) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
     await expect(
       unbanUser({ actorId: 'actor-admin', actorRole: 'Admin', targetUserId: 'target-admin' }),
     ).rejects.toMatchObject({ code: 'INSUFFICIENT_ROLE', statusCode: 403 });
-    expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
   it('clears bannedAt and creates unban audit log entry in transaction', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(viewerTarget as never);
     const txMock = {
-      user: { update: vi.fn().mockResolvedValue({}) },
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ ...viewerTarget, bannedAt: new Date() }),
+        update: vi.fn().mockResolvedValue({}),
+      },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(
@@ -284,9 +314,11 @@ describe('unbanUser', () => {
   });
 
   it('completes without error when user bannedAt is already null (idempotent)', async () => {
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(viewerTarget as never);
     const txMock = {
-      user: { update: vi.fn().mockResolvedValue({}) },
+      user: {
+        findUnique: vi.fn().mockResolvedValue(viewerTarget),
+        update: vi.fn().mockResolvedValue({}),
+      },
       auditLog: { create: vi.fn().mockResolvedValue({}) },
     };
     vi.mocked(prisma.$transaction).mockImplementation(
@@ -298,6 +330,7 @@ describe('unbanUser', () => {
     await expect(
       unbanUser({ actorId: 'actor-001', actorRole: 'Admin', targetUserId: 'target-001' }),
     ).resolves.toBeUndefined();
-    expect(txMock.user.update).toHaveBeenCalled();
+    // When already unbanned, update should not be called due to idempotency check
+    expect(txMock.user.update).not.toHaveBeenCalled();
   });
 });

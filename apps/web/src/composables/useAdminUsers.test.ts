@@ -280,7 +280,7 @@ describe('useAdminUsers', () => {
 
       await unbanUserById('u1');
 
-      expect(toast.error).toHaveBeenCalledWith('Failed to unban user');
+      expect(toast.error).toHaveBeenCalledWith('Network error');
     });
   });
 });

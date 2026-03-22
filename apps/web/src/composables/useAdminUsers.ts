@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import { toast } from 'vue-sonner';
 import { apiFetch } from '@/lib/api';
 import { Role } from '@manlycam/types';
@@ -32,12 +32,24 @@ export function handleAdminUserUpdate(updatedUser: Partial<UserProfile> & { id: 
             userTagColor: updatedUser.userTag?.color ?? null,
           }
         : {};
-    const updated = users.value.slice();
-    updated[index] = {
-      ...users.value[index],
+
+    const currentUser = users.value[index];
+    const mergedUser = {
+      ...currentUser,
       ...(updatedUser as unknown as Partial<AdminUser>),
       ...tagFields,
     };
+
+    // Only update if data actually changed (shallow comparison)
+    const hasChanged = Object.keys(mergedUser).some(
+      (key) =>
+        (mergedUser as Record<string, unknown>)[key] !==
+        (currentUser as Record<string, unknown>)[key],
+    );
+    if (!hasChanged) return;
+
+    const updated = users.value.slice();
+    updated[index] = mergedUser;
     users.value = updated;
   }
 }
@@ -45,19 +57,38 @@ export function handleAdminUserUpdate(updatedUser: Partial<UserProfile> & { id: 
 export function useAdminUsers() {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
+  const abortController = ref<AbortController | null>(null);
 
   const fetchUsers = async () => {
+    // Cancel any pending request
+    if (abortController.value) {
+      abortController.value.abort();
+    }
+    abortController.value = new AbortController();
+
     isLoading.value = true;
     error.value = null;
     try {
-      const data = await apiFetch<AdminUser[]>('/api/admin/users');
+      const data = await apiFetch<AdminUser[]>('/api/admin/users', {
+        signal: abortController.value.signal,
+      });
       users.value = data;
     } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return; // Silently ignore abort errors
+      }
       error.value = (err as Error).message || 'Failed to fetch users';
     } finally {
       isLoading.value = false;
+      abortController.value = null;
     }
   };
+
+  onUnmounted(() => {
+    if (abortController.value) {
+      abortController.value.abort();
+    }
+  });
 
   const updateRole = async (userId: string, role: Role) => {
     const user = users.value.find((u) => u.id === userId);
@@ -122,7 +153,8 @@ export function useAdminUsers() {
       toast.success('User unbanned');
     } catch (err: unknown) {
       console.error('Failed to unban user:', err);
-      toast.error('Failed to unban user');
+      const message = err instanceof Error ? err.message : 'Failed to unban user';
+      toast.error(message);
     }
   };
 

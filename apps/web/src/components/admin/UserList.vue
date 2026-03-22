@@ -80,6 +80,7 @@ const filteredUsers = computed(() =>
 // Ban confirmation state
 const confirmBanOpen = ref(false);
 const pendingBanUser = ref<AdminUser | null>(null);
+const pendingActionUserId = ref<string | null>(null);
 
 function openBanConfirm(user: AdminUser) {
   pendingBanUser.value = user;
@@ -87,11 +88,25 @@ function openBanConfirm(user: AdminUser) {
 }
 
 async function confirmBan() {
-  if (pendingBanUser.value) {
-    await banUserById(pendingBanUser.value.id);
+  if (!pendingBanUser.value) return;
+  const userId = pendingBanUser.value.id;
+  pendingActionUserId.value = userId;
+  try {
+    await banUserById(userId);
+  } finally {
+    pendingActionUserId.value = null;
     pendingBanUser.value = null;
+    confirmBanOpen.value = false;
   }
-  confirmBanOpen.value = false;
+}
+
+async function handleUnban(userId: string) {
+  pendingActionUserId.value = userId;
+  try {
+    await unbanUserById(userId);
+  } finally {
+    pendingActionUserId.value = null;
+  }
 }
 
 // Tag editor state (per-row, keyed by user ID)
@@ -241,9 +256,7 @@ const columns: ColumnDef<AdminUser>[] = [
       return h('div', { class: 'flex items-center gap-2' }, [
         h(Avatar, { class: 'w-7 h-7 shrink-0' }, () => [
           h(AvatarImage, { src: user.avatarUrl ?? '' }),
-          h(AvatarFallback, { class: 'text-xs' }, () =>
-            user.displayName[0]?.toUpperCase() ?? '?',
-          ),
+          h(AvatarFallback, { class: 'text-xs' }, () => user.displayName[0]?.toUpperCase() ?? '?'),
         ]),
         h('span', { class: 'text-sm font-medium' }, user.displayName),
       ]);
@@ -252,16 +265,17 @@ const columns: ColumnDef<AdminUser>[] = [
   columnHelper.accessor('email', {
     header: 'Email',
     enableSorting: false,
-    cell: ({ row }) =>
-      h('span', { class: 'text-sm text-muted-foreground' }, row.original.email),
+    cell: ({ row }) => h('span', { class: 'text-sm text-muted-foreground' }, row.original.email),
   }) as unknown as ColumnDef<AdminUser>,
   columnHelper.accessor('role', {
     header: 'Role',
     enableSorting: true,
     cell: ({ row }) => {
       const role = row.original.role;
-      return h(Badge, { variant: getRoleBadgeVariant(role), class: getRoleBadgeClass(role) }, () =>
-        role,
+      return h(
+        Badge,
+        { variant: getRoleBadgeVariant(role), class: getRoleBadgeClass(role) },
+        () => role,
       );
     },
   }) as unknown as ColumnDef<AdminUser>,
@@ -327,167 +341,169 @@ const columns: ColumnDef<AdminUser>[] = [
                 ],
               ),
             ),
-            h(
-              PopoverContent,
-              { class: 'w-72 p-3 space-y-3', align: 'end' },
-              () =>
-                tagPopoverOpen.value[user.id]
-                  ? h('div', { class: 'space-y-3' }, [
-                      h('div', { class: 'space-y-1' }, [
-                        h(
-                          'label',
-                          { class: 'text-xs font-medium text-muted-foreground' },
-                          'Tag text',
-                        ),
-                        h('input', {
-                          value: tagTextInput.value[user.id] ?? '',
-                          maxlength: 20,
-                          placeholder: 'Tag text…',
-                          class: 'w-full px-2 py-1 text-xs rounded border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring',
-                          'data-testid': 'tag-text-input',
-                          onInput: (e: Event) => {
-                            tagTextInput.value[user.id] = (
-                              e.target as HTMLInputElement
-                            ).value;
-                          },
-                        }),
-                      ]),
-                      h('div', { class: 'space-y-2' }, [
-                        h(
-                          'label',
-                          { class: 'text-xs font-medium text-muted-foreground' },
-                          'Color',
-                        ),
-                        h(
-                          ColorFieldRoot,
-                          {
-                            modelValue: tagColorObj.value[user.id],
-                            'onUpdate:modelValue': (c: Color | string) => setTagColor(user.id, c as Color),
-                            class: 'flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-background',
-                            'data-testid': 'color-field',
-                          },
-                          () => [
-                            h('span', {
-                              class: 'w-4 h-4 rounded-sm flex-shrink-0',
-                              style: { backgroundColor: getColorHex(user.id) },
-                            }),
-                            h(ColorFieldInput, {
-                              class: 'flex-1 text-xs bg-transparent text-foreground focus:outline-none min-w-0',
-                              'data-testid': 'color-field-input',
-                            }),
-                          ],
-                        ),
-                        h(
-                          'div',
-                          {
-                            class: 'relative w-full rounded overflow-hidden',
-                            style: 'height: 120px',
-                            'data-testid': 'color-area',
-                          },
-                          [
-                            h(
-                              ColorAreaRoot,
-                              {
-                                modelValue: tagColorObj.value[user.id],
-                                'onUpdate:modelValue': (c: Color | string) => setTagColor(user.id, c as Color),
-                                class: 'touch-none select-none',
-                              },
-                              {
-                                default: ({
+            h(PopoverContent, { class: 'w-72 p-3 space-y-3', align: 'end' }, () =>
+              tagPopoverOpen.value[user.id]
+                ? h('div', { class: 'space-y-3' }, [
+                    h('div', { class: 'space-y-1' }, [
+                      h(
+                        'label',
+                        { class: 'text-xs font-medium text-muted-foreground' },
+                        'Tag text',
+                      ),
+                      h('input', {
+                        value: tagTextInput.value[user.id] ?? '',
+                        maxlength: 20,
+                        placeholder: 'Tag text…',
+                        class:
+                          'w-full px-2 py-1 text-xs rounded border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring',
+                        'data-testid': 'tag-text-input',
+                        onInput: (e: Event) => {
+                          tagTextInput.value[user.id] = (e.target as HTMLInputElement).value;
+                        },
+                      }),
+                    ]),
+                    h('div', { class: 'space-y-2' }, [
+                      h('label', { class: 'text-xs font-medium text-muted-foreground' }, 'Color'),
+                      h(
+                        ColorFieldRoot,
+                        {
+                          modelValue: tagColorObj.value[user.id],
+                          'onUpdate:modelValue': (c: Color | string) =>
+                            setTagColor(user.id, c as Color),
+                          class:
+                            'flex items-center gap-1.5 px-2 py-1 rounded border border-border bg-background',
+                          'data-testid': 'color-field',
+                        },
+                        () => [
+                          h('span', {
+                            class: 'w-4 h-4 rounded-sm flex-shrink-0',
+                            style: { backgroundColor: getColorHex(user.id) },
+                          }),
+                          h(ColorFieldInput, {
+                            class:
+                              'flex-1 text-xs bg-transparent text-foreground focus:outline-none min-w-0',
+                            'data-testid': 'color-field-input',
+                          }),
+                        ],
+                      ),
+                      h(
+                        'div',
+                        {
+                          class: 'relative w-full rounded overflow-hidden',
+                          style: 'height: 120px',
+                          'data-testid': 'color-area',
+                        },
+                        [
+                          h(
+                            ColorAreaRoot,
+                            {
+                              modelValue: tagColorObj.value[user.id],
+                              'onUpdate:modelValue': (c: Color | string) =>
+                                setTagColor(user.id, c as Color),
+                              class: 'touch-none select-none',
+                            },
+                            {
+                              default: ({
+                                style: areaStyle,
+                              }: {
+                                style?: Record<string, string>;
+                              }) => [
+                                h(ColorAreaArea, {
                                   style: areaStyle,
-                                }: {
-                                  style?: Record<string, string>;
-                                }) => [
-                                  h(ColorAreaArea, {
-                                    style: areaStyle,
-                                    class: 'absolute inset-0 rounded',
-                                  }),
-                                  h(ColorAreaThumb, {
-                                    class: 'absolute w-4 h-4 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,0.4)] -translate-x-1/2 -translate-y-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-grab active:cursor-grabbing',
-                                  }),
-                                ],
+                                  class: 'absolute inset-0 rounded',
+                                }),
+                                h(ColorAreaThumb, {
+                                  class:
+                                    'absolute w-4 h-4 rounded-full border-2 border-white shadow-[0_0_0_1px_rgba(0,0,0,0.4)] -translate-x-1/2 -translate-y-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-white cursor-grab active:cursor-grabbing',
+                                }),
+                              ],
+                            },
+                          ),
+                        ],
+                      ),
+                      h(
+                        ColorSliderRoot,
+                        {
+                          modelValue: tagColorObj.value[user.id],
+                          'onUpdate:modelValue': (c: Color | string) =>
+                            setTagColor(user.id, c as Color),
+                          channel: 'hue',
+                          class: 'relative flex items-center w-full touch-none select-none',
+                          style: 'height: 12px',
+                          'data-testid': 'hue-slider',
+                        },
+                        () => [
+                          h(ColorSliderTrack, {
+                            class: 'relative h-3 w-full rounded-full overflow-hidden',
+                          }),
+                          h(ColorSliderThumb, {
+                            class:
+                              'block w-4 h-4 rounded-full border-2 border-white shadow-md focus:outline-none cursor-grab active:cursor-grabbing',
+                          }),
+                        ],
+                      ),
+                      h(
+                        ColorSwatchPickerRoot,
+                        {
+                          modelValue: getSwatchValue(user.id),
+                          'onUpdate:modelValue': (v: unknown) => onSwatchChange(user.id, v),
+                          class: 'grid grid-cols-6 gap-1',
+                          'data-testid': 'swatch-picker',
+                        },
+                        () =>
+                          USER_TAG_PALETTE.map((color) =>
+                            h(
+                              ColorSwatchPickerItem,
+                              {
+                                key: color,
+                                value: color,
+                                class:
+                                  'relative w-6 h-6 rounded cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white',
                               },
+                              () => [
+                                h(ColorSwatchPickerItemSwatch, {
+                                  class: 'w-full h-full rounded',
+                                  style: 'background: var(--reka-color-swatch-color)',
+                                }),
+                                h(
+                                  ColorSwatchPickerItemIndicator,
+                                  {
+                                    class:
+                                      'absolute inset-0 flex items-center justify-center pointer-events-none',
+                                  },
+                                  () =>
+                                    h('span', { class: 'w-2 h-2 rounded-full bg-white shadow-sm' }),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                        h(
-                          ColorSliderRoot,
-                          {
-                            modelValue: tagColorObj.value[user.id],
-                            'onUpdate:modelValue': (c: Color | string) => setTagColor(user.id, c as Color),
-                            channel: 'hue',
-                            class: 'relative flex items-center w-full touch-none select-none',
-                            style: 'height: 12px',
-                            'data-testid': 'hue-slider',
-                          },
-                          () => [
-                            h(ColorSliderTrack, {
-                              class: 'relative h-3 w-full rounded-full overflow-hidden',
-                            }),
-                            h(ColorSliderThumb, {
-                              class: 'block w-4 h-4 rounded-full border-2 border-white shadow-md focus:outline-none cursor-grab active:cursor-grabbing',
-                            }),
-                          ],
-                        ),
-                        h(
-                          ColorSwatchPickerRoot,
-                          {
-                            modelValue: getSwatchValue(user.id),
-                            'onUpdate:modelValue': (v: unknown) => onSwatchChange(user.id, v),
-                            class: 'grid grid-cols-6 gap-1',
-                            'data-testid': 'swatch-picker',
-                          },
-                          () =>
-                            USER_TAG_PALETTE.map((color) =>
-                              h(
-                                ColorSwatchPickerItem,
-                                {
-                                  key: color,
-                                  value: color,
-                                  class: 'relative w-6 h-6 rounded cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-white',
-                                },
-                                () => [
-                                  h(ColorSwatchPickerItemSwatch, {
-                                    class: 'w-full h-full rounded',
-                                    style: 'background: var(--reka-color-swatch-color)',
-                                  }),
-                                  h(
-                                    ColorSwatchPickerItemIndicator,
-                                    {
-                                      class: 'absolute inset-0 flex items-center justify-center pointer-events-none',
-                                    },
-                                    () => h('span', { class: 'w-2 h-2 rounded-full bg-white shadow-sm' }),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ),
-                      ]),
-                      h('div', { class: 'flex gap-1.5' }, [
-                        h(
-                          Button,
-                          {
-                            size: 'sm',
-                            class: 'flex-1 h-7 text-[10px]',
-                            'data-testid': 'save-tag-btn',
-                            onClick: () => handleSaveTag(user.id),
-                          },
-                          () => 'Save',
-                        ),
-                        h(
-                          Button,
-                          {
-                            variant: 'outline',
-                            size: 'sm',
-                            class: 'flex-1 h-7 text-[10px]',
-                            'data-testid': 'clear-tag-btn',
-                            onClick: () => handleClearTag(user.id),
-                          },
-                          () => 'Clear',
-                        ),
-                      ]),
-                    ])
-                  : null,
+                          ),
+                      ),
+                    ]),
+                    h('div', { class: 'flex gap-1.5' }, [
+                      h(
+                        Button,
+                        {
+                          size: 'sm',
+                          class: 'flex-1 h-7 text-[10px]',
+                          'data-testid': 'save-tag-btn',
+                          onClick: () => handleSaveTag(user.id),
+                        },
+                        () => 'Save',
+                      ),
+                      h(
+                        Button,
+                        {
+                          variant: 'outline',
+                          size: 'sm',
+                          class: 'flex-1 h-7 text-[10px]',
+                          'data-testid': 'clear-tag-btn',
+                          onClick: () => handleClearTag(user.id),
+                        },
+                        () => 'Clear',
+                      ),
+                    ]),
+                  ])
+                : null,
             ),
           ],
         },
@@ -506,77 +522,74 @@ const columns: ColumnDef<AdminUser>[] = [
       }
 
       // Actions dropdown: Ban/Unban + Change Role
-      const actionsMenu = h(
-        DropdownMenu,
-        null,
-        {
-          default: () => [
-            h(DropdownMenuTrigger, { asChild: true }, () =>
-              h(
-                Button,
-                {
-                  variant: 'ghost',
-                  size: 'sm',
-                  class: 'h-7 w-7 p-0',
-                  'data-testid': `actions-trigger-${user.id}`,
-                },
-                () => h(MoreHorizontal, { class: 'w-4 h-4' }),
-              ),
+      const actionsMenu = h(DropdownMenu, null, {
+        default: () => [
+          h(DropdownMenuTrigger, { asChild: true }, () =>
+            h(
+              Button,
+              {
+                variant: 'ghost',
+                size: 'sm',
+                class: 'h-7 w-7 p-0',
+                'data-testid': `actions-trigger-${user.id}`,
+              },
+              () => h(MoreHorizontal, { class: 'w-4 h-4' }),
             ),
-            h(DropdownMenuContent, { align: 'end' }, () => [
-              !user.bannedAt
-                ? h(
-                    DropdownMenuItem,
+          ),
+          h(DropdownMenuContent, { align: 'end' }, () => [
+            !user.bannedAt
+              ? h(
+                  DropdownMenuItem,
+                  {
+                    class: 'text-destructive focus:text-destructive cursor-pointer',
+                    'data-testid': `action-ban-${user.id}`,
+                    disabled: pendingActionUserId.value === user.id,
+                    onClick: () => openBanConfirm(user),
+                  },
+                  () => (pendingActionUserId.value === user.id ? 'Banning…' : 'Ban'),
+                )
+              : h(
+                  DropdownMenuItem,
+                  {
+                    class: 'cursor-pointer',
+                    'data-testid': `action-unban-${user.id}`,
+                    disabled: pendingActionUserId.value === user.id,
+                    onClick: () => handleUnban(user.id),
+                  },
+                  () => (pendingActionUserId.value === user.id ? 'Unbanning…' : 'Unban'),
+                ),
+            h(DropdownMenuSeparator),
+            h(DropdownMenuSub, null, {
+              default: () => [
+                h(DropdownMenuSubTrigger, null, () => 'Change Role'),
+                h(DropdownMenuSubContent, null, () =>
+                  h(
+                    DropdownMenuRadioGroup,
                     {
-                      class: 'text-destructive focus:text-destructive cursor-pointer',
-                      'data-testid': `action-ban-${user.id}`,
-                      onClick: () => openBanConfirm(user),
+                      modelValue: user.role,
+                      'onUpdate:modelValue': (val: unknown) =>
+                        handleRoleChange(user.id, val as string),
                     },
-                    () => 'Ban',
-                  )
-                : h(
-                    DropdownMenuItem,
-                    {
-                      class: 'cursor-pointer',
-                      'data-testid': `action-unban-${user.id}`,
-                      onClick: () => unbanUserById(user.id),
-                    },
-                    () => 'Unban',
-                  ),
-              h(DropdownMenuSeparator),
-              h(
-                DropdownMenuSub,
-                null,
-                {
-                  default: () => [
-                    h(DropdownMenuSubTrigger, null, () => 'Change Role'),
-                    h(DropdownMenuSubContent, null, () =>
-                      h(
-                        DropdownMenuRadioGroup,
-                        {
-                          modelValue: user.role,
-                          'onUpdate:modelValue': (val: unknown) =>
-                            handleRoleChange(user.id, val as string),
-                        },
-                        () =>
-                          ROLES_OPTIONS.map((role) =>
-                            h(
-                              DropdownMenuRadioItem,
-                              { key: role, value: role, class: 'text-xs' },
-                              () => role,
-                            ),
-                          ),
+                    () =>
+                      ROLES_OPTIONS.map((role) =>
+                        h(
+                          DropdownMenuRadioItem,
+                          { key: role, value: role, class: 'text-xs' },
+                          () => role,
+                        ),
                       ),
-                    ),
-                  ],
-                },
-              ),
-            ]),
-          ],
-        },
-      );
+                  ),
+                ),
+              ],
+            }),
+          ]),
+        ],
+      });
 
-      return h('div', { class: 'flex items-center justify-end gap-1.5' }, [tagPopover, actionsMenu]);
+      return h('div', { class: 'flex items-center justify-end gap-1.5' }, [
+        tagPopover,
+        actionsMenu,
+      ]);
     },
   }),
 ];
@@ -595,9 +608,10 @@ const columns: ColumnDef<AdminUser>[] = [
         size="sm"
         class="h-7 px-2 gap-1 text-xs"
         data-testid="refresh-btn"
+        :disabled="isLoading || !!pendingActionUserId"
         @click="fetchUsers"
       >
-        <RefreshCw class="w-3 h-3" />
+        <RefreshCw class="w-3 h-3" :class="{ 'animate-spin': isLoading }" />
         Refresh
       </Button>
     </div>
@@ -608,11 +622,7 @@ const columns: ColumnDef<AdminUser>[] = [
       class="flex-1 p-4 space-y-2"
       data-testid="skeleton-loader"
     >
-      <div
-        v-for="i in 5"
-        :key="i"
-        class="h-10 w-full rounded bg-accent/50 animate-pulse"
-      />
+      <div v-for="i in 5" :key="i" class="h-10 w-full rounded bg-accent/50 animate-pulse" />
     </div>
 
     <!-- Error state -->
@@ -645,9 +655,10 @@ const columns: ColumnDef<AdminUser>[] = [
           <AlertDialogAction
             class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             data-testid="confirm-ban-btn"
+            :disabled="!!pendingActionUserId"
             @click="confirmBan"
           >
-            Ban
+            {{ pendingActionUserId ? 'Banning…' : 'Ban' }}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
