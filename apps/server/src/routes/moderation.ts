@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
-import { muteUser, unmuteUser, banUser } from '../services/moderationService.js';
+import { muteUser, unmuteUser, banUser, unbanUser } from '../services/moderationService.js';
 import type { AppEnv } from '../lib/types.js';
 import type { Role } from '@manlycam/types';
 
@@ -26,6 +26,13 @@ export function createModerationRouter() {
     const targetUserId = c.req.param('userId');
     const actor = c.get('user')!;
     await banUser({ actorId: actor.id, actorRole: actor.role as Role, targetUserId });
+    return c.body(null, 204);
+  });
+
+  router.post('/api/users/:userId/unban', requireAuth, requireRole('Admin'), async (c) => {
+    const targetUserId = c.req.param('userId');
+    const actor = c.get('user')!;
+    await unbanUser({ actorId: actor.id, actorRole: actor.role as Role, targetUserId });
     return c.body(null, 204);
   });
 

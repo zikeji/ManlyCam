@@ -112,6 +112,51 @@ describe('WsHub', () => {
       const msg = { type: 'presence:join' as const, payload: baseUser };
       expect(() => hub.broadcastExcept('nonexistent', msg)).not.toThrow();
     });
+
+    it('does not throw if a client throws on send', () => {
+      const throwing = {
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('socket gone');
+        }),
+        close: vi.fn(),
+      };
+      const normal = makeClient();
+      hub.addClient('conn-1', throwing, baseUser);
+      hub.addClient('conn-2', normal, userB);
+      const msg = { type: 'presence:join' as const, payload: baseUser };
+      expect(() => hub.broadcastExcept('conn-3', msg)).not.toThrow();
+      expect(normal.send).toHaveBeenCalled();
+    });
+  });
+
+  describe('sendToUser', () => {
+    it('sends message only to connections matching userId', () => {
+      const clientA1 = makeClient();
+      const clientA2 = makeClient();
+      const clientB = makeClient();
+      hub.addClient('conn-a1', clientA1, baseUser); // userId: 'user-001'
+      hub.addClient('conn-a2', clientA2, baseUser); // userId: 'user-001'
+      hub.addClient('conn-b', clientB, userB); // userId: 'user-002'
+
+      const msg = { type: 'chat:ephemeral' as const, payload: {} as never };
+      hub.sendToUser('user-001', msg);
+
+      expect(clientA1.send).toHaveBeenCalledWith(JSON.stringify(msg));
+      expect(clientA2.send).toHaveBeenCalledWith(JSON.stringify(msg));
+      expect(clientB.send).not.toHaveBeenCalled();
+    });
+
+    it('does not throw if a client throws on send', () => {
+      const throwing = {
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('socket gone');
+        }),
+        close: vi.fn(),
+      };
+      hub.addClient('conn-1', throwing, baseUser);
+      const msg = { type: 'chat:ephemeral' as const, payload: {} as never };
+      expect(() => hub.sendToUser('user-001', msg)).not.toThrow();
+    });
   });
 
   describe('revokeUserSessions', () => {

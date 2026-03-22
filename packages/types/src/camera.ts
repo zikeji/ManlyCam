@@ -19,13 +19,26 @@ export const CAMERA_CONTROLS_ALLOWLIST = [
   'rpiCameraFlickerPeriod',
   'rpiCameraTextOverlayEnable',
   'rpiCameraTextOverlay',
+  'rpiCameraFps',
+  'rpiCameraBitrate',
+  'rpiCameraIdrPeriod',
+  'rpiCameraWidth',
+  'rpiCameraHeight',
+  'rpiCameraHFlip',
+  'rpiCameraVFlip',
 ] as const;
 
 export type CameraControlKey = (typeof CAMERA_CONTROLS_ALLOWLIST)[number];
 export type CameraSettingsMap = Partial<Record<CameraControlKey, unknown>>;
 
 export type CameraControlType = 'switch' | 'slider' | 'select' | 'number' | 'text' | 'dual-number';
-export type CameraControlSection = 'Image' | 'Exposure' | 'White Balance' | 'Autofocus' | 'Overlay';
+export type CameraControlSection =
+  | 'Image'
+  | 'Exposure'
+  | 'White Balance'
+  | 'Autofocus'
+  | 'Overlay'
+  | 'Encoding';
 
 export interface CameraControlMeta {
   key: CameraControlKey;
@@ -40,6 +53,12 @@ export interface CameraControlMeta {
   /** Key/value pair that must match for this control to be shown */
   showIf?: { key: CameraControlKey; value: unknown };
   description?: string;
+  restartRequired?: boolean;
+  /** Convert between display/input units and backend storage units (e.g. kbps ↔ bps) */
+  transform?: {
+    fromBackend: (v: number) => number;
+    toBackend: (v: number) => number;
+  };
 }
 
 export const CAMERA_CONTROL_META: CameraControlMeta[] = [
@@ -90,6 +109,7 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     section: 'Image',
     type: 'switch',
     defaultValue: false,
+    restartRequired: true,
   },
   // --- Exposure ---
   {
@@ -198,6 +218,7 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     section: 'Autofocus',
     type: 'select',
     defaultValue: 'continuous',
+    restartRequired: true,
     options: [
       { value: 'continuous', label: 'Continuous' },
       { value: 'auto', label: 'Auto (trigger)' },
@@ -210,6 +231,7 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     section: 'Autofocus',
     type: 'select',
     defaultValue: 'normal',
+    restartRequired: true,
     options: [
       { value: 'normal', label: 'Normal' },
       { value: 'macro', label: 'Macro' },
@@ -222,6 +244,7 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     section: 'Autofocus',
     type: 'select',
     defaultValue: 'normal',
+    restartRequired: true,
     options: [
       { value: 'normal', label: 'Normal' },
       { value: 'fast', label: 'Fast' },
@@ -246,6 +269,7 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     section: 'Overlay',
     type: 'switch',
     defaultValue: false,
+    restartRequired: true,
   },
   {
     key: 'rpiCameraTextOverlay',
@@ -255,5 +279,95 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     defaultValue: '%Y-%m-%d %H:%M:%S - MediaMTX',
     showIf: { key: 'rpiCameraTextOverlayEnable', value: true },
     description: 'Supports strftime format codes.',
+    restartRequired: true,
+  },
+  // --- Encoding ---
+  {
+    key: 'rpiCameraDenoise',
+    label: 'Denoise',
+    section: 'Encoding',
+    type: 'select',
+    defaultValue: 'cdn_off',
+    restartRequired: false,
+    options: [
+      { value: 'cdn_off', label: 'Off' },
+      { value: 'cdn_fast', label: 'Fast' },
+      { value: 'cdn_hq', label: 'High Quality' },
+    ],
+  },
+  {
+    key: 'rpiCameraFps',
+    label: 'FPS',
+    section: 'Encoding',
+    type: 'number',
+    min: 1,
+    max: 120,
+    step: 1,
+    defaultValue: 30,
+    restartRequired: true,
+  },
+  {
+    key: 'rpiCameraBitrate',
+    label: 'Bitrate (kbps)',
+    section: 'Encoding',
+    type: 'number',
+    min: 100,
+    max: 50000,
+    step: 100,
+    defaultValue: 2000000, // stored in bps internally; transform handles display ↔ storage
+    restartRequired: true,
+    transform: {
+      fromBackend: (v: number) => (typeof v === 'number' && !isNaN(v) ? Math.round(v / 1000) : 0),
+      toBackend: (v: number) => (typeof v === 'number' && !isNaN(v) ? v * 1000 : 0),
+    },
+  },
+  {
+    key: 'rpiCameraIdrPeriod',
+    label: 'IDR Period (frames)',
+    section: 'Encoding',
+    type: 'number',
+    min: 1,
+    max: 300,
+    step: 1,
+    defaultValue: 60,
+    restartRequired: true,
+  },
+  {
+    key: 'rpiCameraWidth',
+    label: 'Width',
+    section: 'Encoding',
+    type: 'number',
+    min: 320,
+    max: 4608,
+    step: 1,
+    defaultValue: 1280,
+    restartRequired: true,
+  },
+  {
+    key: 'rpiCameraHeight',
+    label: 'Height',
+    section: 'Encoding',
+    type: 'number',
+    min: 240,
+    max: 3496,
+    step: 1,
+    defaultValue: 720,
+    restartRequired: true,
+  },
+  {
+    key: 'rpiCameraHFlip',
+    label: 'Horizontal Flip',
+    section: 'Encoding',
+    type: 'switch',
+    defaultValue: false,
+    restartRequired: true,
+  },
+  {
+    key: 'rpiCameraVFlip',
+    label: 'Vertical Flip',
+    section: 'Encoding',
+    type: 'switch',
+    defaultValue: false,
+    restartRequired: true,
   },
 ];

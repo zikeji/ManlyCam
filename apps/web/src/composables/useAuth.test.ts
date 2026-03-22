@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createApp as createVueApp } from 'vue';
 import { createRouter, createMemoryHistory } from 'vue-router';
+import type { Router } from 'vue-router';
+import type { MeResponse } from '@manlycam/types';
+
+const mockInvalidateRouterCache = vi.hoisted(() => vi.fn());
+vi.mock('@/router', () => ({
+  invalidateRouterCache: mockInvalidateRouterCache,
+}));
 
 // Provide a minimal Vue app context (router is required by useAuth)
 function withRouter<T>(fn: () => T): T {
@@ -15,6 +22,20 @@ function withRouter<T>(fn: () => T): T {
     result = fn();
   });
   return result;
+}
+
+function withRouterFull<T>(fn: () => T): { result: T; router: Router } {
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [{ path: '/', component: { template: '<div/>' } }],
+  });
+  const app = createVueApp({ template: '<div/>' });
+  app.use(router);
+  let result!: T;
+  app.runWithContext(() => {
+    result = fn();
+  });
+  return { result, router };
 }
 
 describe('useAuth', () => {
@@ -84,6 +105,72 @@ describe('useAuth', () => {
     expect(user.value).toBeNull();
     expect(authLoading.value).toBe(false);
     expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch user:', networkError);
+  });
+
+  it('fetchCurrentUser returns early if authLoading is false', async () => {
+    const { useAuth } = await import('./useAuth');
+    const { authLoading, fetchCurrentUser } = withRouter(() => useAuth());
+    authLoading.value = false;
+    await fetchCurrentUser();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  describe('logout', () => {
+    const mockUser: MeResponse = {
+      id: 'u1',
+      displayName: 'Alice',
+      email: 'alice@example.com',
+      role: 'ViewerCompany',
+      avatarUrl: null,
+      bannedAt: null,
+      mutedAt: null,
+    };
+
+    it('clears user, resets authLoading, calls invalidateRouterCache and router.push on success', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+      const { useAuth } = await import('./useAuth');
+      const {
+        result: { user, authLoading, logout },
+        router,
+      } = withRouterFull(() => useAuth());
+      user.value = mockUser;
+
+      const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as never);
+
+      await logout();
+
+      expect(user.value).toBeNull();
+      expect(authLoading.value).toBe(true);
+      expect(mockInvalidateRouterCache).toHaveBeenCalled();
+      expect(pushSpy).toHaveBeenCalledWith('/');
+    });
+
+    it('returns early without clearing user when fetch throws', async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { useAuth } = await import('./useAuth');
+      const { user, logout } = withRouter(() => useAuth());
+      user.value = mockUser;
+
+      await logout();
+
+      expect(user.value).toEqual(mockUser);
+    });
+
+    it('returns early without clearing user when fetch response is not ok', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 401 });
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const { useAuth } = await import('./useAuth');
+      const { user, logout } = withRouter(() => useAuth());
+      user.value = mockUser;
+
+      await logout();
+
+      expect(user.value).toEqual(mockUser);
+    });
   });
 
   it('concurrent calls to fetchCurrentUser result in only one network request', async () => {

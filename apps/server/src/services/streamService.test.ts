@@ -26,6 +26,7 @@ vi.mock('../db/client.js', () => ({
 import { wsHub } from './wsHub.js';
 import { prisma } from '../db/client.js';
 import { StreamService } from './streamService.js';
+import { logger } from '../lib/logger.js';
 
 describe('StreamService state machine', () => {
   let service: StreamService;
@@ -120,9 +121,54 @@ describe('StreamService state machine', () => {
     vi.unstubAllGlobals();
   });
 
+  it('pollMediamtxState: fetch returns non-ok status → state becomes unreachable', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500 }));
+    await service.pollMediamtxState();
+    expect(service.getState()).toEqual({ state: 'unreachable', adminToggle: 'live' });
+    vi.unstubAllGlobals();
+  });
+
   it('stop() sets stopped flag and does not throw', async () => {
     await service.start();
     expect(() => service.stop()).not.toThrow();
+  });
+
+  it('start() catches and logs error if pollLoop throws', async () => {
+    vi.spyOn(service as never, 'pollLoop').mockRejectedValueOnce(new Error('poll error'));
+    const errorSpy = vi.spyOn(logger, 'error');
+    await service.start();
+    // Wait for the promise to reject and be caught
+    await new Promise((r) => setTimeout(r, 0));
+    expect(errorSpy).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      'mediamtx poll loop exited unexpectedly',
+    );
+  });
+
+  it('pollLoop polls mediamtx state periodically', async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+
+    // Start the service, which calls pollLoop
+    const startPromise = service.start();
+
+    // Fast-forward past initial 3000ms delay
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    // Fast-forward past 2000ms delay
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+
+    service.stop();
+    await vi.advanceTimersByTimeAsync(2000); // Let the loop exit
+    await startPromise;
+
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
   });
 
   it('isPiReachable returns piReachable state', async () => {
@@ -222,6 +268,37 @@ describe('StreamService camera reapply', () => {
     vi.unstubAllGlobals();
   });
 
+  it('reapply logs warning if fetch returns non-ok status', async () => {
+    vi.stubGlobal('fetch', vi.fn());
+    const mockFetch = vi.mocked(global.fetch);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ready: true }),
+    } as never);
+
+    vi.mocked(prisma.cameraSettings.findMany).mockResolvedValueOnce([
+      { key: 'rpiCameraBrightness', value: '0.5', updatedAt: new Date() },
+    ] as never);
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+    } as never);
+
+    const warnSpy = vi.spyOn(logger, 'warn');
+
+    await service.pollMediamtxState();
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      { status: 500 },
+      'stream: failed to re-apply camera settings on reconnect',
+    );
+
+    vi.unstubAllGlobals();
+  });
+
   it('reapply skips if no camera settings exist', async () => {
     vi.stubGlobal('fetch', vi.fn());
     const mockFetch = vi.mocked(global.fetch);
@@ -241,6 +318,28 @@ describe('StreamService camera reapply', () => {
     expect(calls.length).toBe(1);
     expect(calls[0][0]).toContain('/v3/paths/get/cam');
 
+    vi.unstubAllGlobals();
+  });
+
+  it('updateReachable catches and logs error if reapplyCameraSettings throws', async () => {
+    vi.spyOn(service as never, 'reapplyCameraSettings').mockRejectedValueOnce(
+      new Error('reapply error'),
+    );
+    const errorSpy = vi.spyOn(logger, 'error');
+
+    // Trigger updateReachable(true)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+
+    // Wait for the promise to reject and be caught
+    await new Promise((r) => setTimeout(r, 0));
+    expect(errorSpy).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      'stream: reapplyCameraSettings rejected unexpectedly',
+    );
     vi.unstubAllGlobals();
   });
 });

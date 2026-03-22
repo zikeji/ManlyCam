@@ -25,10 +25,11 @@ vi.mock('../services/moderationService.js', () => ({
   muteUser: vi.fn(),
   unmuteUser: vi.fn(),
   banUser: vi.fn(),
+  unbanUser: vi.fn(),
 }));
 
 import { getSessionUser } from '../services/authService.js';
-import { muteUser, unmuteUser, banUser } from '../services/moderationService.js';
+import { muteUser, unmuteUser, banUser, unbanUser } from '../services/moderationService.js';
 import { AppError } from '../lib/errors.js';
 import { createApp } from '../app.js';
 
@@ -47,6 +48,7 @@ const mockAdmin = {
   lastSeenAt: null,
 };
 
+const mockModerator = { ...mockAdmin, id: 'mod-001', role: 'Moderator' };
 const mockViewer = { ...mockAdmin, id: 'viewer-001', role: 'ViewerCompany' };
 const authHeaders = { headers: { cookie: 'session_id=valid-session' } };
 
@@ -199,5 +201,67 @@ describe('DELETE /api/users/:userId/ban', () => {
     expect(res.status).toBe(403);
     const body = (await res.json()) as { error: { code: string } };
     expect(body.error.code).toBe('INSUFFICIENT_ROLE');
+  });
+});
+
+describe('POST /api/users/:userId/unban', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 401 when not authenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/users/target-001/unban', {
+      method: 'POST',
+      ...authHeaders,
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when caller is Moderator (requireRole blocks)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockModerator as never);
+    const res = await createApp().app.request('/api/users/target-001/unban', {
+      method: 'POST',
+      ...authHeaders,
+    });
+    expect(res.status).toBe(403);
+    expect(unbanUser).not.toHaveBeenCalled();
+  });
+
+  it('returns 204 on successful unban', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(unbanUser).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/users/target-001/unban', {
+      method: 'POST',
+      ...authHeaders,
+    });
+    expect(res.status).toBe(204);
+    expect(unbanUser).toHaveBeenCalledWith({
+      actorId: 'actor-001',
+      actorRole: 'Admin',
+      targetUserId: 'target-001',
+    });
+  });
+
+  it('propagates INSUFFICIENT_ROLE 403 from service (Admin unbanning Admin)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(unbanUser).mockRejectedValue(
+      new AppError('Cannot unban users with equal or higher role.', 'INSUFFICIENT_ROLE', 403),
+    );
+    const res = await createApp().app.request('/api/users/target-001/unban', {
+      method: 'POST',
+      ...authHeaders,
+    });
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('INSUFFICIENT_ROLE');
+  });
+
+  it('propagates NOT_FOUND 404 from service', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(unbanUser).mockRejectedValue(new AppError('User not found.', 'NOT_FOUND', 404));
+    const res = await createApp().app.request('/api/users/target-001/unban', {
+      method: 'POST',
+      ...authHeaders,
+    });
+    expect(res.status).toBe(404);
   });
 });

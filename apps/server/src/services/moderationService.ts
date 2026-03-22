@@ -58,17 +58,24 @@ export async function banUser({ actorId, actorRole, targetUserId }: MuteParams):
   if (ROLE_RANK[actorRole] < ROLE_RANK.Moderator) {
     throw new AppError('Insufficient permissions.', 'FORBIDDEN', 403);
   }
-  const target = await prisma.user.findUnique({ where: { id: targetUserId } });
-  if (!target) throw new AppError('User not found.', 'NOT_FOUND', 404);
-  if (!canModerateOver(actorRole, target.role as Role)) {
-    throw new AppError(
-      'Cannot moderate users with equal or higher role.',
-      'INSUFFICIENT_ROLE',
-      403,
-    );
-  }
 
   await prisma.$transaction(async (tx) => {
+    // Read inside transaction for atomicity - prevents race condition if user is deleted
+    const target = await tx.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new AppError('User not found.', 'NOT_FOUND', 404);
+    if (!canModerateOver(actorRole, target.role as Role)) {
+      throw new AppError(
+        'Cannot moderate users with equal or higher role.',
+        'INSUFFICIENT_ROLE',
+        403,
+      );
+    }
+
+    // Idempotency: skip if already banned
+    if (target.bannedAt) {
+      return;
+    }
+
     await tx.user.update({
       where: { id: targetUserId },
       data: { bannedAt: new Date() },
@@ -82,4 +89,32 @@ export async function banUser({ actorId, actorRole, targetUserId }: MuteParams):
   });
 
   wsHub.revokeUserSessions(targetUserId, 'banned');
+}
+
+export async function unbanUser({ actorId, actorRole, targetUserId }: MuteParams): Promise<void> {
+  if (ROLE_RANK[actorRole] < ROLE_RANK.Admin) {
+    throw new AppError('Insufficient permissions.', 'FORBIDDEN', 403);
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Read inside transaction for atomicity - prevents race condition if user is deleted
+    const target = await tx.user.findUnique({ where: { id: targetUserId } });
+    if (!target) throw new AppError('User not found.', 'NOT_FOUND', 404);
+    if (!canModerateOver(actorRole, target.role as Role)) {
+      throw new AppError('Cannot unban users with equal or higher role.', 'INSUFFICIENT_ROLE', 403);
+    }
+
+    // Idempotency: skip if already unbanned
+    if (!target.bannedAt) {
+      return;
+    }
+
+    await tx.user.update({
+      where: { id: targetUserId },
+      data: { bannedAt: null },
+    });
+    await tx.auditLog.create({
+      data: { id: ulid(), action: 'unban', actorId, targetId: targetUserId },
+    });
+  });
 }

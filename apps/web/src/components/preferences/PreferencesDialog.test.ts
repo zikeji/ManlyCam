@@ -157,6 +157,24 @@ describe('PreferencesDialog', () => {
     expect(mockUpdatePreference).toHaveBeenCalledWith('chatMessages', true);
   });
 
+  it('calls updatePreference when mentions switch is toggled', async () => {
+    notificationMock.permission = 'granted';
+    mountDialog(true);
+    const switches = wrapper!.findAll('[role="switch"]');
+    await switches[1].trigger('click');
+    await flushPromises();
+    expect(mockUpdatePreference).toHaveBeenCalledWith('mentions', true);
+  });
+
+  it('calls updatePreference when streamState switch is toggled', async () => {
+    notificationMock.permission = 'granted';
+    mountDialog(true);
+    const switches = wrapper!.findAll('[role="switch"]');
+    await switches[2].trigger('click');
+    await flushPromises();
+    expect(mockUpdatePreference).toHaveBeenCalledWith('streamState', true);
+  });
+
   it('requests permission when enabling a notification toggle while permission is default', async () => {
     notificationMock.permission = 'default';
     mockRequestPermission.mockResolvedValue('granted');

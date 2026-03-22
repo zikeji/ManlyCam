@@ -53,6 +53,7 @@ import {
   reloadCommands,
 } from './slashCommands.js';
 import { SYSTEM_USER_ID } from '@manlycam/types';
+import { logger } from '../lib/logger.js';
 
 describe('slashCommands.loadCommands', () => {
   afterEach(() => {
@@ -314,6 +315,17 @@ describe('slashCommands.executeCommand', () => {
     expect(result).toBeNull();
   });
 
+  it('returns null when content starts with / but has no command name', () => {
+    const result = executeCommand({
+      content: '/ ',
+      userId: 'u1',
+      userDisplayName: 'User',
+      userRole: 'ViewerCompany',
+      mentionedUserIds: [],
+    });
+    expect(result).toBeNull();
+  });
+
   it('calls handler with correct input (text after command)', () => {
     handler.mockReturnValue({ content: 'hello ¯\\_(ツ)_/¯' });
     executeCommand({
@@ -383,6 +395,18 @@ describe('slashCommands.executeCommand', () => {
     expect(result?.authorUserId).toBe(SYSTEM_USER_ID);
   });
 
+  it('returns authorUserId as userId when impersonateUser is true and not ephemeral', () => {
+    handler.mockReturnValue({ content: 'impersonated', impersonateUser: true });
+    const result = executeCommand({
+      content: '/shrug',
+      userId: 'u1',
+      userDisplayName: 'User',
+      userRole: 'ViewerCompany',
+      mentionedUserIds: [],
+    });
+    expect(result?.authorUserId).toBe('u1');
+  });
+
   it('returns ephemeral result when handler sets ephemeral: true', () => {
     handler.mockReturnValue({ content: 'Only you', ephemeral: true });
     const result = executeCommand({
@@ -434,6 +458,22 @@ describe('slashCommands.executeCommand', () => {
         mentionedUserIds: [],
       }),
     ).toThrow(expect.objectContaining({ code: 'INTERNAL_ERROR', statusCode: 500 }));
+  });
+
+  it('logs warning when command returns both ephemeral and impersonateUser', () => {
+    handler.mockReturnValue({ content: 'result', ephemeral: true, impersonateUser: true });
+    const result = executeCommand({
+      content: '/shrug',
+      userId: 'u1',
+      userDisplayName: 'User',
+      userRole: 'ViewerCompany',
+      mentionedUserIds: [],
+    });
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      { command: 'shrug' },
+      'Slash command returned both ephemeral and impersonateUser — impersonateUser ignored',
+    );
+    expect(result?.authorUserId).toBe(SYSTEM_USER_ID);
   });
 
   it('uses first matching command when duplicates exist', () => {

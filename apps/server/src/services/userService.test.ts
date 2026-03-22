@@ -7,6 +7,7 @@ vi.mock('../db/client.js', () => ({
     user: {
       findUnique: vi.fn(),
       update: vi.fn(),
+      findMany: vi.fn(),
     },
     session: {
       deleteMany: vi.fn(),
@@ -29,7 +30,14 @@ vi.mock('./wsHub.js', () => ({
 
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
-import { banUser, unbanUser, updateUserRole, updateUserTagById } from './userService.js';
+import {
+  banUser,
+  unbanUser,
+  updateUserRole,
+  updateUserRoleById,
+  updateUserTagById,
+  getAllUsers,
+} from './userService.js';
 
 describe('userService', () => {
   beforeEach(() => {
@@ -135,6 +143,28 @@ describe('userService', () => {
 
       await expect(banUser('user@example.com')).rejects.toThrow('User not found: user@example.com');
     });
+
+    it('re-throws other errors from transaction', async () => {
+      const mockUser: User = {
+        id: 'user-1',
+        googleSub: 'google-1',
+        email: 'user@example.com',
+        displayName: 'Test User',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTagText: null,
+        userTagColor: null,
+        mutedAt: null,
+        bannedAt: null,
+        createdAt: new Date(),
+        lastSeenAt: null,
+      };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
+      const error = new Error('DB connection error');
+      vi.mocked(prisma.$transaction).mockRejectedValue(error);
+
+      await expect(banUser('user@example.com')).rejects.toThrow('DB connection error');
+    });
   });
 
   describe('unbanUser', () => {
@@ -223,6 +253,62 @@ describe('userService', () => {
       await expect(updateUserRole('nobody@example.com', 'Admin')).rejects.toThrow(
         'User not found: nobody@example.com',
       );
+    });
+  });
+
+  describe('updateUserRoleById', () => {
+    it('updates user role and broadcasts user:update', async () => {
+      const mockUser: User = {
+        id: 'user-1',
+        googleSub: 'google-1',
+        email: 'user@example.com',
+        displayName: 'Test User',
+        avatarUrl: null,
+        role: 'ViewerCompany',
+        userTagText: null,
+        userTagColor: null,
+        mutedAt: null,
+        bannedAt: null,
+        createdAt: new Date(),
+        lastSeenAt: null,
+      };
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(mockUser);
+      vi.mocked(prisma.user.update).mockResolvedValue({ ...mockUser, role: 'Moderator' });
+
+      await updateUserRoleById('user-1', 'Moderator');
+
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { role: 'Moderator' },
+      });
+      expect(wsHub.broadcast).toHaveBeenCalledWith({
+        type: 'user:update',
+        payload: expect.objectContaining({
+          id: 'user-1',
+          role: 'Moderator',
+        }),
+      });
+    });
+
+    it('throws if user not found', async () => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue(null);
+      await expect(updateUserRoleById('nonexistent', 'Admin')).rejects.toThrow(
+        'User not found: nonexistent',
+      );
+    });
+  });
+
+  describe('getAllUsers', () => {
+    it('returns all users ordered by createdAt desc', async () => {
+      const mockUsers = [{ id: 'user-1' }, { id: 'user-2' }];
+      vi.mocked(prisma.user.findMany).mockResolvedValue(mockUsers as never);
+
+      const result = await getAllUsers();
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith({
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toEqual(mockUsers);
     });
   });
 

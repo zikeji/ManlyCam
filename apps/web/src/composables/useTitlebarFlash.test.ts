@@ -116,4 +116,18 @@ describe('useTitlebarFlash', () => {
     wrapper.unmount();
     expect(removeSpy).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
   });
+
+  it('captures originalTitle in flashTitlebar if not already set', async () => {
+    vi.resetModules();
+    document.title = 'Initial Title';
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+
+    const mod = await import('./useTitlebarFlash');
+    const { flashTitlebar } = mod.useTitlebarFlash();
+
+    flashTitlebar('Flash!');
+
+    vi.advanceTimersByTime(1000);
+    expect(document.title).toBe('Initial Title');
+  });
 });

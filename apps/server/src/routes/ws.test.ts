@@ -190,6 +190,18 @@ describe('WS lifecycle — onOpen (AC #2, #3)', () => {
     registeredClient!.send('hello from broadcast');
     expect(mockWs.send).toHaveBeenCalledWith('hello from broadcast');
   });
+
+  it('closes the WS connection when ws.send throws during onOpen', () => {
+    vi.mocked(wsHub.addClient).mockReturnValue(vi.fn());
+    const mockWs = {
+      send: vi.fn().mockImplementation(() => {
+        throw new Error('send failed');
+      }),
+      close: vi.fn(),
+    };
+    capturedFactory!(mockContext).onOpen!(null, mockWs as never);
+    expect(mockWs.close).toHaveBeenCalled();
+  });
 });
 
 describe('WS lifecycle — onClose (AC #4)', () => {

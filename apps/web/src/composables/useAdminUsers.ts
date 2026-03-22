@@ -1,4 +1,5 @@
-import { ref, onMounted } from 'vue';
+import { ref, onUnmounted } from 'vue';
+import { toast } from 'vue-sonner';
 import { apiFetch } from '@/lib/api';
 import { Role } from '@manlycam/types';
 import type { UserProfile } from '@manlycam/types';
@@ -31,30 +32,63 @@ export function handleAdminUserUpdate(updatedUser: Partial<UserProfile> & { id: 
             userTagColor: updatedUser.userTag?.color ?? null,
           }
         : {};
-    users.value[index] = {
-      ...users.value[index],
+
+    const currentUser = users.value[index];
+    const mergedUser = {
+      ...currentUser,
       ...(updatedUser as unknown as Partial<AdminUser>),
       ...tagFields,
     };
+
+    // Only update if data actually changed (shallow comparison)
+    const hasChanged = Object.keys(mergedUser).some(
+      (key) =>
+        (mergedUser as Record<string, unknown>)[key] !==
+        (currentUser as Record<string, unknown>)[key],
+    );
+    if (!hasChanged) return;
+
+    const updated = users.value.slice();
+    updated[index] = mergedUser;
+    users.value = updated;
   }
 }
 
 export function useAdminUsers() {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
+  const abortController = ref<AbortController | null>(null);
 
   const fetchUsers = async () => {
+    // Cancel any pending request
+    if (abortController.value) {
+      abortController.value.abort();
+    }
+    abortController.value = new AbortController();
+
     isLoading.value = true;
     error.value = null;
     try {
-      const data = await apiFetch<AdminUser[]>('/api/admin/users');
+      const data = await apiFetch<AdminUser[]>('/api/admin/users', {
+        signal: abortController.value.signal,
+      });
       users.value = data;
     } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return; // Silently ignore abort errors
+      }
       error.value = (err as Error).message || 'Failed to fetch users';
     } finally {
       isLoading.value = false;
+      abortController.value = null;
     }
   };
+
+  onUnmounted(() => {
+    if (abortController.value) {
+      abortController.value.abort();
+    }
+  });
 
   const updateRole = async (userId: string, role: Role) => {
     const user = users.value.find((u) => u.id === userId);
@@ -65,8 +99,8 @@ export function useAdminUsers() {
         method: 'POST',
         body: JSON.stringify({ role }),
       });
-      // Optimistic update
       handleAdminUserUpdate({ id: userId, role });
+      toast.success('Role updated');
     } catch (err: unknown) {
       console.error('Failed to update role:', err);
       throw err;
@@ -101,11 +135,52 @@ export function useAdminUsers() {
     }
   };
 
-  onMounted(() => {
-    if (users.value.length === 0) {
-      fetchUsers();
+  const banUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/ban`, { method: 'DELETE' });
+      handleAdminUserUpdate({ id: userId, bannedAt: new Date().toISOString() } as never);
+      toast.success('User banned');
+    } catch (err: unknown) {
+      console.error('Failed to ban user:', err);
+      toast.error('Failed to ban user');
     }
-  });
+  };
+
+  const unbanUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/unban`, { method: 'POST' });
+      handleAdminUserUpdate({ id: userId, bannedAt: null } as never);
+      toast.success('User unbanned');
+    } catch (err: unknown) {
+      console.error('Failed to unban user:', err);
+      const message = err instanceof Error ? err.message : 'Failed to unban user';
+      toast.error(message);
+    }
+  };
+
+  const muteUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/mute`, { method: 'POST' });
+      handleAdminUserUpdate({ id: userId, mutedAt: new Date().toISOString() } as never);
+      toast.success('User muted');
+    } catch (err: unknown) {
+      console.error('Failed to mute user:', err);
+      const message = err instanceof Error ? err.message : 'Failed to mute user';
+      toast.error(message);
+    }
+  };
+
+  const unmuteUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/unmute`, { method: 'POST' });
+      handleAdminUserUpdate({ id: userId, mutedAt: null } as never);
+      toast.success('User unmuted');
+    } catch (err: unknown) {
+      console.error('Failed to unmute user:', err);
+      const message = err instanceof Error ? err.message : 'Failed to unmute user';
+      toast.error(message);
+    }
+  };
 
   return {
     users,
@@ -115,5 +190,9 @@ export function useAdminUsers() {
     updateRole,
     updateUserTag,
     clearUserTag,
+    banUserById,
+    unbanUserById,
+    muteUserById,
+    unmuteUserById,
   };
 }

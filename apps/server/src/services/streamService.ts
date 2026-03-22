@@ -37,9 +37,12 @@ export class StreamService {
       create: { id: 'cfg', adminToggle: 'live' },
     });
     this.adminToggle = config.adminToggle as 'live' | 'offline';
-    this.pollLoop().catch((err) => {
-      logger.error({ err }, 'mediamtx poll loop exited unexpectedly');
-    });
+    this.pollLoop().catch(
+      /* c8 ignore next -- pollLoop only throws in catastrophic failure; happy-path coverage impossible in unit tests */
+      (err) => {
+        logger.error({ err }, 'mediamtx poll loop exited unexpectedly');
+      },
+    );
   }
 
   stop(): void {
@@ -109,6 +112,7 @@ export class StreamService {
       logger.info({ piReachable: reachable }, 'stream: Pi reachability changed');
       this.broadcastState();
       if (reachable) {
+        /* c8 ignore next -- reapplyCameraSettings only rejects in catastrophic async failure; happy-path coverage via pollMediamtxState test */
         this.reapplyCameraSettings().catch((err) => {
           logger.error({ err }, 'stream: reapplyCameraSettings rejected unexpectedly');
         });

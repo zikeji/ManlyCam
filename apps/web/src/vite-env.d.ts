@@ -1,3 +1,4 @@
+/* istanbul ignore file -- ambient type declarations only, no runtime code */
 /// <reference types="vite/client" />
 
 declare module '*.vue' {

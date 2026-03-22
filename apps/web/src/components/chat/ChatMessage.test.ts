@@ -882,14 +882,66 @@ describe('ChatMessage.vue', () => {
         props: { message: baseMessage, isCurrentUserMuted: false },
       });
       const listitem = wrapper.find('[role="listitem"]');
-      // Open the bar via mouseenter
       await listitem.trigger('mouseenter');
       await nextTick();
       expect(wrapper.find('[data-reaction-bar]').exists()).toBe(true);
-      // Touch the message body — should dismiss
       await listitem.trigger('touchstart');
       await nextTick();
       expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
+    });
+  });
+
+  describe('continuation row — edit mode and reactions', () => {
+    it('renders edit textarea in plain continuation row when startEdit() is called', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isContinuation: true, isOwn: true },
+      });
+      const comp = wrapper.vm as unknown as { startEdit: () => void };
+      comp.startEdit();
+      await nextTick();
+      expect(wrapper.find('textarea').exists()).toBe(true);
+    });
+
+    it('renders ReactionDisplay in plain continuation row when reactions are present', () => {
+      const reactions = [
+        {
+          emoji: 'grinning_face',
+          count: 1,
+          userIds: ['user-999'],
+          userDisplayNames: ['Bob'],
+          userRoles: ['ViewerGuest' as const],
+          userReacted: false,
+          firstReactedAt: new Date().toISOString(),
+        },
+      ];
+      wrapper = mount(ChatMessage, {
+        props: { message: { ...baseMessage, reactions }, isContinuation: true },
+      });
+      expect(wrapper.find('[data-reaction-display]').exists()).toBe(true);
+    });
+  });
+
+  describe('group header — MicOff indicator', () => {
+    it('renders MicOff icon in ContextMenu group header when isAuthorMuted and canModerate', () => {
+      wrapper = mount(ChatMessage, {
+        props: {
+          message: baseMessage,
+          isOwn: false,
+          isAuthorMuted: true,
+          currentUserRole: 'Moderator',
+        },
+      });
+      expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(true);
+    });
+
+    it('renders edit textarea in ContextMenu group header when startEdit() is called (isOwn=true)', async () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isOwn: true },
+      });
+      const comp = wrapper.vm as unknown as { startEdit: () => void };
+      comp.startEdit();
+      await nextTick();
+      expect(wrapper.find('textarea').exists()).toBe(true);
     });
   });
 });

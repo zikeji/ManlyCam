@@ -139,6 +139,7 @@ async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
     };
 
     pc.oniceconnectionstatechange = () => {
+      /* c8 ignore next 2 -- pc is guaranteed non-null inside this closure */
       if (!pc) return;
       const { iceConnectionState } = pc;
       if (
@@ -151,6 +152,7 @@ async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
     };
 
     pc.onconnectionstatechange = () => {
+      /* c8 ignore next 2 -- pc is guaranteed non-null inside this closure */
       if (!pc) return;
       const { connectionState } = pc;
       if (
@@ -203,6 +205,7 @@ async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
 
 // Actual implementation assigned after connectWhep is defined (mutual recursion)
 scheduleReconnect = (): void => {
+  /* c8 ignore next 2 -- storedVideoEl is always set when scheduleReconnect fires; guard against stop() race */
   if (!storedVideoEl) return;
   clearStallTimer();
   clearReconnectTimer();

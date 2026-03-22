@@ -1,3 +1,14 @@
+export function formatDateTime(iso: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(new Date(iso));
+}
+
 export function formatTime(iso: string): string {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',

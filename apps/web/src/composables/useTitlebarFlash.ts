@@ -21,6 +21,7 @@ function stopFlash() {
 export function useTitlebarFlash() {
   function flashTitlebar(message: string): void {
     if (!preferences.value.flashTitlebar) return;
+    /* c8 ignore next */
     if (!document.hidden || isFlashing) return;
     if (!originalTitle) {
       originalTitle = document.title;

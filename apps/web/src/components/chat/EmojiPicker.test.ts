@@ -149,6 +149,37 @@ describe('EmojiPicker.vue', () => {
     expect(optionsAfter[1].attributes('aria-selected')).toBe('true');
   });
 
+  it('highlighted index decrements on ArrowLeft key', async () => {
+    wrapper = mount(EmojiPicker, { props: { visible: true } });
+    await wrapper.find('[role="dialog"]').trigger('keydown', { key: 'ArrowRight' });
+    await nextTick();
+    const afterRight = wrapper.findAll('[role="option"]');
+    expect(afterRight[1].attributes('aria-selected')).toBe('true');
+
+    await wrapper.find('[role="dialog"]').trigger('keydown', { key: 'ArrowLeft' });
+    await nextTick();
+    const afterLeft = wrapper.findAll('[role="option"]');
+    expect(afterLeft[0].attributes('aria-selected')).toBe('true');
+  });
+
+  it('highlighted index moves down a row on ArrowDown key', async () => {
+    wrapper = mount(EmojiPicker, { props: { visible: true } });
+    await wrapper.find('[role="dialog"]').trigger('keydown', { key: 'ArrowDown' });
+    await nextTick();
+    const options = wrapper.findAll('[role="option"]');
+    expect(options[8]?.attributes('aria-selected')).toBe('true');
+  });
+
+  it('highlighted index moves up a row on ArrowUp key', async () => {
+    wrapper = mount(EmojiPicker, { props: { visible: true } });
+    await wrapper.find('[role="dialog"]').trigger('keydown', { key: 'ArrowDown' });
+    await nextTick();
+    await wrapper.find('[role="dialog"]').trigger('keydown', { key: 'ArrowUp' });
+    await nextTick();
+    const options = wrapper.findAll('[role="option"]');
+    expect(options[0].attributes('aria-selected')).toBe('true');
+  });
+
   it('resets search and category when picker reopens', async () => {
     wrapper = mount(EmojiPicker, { props: { visible: true } });
     await wrapper.find('input').setValue('smile');

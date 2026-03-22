@@ -83,6 +83,32 @@ describe('ReactionBar.vue', () => {
     expect(wrapper.find('[data-testid="emoji-picker"]').exists()).toBe(true);
   });
 
+  it('toggles picker off when "More" button is clicked again', async () => {
+    wrapper = mount(ReactionBar);
+    const moreBtn = wrapper.find('button[aria-label="More emoji reactions"]');
+
+    await moreBtn.trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="emoji-picker"]').exists()).toBe(true);
+
+    await moreBtn.trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="emoji-picker"]').exists()).toBe(false);
+  });
+
+  it('closes picker when EmojiPicker emits close', async () => {
+    wrapper = mount(ReactionBar);
+    const moreBtn = wrapper.find('button[aria-label="More emoji reactions"]');
+    await moreBtn.trigger('click');
+    await nextTick();
+
+    const picker = wrapper.findComponent({ name: 'EmojiPicker' });
+    await picker.vm.$emit('close');
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="emoji-picker"]').exists()).toBe(false);
+  });
+
   it('disables all buttons when disabled=true', () => {
     wrapper = mount(ReactionBar, { props: { disabled: true } });
     const buttons = wrapper.findAll('button');

@@ -1,8 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount } from '@vue/test-utils';
+import { defineComponent } from 'vue';
 import { useAdminUsers, handleAdminUserUpdate, users as usersRef } from './useAdminUsers';
 import type { AdminUser } from './useAdminUsers';
 import { apiFetch } from '@/lib/api';
 import { Role } from '@manlycam/types';
+
+vi.mock('vue-sonner', () => ({
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
+}));
 
 vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
@@ -31,7 +37,77 @@ describe('useAdminUsers', () => {
     expect(isLoading.value).toBe(false);
   });
 
-  it('updates user role optimistically', async () => {
+  it('cancels previous request when fetchUsers is called again', async () => {
+    const mockUsers = [
+      { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany },
+    ] as unknown as AdminUser[];
+
+    let firstRequestSignal: AbortSignal | undefined;
+    let secondRequestSignal: AbortSignal | undefined;
+
+    vi.mocked(apiFetch).mockImplementation(async (_url, options) => {
+      if (!firstRequestSignal) {
+        firstRequestSignal = options?.signal ?? undefined;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return mockUsers;
+      }
+      secondRequestSignal = options?.signal ?? undefined;
+      return mockUsers;
+    });
+
+    const { fetchUsers } = useAdminUsers();
+
+    const firstPromise = fetchUsers();
+    const secondPromise = fetchUsers();
+
+    await Promise.all([firstPromise, secondPromise]);
+
+    expect(firstRequestSignal?.aborted).toBe(true);
+    expect(secondRequestSignal?.aborted).toBe(false);
+  });
+
+  it('silently ignores AbortError when request is cancelled', async () => {
+    const abortError = new Error('The operation was aborted');
+    abortError.name = 'AbortError';
+    vi.mocked(apiFetch).mockRejectedValue(abortError);
+
+    const { error, fetchUsers } = useAdminUsers();
+
+    await fetchUsers();
+
+    expect(error.value).toBeNull();
+  });
+
+  it('aborts pending request on unmount', async () => {
+    const mockUsers = [
+      { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany },
+    ] as unknown as AdminUser[];
+
+    let requestSignal: AbortSignal | undefined;
+    vi.mocked(apiFetch).mockImplementation(async (_url, options) => {
+      requestSignal = options?.signal ?? undefined;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return mockUsers;
+    });
+
+    const TestComponent = defineComponent({
+      setup() {
+        const { fetchUsers } = useAdminUsers();
+        return { fetchUsers };
+      },
+      template: '<div></div>',
+    });
+
+    const wrapper = mount(TestComponent);
+    const promise = (wrapper.vm as { fetchUsers: () => Promise<void> }).fetchUsers();
+    wrapper.unmount();
+    await promise;
+
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
+  it('updates user role optimistically and shows toast', async () => {
+    const { toast } = await import('vue-sonner');
     const mockUsers = [
       { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany },
     ] as unknown as AdminUser[];
@@ -44,6 +120,7 @@ describe('useAdminUsers', () => {
 
     expect(users.value[0].role).toBe(Role.Moderator);
     expect(apiFetch).toHaveBeenCalledWith('/api/admin/users/u1/role', expect.any(Object));
+    expect(toast.success).toHaveBeenCalledWith('Role updated');
   });
 
   it('does nothing if same role is passed to updateRole', async () => {
@@ -121,6 +198,15 @@ describe('useAdminUsers', () => {
     expect(error.value).toBe('Fetch failed');
   });
 
+  it('sets fallback error message when thrown error has no message', async () => {
+    vi.mocked(apiFetch).mockRejectedValue({});
+
+    const { error, fetchUsers } = useAdminUsers();
+    await fetchUsers();
+
+    expect(error.value).toBe('Failed to fetch users');
+  });
+
   it('throws error on updateRole failure', async () => {
     vi.mocked(apiFetch).mockRejectedValue(new Error('Update failed'));
     const { updateRole } = useAdminUsers();
@@ -192,6 +278,133 @@ describe('useAdminUsers', () => {
       const { clearUserTag } = useAdminUsers();
 
       await expect(clearUserTag('u1')).rejects.toThrow('Clear failed');
+    });
+  });
+
+  describe('no auto-fetch on composable init', () => {
+    it('does not call fetchUsers on composable init', () => {
+      usersRef.value = [];
+      const TestComponent = defineComponent({
+        setup() {
+          useAdminUsers();
+          return {};
+        },
+        template: '<div/>',
+      });
+
+      mount(TestComponent);
+
+      expect(apiFetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('banUserById', () => {
+    it('calls DELETE /api/users/:id/ban and updates bannedAt on success', async () => {
+      const mockUser = { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany, bannedAt: null };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, banUserById } = useAdminUsers();
+      await banUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/ban', { method: 'DELETE' });
+      expect(users.value[0].bannedAt).not.toBeNull();
+    });
+
+    it('calls toast.error on banUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { banUserById } = useAdminUsers();
+
+      await banUserById('u1');
+
+      expect(toast.error).toHaveBeenCalledWith('Failed to ban user');
+    });
+  });
+
+  describe('unbanUserById', () => {
+    it('calls POST /api/users/:id/unban and clears bannedAt on success', async () => {
+      const mockUser = {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        bannedAt: '2026-01-01T00:00:00Z',
+      };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, unbanUserById } = useAdminUsers();
+      await unbanUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/unban', { method: 'POST' });
+      expect(users.value[0].bannedAt).toBeNull();
+    });
+
+    it('calls toast.error on unbanUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { unbanUserById } = useAdminUsers();
+
+      await unbanUserById('u1');
+
+      expect(toast.error).toHaveBeenCalledWith('Network error');
+    });
+  });
+
+  describe('muteUserById', () => {
+    it('calls POST /api/users/:id/mute and updates mutedAt on success', async () => {
+      const mockUser = { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany, mutedAt: null };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, muteUserById } = useAdminUsers();
+      await muteUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/mute', { method: 'POST' });
+      expect(users.value[0].mutedAt).not.toBeNull();
+    });
+
+    it('calls toast.error on muteUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { muteUserById } = useAdminUsers();
+
+      await muteUserById('u1');
+
+      expect(toast.error).toHaveBeenCalledWith('Network error');
+    });
+  });
+
+  describe('unmuteUserById', () => {
+    it('calls POST /api/users/:id/unmute and clears mutedAt on success', async () => {
+      const mockUser = {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        mutedAt: '2026-01-01T00:00:00Z',
+      };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, unmuteUserById } = useAdminUsers();
+      await unmuteUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/unmute', { method: 'POST' });
+      expect(users.value[0].mutedAt).toBeNull();
+    });
+
+    it('calls toast.error on unmuteUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { unmuteUserById } = useAdminUsers();
+
+      await unmuteUserById('u1');
+
+      expect(toast.error).toHaveBeenCalledWith('Network error');
     });
   });
 });

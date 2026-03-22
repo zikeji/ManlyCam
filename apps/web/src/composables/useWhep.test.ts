@@ -771,5 +771,32 @@ describe('useWhep', () => {
 
       await stopWhep();
     });
+
+    it('scheduleReconnect catches connectWhep error and reschedules', async () => {
+      const videoEl = makeMockVideoEl();
+      const { useWhep } = await import('./useWhep');
+      const { startWhep, stopWhep } = useWhep();
+      await startWhep(videoEl as unknown as HTMLVideoElement);
+
+      // Trigger reconnect via ICE failure
+      mockPc.iceConnectionState = 'failed';
+      mockPc.oniceconnectionstatechange!();
+
+      // Make the next connectWhep fail
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+
+      // Advance past the 1s reconnect delay so connectWhep runs and fails
+      await vi.advanceTimersByTimeAsync(1001);
+
+      // It should have scheduled another reconnect (delay is now 2000)
+      const fetchMock = fetch as ReturnType<typeof vi.fn>;
+      const callsBefore = fetchMock.mock.calls.length;
+
+      await vi.advanceTimersByTimeAsync(2001);
+
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(callsBefore);
+
+      await stopWhep();
+    });
   });
 });

@@ -664,6 +664,79 @@ describe('ChatInput.vue', () => {
 
       vi.unstubAllGlobals();
     });
+
+    it('handleEmojiPickerResize updates position if picker is visible', async () => {
+      wrapper = mount(ChatInput, { attachTo: document.body });
+      const btn = wrapper.find('button[aria-label="Open emoji picker"]');
+      const btnEl = btn.element as HTMLButtonElement;
+
+      vi.spyOn(btnEl, 'getBoundingClientRect').mockReturnValue({
+        top: 400,
+        right: 600,
+        bottom: 420,
+        left: 580,
+        width: 20,
+        height: 20,
+        x: 580,
+        y: 400,
+        toJSON: () => ({}),
+      });
+      vi.stubGlobal('innerHeight', 800);
+      vi.stubGlobal('innerWidth', 1200);
+
+      await btn.trigger('click');
+      await nextTick();
+
+      vi.stubGlobal('innerHeight', 900);
+      window.dispatchEvent(new Event('resize'));
+      await nextTick();
+
+      const dialog = wrapper.find('[role="dialog"][aria-label="Emoji picker"]');
+      expect(dialog.attributes('style')).toContain('bottom: 508px');
+
+      vi.unstubAllGlobals();
+    });
+
+    it('handleEmojiPickerResize does nothing if picker is not visible', async () => {
+      wrapper = mount(ChatInput, { attachTo: document.body });
+      const btn = wrapper.find('button[aria-label="Open emoji picker"]');
+      const btnEl = btn.element as HTMLButtonElement;
+
+      const spy = vi.spyOn(btnEl, 'getBoundingClientRect');
+      window.dispatchEvent(new Event('resize'));
+      await nextTick();
+
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('closes emoji picker on mousedown outside the picker and wrapper', async () => {
+      wrapper = mount(ChatInput, { attachTo: document.body });
+      await wrapper.find('button[aria-label="Open emoji picker"]').trigger('click');
+      await nextTick();
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+
+      const outside = document.createElement('div');
+      document.body.appendChild(outside);
+      outside.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await nextTick();
+
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(false);
+      outside.remove();
+    });
+
+    it('does not close emoji picker on mousedown inside the picker', async () => {
+      wrapper = mount(ChatInput, { attachTo: document.body });
+      await wrapper.find('button[aria-label="Open emoji picker"]').trigger('click');
+      await nextTick();
+
+      const dialog = wrapper.find('[role="dialog"]');
+      expect(dialog.exists()).toBe(true);
+
+      dialog.element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await nextTick();
+
+      expect(wrapper.find('[role="dialog"]').exists()).toBe(true);
+    });
   });
 
   describe('emoji autocomplete', () => {

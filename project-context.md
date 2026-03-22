@@ -1,11 +1,19 @@
 ---
 project_name: 'ManlyCam'
 user_name: 'Zikeji'
-date: '2026-03-19'
+date: '2026-03-21'
 sections_completed:
-  ['technology_stack', 'language_rules', 'framework_rules', 'testing_rules', 'quality_rules', 'workflow_rules', 'anti_patterns']
+  [
+    'technology_stack',
+    'language_rules',
+    'framework_rules',
+    'testing_rules',
+    'quality_rules',
+    'workflow_rules',
+    'anti_patterns',
+  ]
 status: 'complete'
-rule_count: 52
+rule_count: 53
 optimized_for_llm: true
 ---
 
@@ -18,6 +26,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ## Technology Stack & Versions
 
 ### Runtime & Server
+
 - **Runtime**: Node.js (ESM modules — `"type": "module"` in all package.json)
 - **Server framework**: Hono ^4.12.5 + `@hono/node-server` ^1.19.11
 - **WebSocket**: `@hono/node-ws` ^1.3.0 — use `createNodeWebSocket({ app })` → `{ upgradeWebSocket, injectWebSocket }`
@@ -27,6 +36,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **ID generation**: ulidx ^2.0.0 (accessed ONLY via `apps/server/src/lib/ulid.ts` singleton)
 
 ### Frontend
+
 - **Framework**: Vue 3 ^3.5.0 + Vite ^7.3.1
 - **Router**: vue-router ^4.4.0
 - **UI components**: reka-ui ^2.9.0 (shadcn-vue registry)
@@ -37,8 +47,10 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Stream protocol**: WebRTC WHEP (via mediamtx — NOT HLS/hls.js)
 
 ### Shared
-- **Types package**: `@manlycam/types` (workspace:*) — always build before server typecheck
+
+- **Types package**: `@manlycam/types` (workspace:\*) — always build before server typecheck
 - **Monorepo**: pnpm workspaces
+- **Package manager**: pnpm ONLY — never use `npm` or `yarn`. Use `pnpm dlx` instead of `npx` for one-off commands.
 - **Language**: TypeScript ^5.8.3 (server) / ~5.9.3 (web)
 - **Testing**: Vitest ^3.0.0 + @vue/test-utils ^2.4.0 (web)
 
@@ -90,8 +102,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
   - Server: `pnpm run test --coverage` from `apps/server`
   - Web: `pnpm run test --coverage` from `apps/web`
   - Never use `npx vitest run` directly.
-- **Coverage thresholds** (server): lines 80%, functions 90%, branches 87%, statements 80%. Do not lower thresholds — raise them to match actuals when coverage improves.
-- **Every new line must be covered**: All new code introduced in a story must be covered by tests. If a line/branch logically cannot be covered (e.g., a Pi hardware reconnect path, defensive fallback, or impossible type guard), add `/* istanbul ignore next */` (or `/* istanbul ignore if */` / `/* istanbul ignore else */` for branches) with a brief inline comment explaining why. Do NOT leave uncovered lines without an explicit ignore annotation.
+- **Coverage thresholds**: Defined in each app's vitest config. Do not lower thresholds — raise them to match actuals when coverage improves.
+- **Every new line must be covered**: All new code introduced in a story must be covered by tests. If a line/branch logically cannot be covered (e.g., a Pi hardware reconnect path, defensive fallback, or impossible type guard), add `/* c8 ignore next */` (or `/* c8 ignore next N */` for multiple lines, `/* c8 ignore start */` / `/* c8 ignore stop */` for blocks) with a brief inline comment explaining why. Do NOT leave uncovered lines without an explicit ignore annotation. **Use `c8` syntax, NOT `istanbul` — the V8 coverage provider does not respect `istanbul ignore` comments.**
 - **Vue component cleanup**: Every Vue Test Utils test suite MUST have `afterEach(() => { wrapper?.unmount(); wrapper = null; })`. Missing cleanup causes watchers from prior tests to pollute subsequent tests → non-deterministic failures.
 - **Wrapper pattern**: Declare `let wrapper: VueWrapper | null = null` at suite level, assign in `beforeEach`, unmount in `afterEach`. Never use top-level `const wrapper = mount(...)`.
 - **No database mocks on server**: Server integration tests hit a real (test) database — do not mock Prisma. Mocked tests can pass while prod migrations are broken.
@@ -111,7 +123,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
   - Constants: `SCREAMING_SNAKE_CASE` for module-level constants (e.g., `EDIT_WINDOW_MS`, `ROLE_RANK`)
 - **No comments unless logic is non-obvious**: Do not add docstrings, JSDoc, or inline comments to code that is self-evident. Only comment genuinely non-obvious decisions or intentional deviations.
 - **No over-engineering**: Do not add error handling, fallbacks, or abstractions for scenarios that cannot happen. Do not design for hypothetical future requirements. Three similar lines is better than a premature abstraction.
-- **Shadcn-vue components**: Add via `shadcn-vue` CLI — do not hand-write reka-ui primitives from scratch. Components land in `apps/web/src/components/ui/`.
+- **Shadcn-vue components**: Add via `pnpm dlx shadcn-vue@latest add <component>` (e.g., `pnpm dlx shadcn-vue@latest add accordion`). Do not hand-write reka-ui primitives from scratch. Components land in `apps/web/src/components/ui/`.
 - **Tailwind v3 only**: Tailwind is pinned to `3.4.19`. Do not use v4 syntax or upgrade. `shadcn-vue` does not have stable v4 support.
 
 ### Development Workflow Rules
@@ -122,11 +134,18 @@ _This file contains critical rules and patterns that AI agents must follow when 
   3. `pnpm run test --coverage` — all tests pass, coverage thresholds met
 
   Never self-declare a story done without running all three.
+
 - **Story status field**: NEVER update the story file's `status` field to `done` without explicit permission from Zikeji. Set it to `ready-for-review` when implementation is complete and all quality gates pass, then wait for instruction.
 - **Story File List**: Every file created or modified during implementation must be listed in the story's File List — including test files touched only for lint/typecheck fixes.
 - **Unplanned work**: If work outside the story's scope is needed (e.g., fixing a related bug, adding a missing test), formalize it as a new story rather than silently folding it in.
 - **Commit syntax**: Use Conventional Commits — `type(scope): description`. Types: `feat`, `fix`, `chore`, `docs`, `test`, `refactor`, `style`, `perf`. Scope is the app or area (e.g., `feat(chat):`, `fix(server):`, `chore(deps):`). Subject line is lowercase, imperative, no trailing period.
 - **Commit hygiene**: Prefer specific file staging over `git add -A`. Never use `--no-verify` to skip hooks unless explicitly instructed.
+- **Co-authored-by attribution**: When AI assists in writing code, include a `Co-authored-by:` git trailer with the actual model identity. If the model knows its name (e.g., "Claude", "GPT-4", "Gemini"), use it: `Co-authored-by: Claude <noreply@anthropic.com>`. If uncertain about the model identity, ask the user what model to attribute. Example:
+  ```
+  feat(chat): add message deletion
+  
+  Co-authored-by: Claude <noreply@anthropic.com>
+  ```
 - **Branch naming**: `fix/`, `feat/`, `chore/` prefixes — e.g., `feat/story-5-2-moderation`.
 - **Pi hardware stories**: Cannot be self-declared done from tests alone — must be smoke-tested on actual hardware before closure.
 - **Types package**: Build `@manlycam/types` before server typecheck or test runs: `pnpm --filter @manlycam/types build`. The server `typecheck` script does this automatically; manual `tsc --noEmit` runs do not.
@@ -134,6 +153,8 @@ _This file contains critical rules and patterns that AI agents must follow when 
 ### Critical Don't-Miss Rules
 
 #### Anti-Patterns — Never Do These
+
+- **Never use `npm` or `npx`** — this project uses pnpm exclusively. Use `pnpm` for all package operations and `pnpm dlx` instead of `npx` for one-off commands.
 - **Never `new PrismaClient()`** — always import the singleton from `apps/server/src/db/client.ts`.
 - **Never import `ulidx` directly** — always import from `apps/server/src/lib/ulid.ts` singleton.
 - **Never read `process.env` directly in handlers** — all env vars go through `apps/server/src/env.ts` (Zod-validated at startup).
@@ -143,9 +164,10 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Never use HLS or introduce a new stream format** — the stream pipeline is WebRTC WHEP via mediamtx. Do not change it.
 - **Never upgrade Tailwind past v3** — pinned to `3.4.19`.
 - **Never set story status to `done`** without explicit permission from Zikeji.
-- **Never leave new uncovered lines without `/* istanbul ignore next */`** (or `if`/`else` variant) and a brief explanation.
+- **Never leave new uncovered lines without `/* c8 ignore next */`** (or `/* c8 ignore start */` / `/* c8 ignore stop */` for blocks) and a brief explanation. V8 provider ignores `istanbul` comments — always use `c8` syntax.
 
 #### Security Rules
+
 - **OAuth state cookie must be SameSite=Lax** (not Strict) — required for OAuth redirect flow. Tests enforce this; do not change it.
 - **Session cookie must be SameSite=Strict** — tests enforce this; do not change it.
 - **Normalize emails before Gravatar hashing** — lowercase + trim. Tests enforce this.
@@ -153,11 +175,13 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **All sensitive endpoints must have server-side RBAC** — never rely solely on client-side role gating.
 
 #### Story Closure Checklist
+
 Before marking any story `ready-for-review`, confirm ALL of the following:
+
 1. `pnpm run typecheck` passes (from affected app directories)
 2. `pnpm run lint` passes
 3. `pnpm run test --coverage` passes with thresholds met
-4. All new lines are covered or have `istanbul ignore` annotations
+4. All new lines are covered or have `c8 ignore` annotations
 5. Story File List includes every modified file
 6. UI changes have been flagged for Zikeji to smoke-test
 7. Story `status` is set to `ready-for-review` — NOT `done`
@@ -167,14 +191,16 @@ Before marking any story `ready-for-review`, confirm ALL of the following:
 ## Usage Guidelines
 
 **For AI Agents:**
+
 - Read this file before implementing any code
 - Follow ALL rules exactly as documented
 - When in doubt, prefer the more restrictive option
 - Reference the Story Closure Checklist before every `ready-for-review` transition
 
 **For Humans:**
+
 - Keep this file lean and focused on agent needs
 - Update when technology stack or patterns change
 - Remove rules that become obvious over time
 
-_Last Updated: 2026-03-19_
+_Last Updated: 2026-03-21_

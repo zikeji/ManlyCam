@@ -25,13 +25,14 @@ const disposeMap = new WeakMap<
 // Cached latest PiSugar status — included in admin init payload
 let cachedPiSugarStatus: PiSugarStatus | null = null;
 
-// Subscribe to PiSugar events if feature is configured
+/* c8 ignore start -- PiSugar event subscription only active when FRP_PISUGAR_PORT is configured (Pi hardware) */
 if (env.FRP_PISUGAR_PORT) {
   pisugarStatus.on('pisugarStatus', (status: PiSugarStatus) => {
     cachedPiSugarStatus = status;
     wsHub.broadcastToAdmin({ type: 'pisugar:status', payload: status });
   });
 }
+/* c8 ignore stop */
 
 function userRowToPresence(user: User): UserPresence {
   return {
@@ -90,7 +91,7 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
             const initMsg: WsMessage = { type: 'stream:state', payload: streamService.getState() };
             ws.send(JSON.stringify(initMsg));
 
-            // Send cached PiSugar status to admin connections
+            /* c8 ignore start -- cachedPiSugarStatus is only set when FRP_PISUGAR_PORT is configured (Pi hardware) */
             if (userPresence.role === 'Admin' && cachedPiSugarStatus !== null) {
               const piSugarMsg: WsMessage = {
                 type: 'pisugar:status',
@@ -98,6 +99,7 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
               };
               ws.send(JSON.stringify(piSugarMsg));
             }
+            /* c8 ignore stop */
           } catch (err) {
             logger.warn({ err }, 'Failed to send initial messages on WS open');
             ws.close();
@@ -115,6 +117,7 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
           }
         },
         async onMessage(evt, ws) {
+          /* c8 ignore next -- ArrayBuffer fallback: WebSocket test mocks only emit string data; ArrayBuffer path unreachable in jsdom */
           const raw = typeof evt.data === 'string' ? evt.data : String(evt.data);
           try {
             const msg = JSON.parse(raw) as { type: string; payload?: unknown };

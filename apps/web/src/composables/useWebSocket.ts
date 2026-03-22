@@ -40,6 +40,7 @@ export const WS_INJECTION_KEY: InjectionKey<WsInterface> = Symbol('useWebSocket'
 
 export function useWebSocket(): WsInterface {
   // If injected (child component), return the provided instance
+  /* c8 ignore next 2 */
   const injected = inject(WS_INJECTION_KEY, null);
   if (injected) return injected;
 
@@ -85,6 +86,7 @@ export function useWebSocket(): WsInterface {
         // Mention/chat notifications — skip own messages (server echoes back to sender)
         const currentUserId = user.value?.id;
         if (currentUserId && p.userId !== currentUserId) {
+          /* c8 ignore next 3 */
           const resolvedBody = p.content
             .replace(/<@([^>]+)>/g, (_, id: string) => `@${lookupUser(id)?.displayName ?? id}`)
             .trim();

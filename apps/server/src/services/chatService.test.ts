@@ -20,12 +20,18 @@ vi.mock('../db/client.js', () => ({
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => '01HZTEST00000000000000001') }));
 
 vi.mock('./wsHub.js', () => ({
-  wsHub: { broadcast: vi.fn(), getPresenceList: vi.fn(() => []) },
+  wsHub: { broadcast: vi.fn(), getPresenceList: vi.fn(() => []), sendToUser: vi.fn() },
+}));
+
+vi.mock('./slashCommands.js', () => ({
+  executeCommand: vi.fn(() => null),
 }));
 
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
+import { executeCommand } from './slashCommands.js';
 import { createMessage, getHistory, editMessage, deleteMessage } from './chatService.js';
+import { SYSTEM_USER_ID } from '@manlycam/types';
 import type { MockInstance } from 'vitest';
 
 const mockUser = {
@@ -54,6 +60,59 @@ const mockMessageRow = {
   createdAt: new Date('2026-03-08T10:00:00.000Z'),
   user: mockUser,
 };
+
+describe('chatService.createMessage — slash commands', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.message.create).mockResolvedValue(mockMessageRow as never);
+  });
+
+  it('slash command: ephemeral response sends to user via wsHub.sendToUser and returns null', async () => {
+    vi.mocked(executeCommand).mockReturnValue({
+      response: { content: 'Only for you', ephemeral: true },
+      authorUserId: SYSTEM_USER_ID,
+    });
+
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: '/shrug',
+    });
+
+    expect(wsHub.sendToUser).toHaveBeenCalledWith(
+      'user-001',
+      expect.objectContaining({ type: 'chat:ephemeral' }),
+    );
+    expect(result).toBeNull();
+    expect(prisma.message.create).not.toHaveBeenCalled();
+  });
+
+  it('slash command: non-ephemeral response overwrites content/author and creates message', async () => {
+    vi.mocked(executeCommand).mockReturnValue({
+      response: { content: 'Modified content' },
+      authorUserId: SYSTEM_USER_ID,
+    });
+
+    const result = await createMessage({
+      userId: 'user-001',
+      userDisplayName: 'Test User',
+      userRole: 'ViewerCompany' as const,
+      content: '/shrug',
+    });
+
+    expect(prisma.message.create).toHaveBeenCalledWith({
+      data: {
+        id: '01HZTEST00000000000000001',
+        userId: SYSTEM_USER_ID,
+        content: 'Modified content',
+      },
+      include: { user: true },
+    });
+    expect(result).not.toBeNull();
+    expect(wsHub.broadcast).toHaveBeenCalledWith(expect.objectContaining({ type: 'chat:message' }));
+  });
+});
 
 describe('chatService.createMessage', () => {
   beforeEach(() => {
@@ -567,6 +626,19 @@ describe('chatService.deleteMessage', () => {
 
     await expect(
       deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Admin' }),
+    ).rejects.toMatchObject({ statusCode: 403, code: 'INSUFFICIENT_ROLE' });
+  });
+
+  it('system message: non-Admin cannot delete system messages — 403 INSUFFICIENT_ROLE', async () => {
+    const systemRow = {
+      ...baseRow,
+      userId: SYSTEM_USER_ID,
+      user: { ...authorUser, id: SYSTEM_USER_ID, role: 'System' },
+    };
+    vi.mocked(prisma.message.findUnique).mockResolvedValue(systemRow as never);
+
+    await expect(
+      deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Moderator' }),
     ).rejects.toMatchObject({ statusCode: 403, code: 'INSUFFICIENT_ROLE' });
   });
 });

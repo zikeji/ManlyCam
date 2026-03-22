@@ -26,6 +26,7 @@ vi.mock('@/components/preferences/PreferencesDialog.vue', () => ({
 const mockStartStream = vi.fn().mockResolvedValue(undefined);
 const mockStopStream = vi.fn().mockResolvedValue(undefined);
 const mockLogout = vi.fn().mockResolvedValue(undefined);
+const mockIsLoading = ref(false);
 
 vi.mock('@/composables/useAuth', () => ({
   useAuth: () => ({
@@ -39,7 +40,7 @@ vi.mock('@/composables/useAdminStream', () => ({
   useAdminStream: () => ({
     startStream: mockStartStream,
     stopStream: mockStopStream,
-    isLoading: ref(false),
+    isLoading: mockIsLoading,
     error: ref(null),
   }),
 }));
@@ -63,6 +64,7 @@ describe('BroadcastConsole', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockIsLoading.value = false;
   });
 
   afterEach(() => {
@@ -133,11 +135,11 @@ describe('BroadcastConsole', () => {
     expect(collapseButtons.length).toBe(1);
   });
 
-  it('emits toggleAdminPanel when Camera Controls button is clicked', async () => {
+  it('emits toggleControlsPanel when Camera Controls button is clicked', async () => {
     wrapper = mountConsole({ isAdmin: true });
     const settingsBtn = wrapper.find('button[aria-label="Show camera controls"]');
     await settingsBtn.trigger('click');
-    expect(wrapper.emitted('toggleAdminPanel')).toBeTruthy();
+    expect(wrapper.emitted('toggleControlsPanel')).toBeTruthy();
   });
 
   it('calls useAdminStream stopStream when stream toggle clicked while live', async () => {
@@ -348,5 +350,34 @@ describe('BroadcastConsole', () => {
     await snapshotBtn?.trigger('click');
 
     expect(mockTakeSnapshot).toHaveBeenCalledWith(mockVideoElement);
+  });
+
+  it('calls logout when Log out button is clicked in profile popover', async () => {
+    wrapper = mountConsole({ isAdmin: true });
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+
+    const logoutBtn = Array.from(document.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Log out',
+    ) as HTMLButtonElement | undefined;
+    logoutBtn?.click();
+    await flushPromises();
+
+    expect(mockLogout).toHaveBeenCalled();
+  });
+
+  it('renders loading spinner instead of VideoOff when isLoading and stream is explicit-offline', async () => {
+    mockIsLoading.value = true;
+    wrapper = mountConsole({ isAdmin: true, streamState: 'explicit-offline' });
+    await flushPromises();
+    expect(wrapper.find('.animate-spin').exists()).toBe(true);
+  });
+
+  it('renders loading spinner instead of Video when isLoading and stream is live', async () => {
+    mockIsLoading.value = true;
+    wrapper = mountConsole({ isAdmin: true, streamState: 'live' });
+    await flushPromises();
+    expect(wrapper.find('.animate-spin').exists()).toBe(true);
   });
 });

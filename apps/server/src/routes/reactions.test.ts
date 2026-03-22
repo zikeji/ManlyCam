@@ -119,6 +119,17 @@ describe('POST /api/messages/:messageId/reactions', () => {
     });
     expect(res.status).toBe(404);
   });
+
+  it('returns 400 when body is invalid JSON', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(makeUser('ViewerCompany') as never);
+    const res = await createApp().app.request('/api/messages/msg-001/reactions', {
+      method: 'POST',
+      body: 'not-valid-json{',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid-session' },
+    });
+    expect(res.status).toBe(400);
+    expect(addReaction).not.toHaveBeenCalled();
+  });
 });
 
 describe('DELETE /api/messages/:messageId/reactions/:emoji', () => {
@@ -212,5 +223,15 @@ describe('DELETE /api/messages/:messageId/reactions/:emoji/users/:userId', () =>
       { method: 'DELETE', ...authHeaders },
     );
     expect(res.status).toBe(403);
+  });
+
+  it('re-throws non-INSUFFICIENT_ROLE errors from removeReactionByMod', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(makeUser('Moderator') as never);
+    vi.mocked(removeReactionByMod).mockRejectedValue(new Error('unexpected database error'));
+    const res = await createApp().app.request(
+      '/api/messages/msg-001/reactions/thumbs_up/users/target-001',
+      { method: 'DELETE', ...authHeaders },
+    );
+    expect(res.status).toBe(500);
   });
 });

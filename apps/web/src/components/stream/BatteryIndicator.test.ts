@@ -287,6 +287,20 @@ describe('BatteryIndicator', () => {
       expect(body).toContain('75%–90%');
     });
 
+    it('popover shows "Fully charged" for full state', async () => {
+      mountBattery({
+        connected: true,
+        level: 100,
+        plugged: true,
+        charging: false,
+        chargingRange: null,
+      });
+      await wrapper!.find('button').trigger('click');
+      await flushPromises();
+      const body = document.body.innerHTML;
+      expect(body).toContain('Fully charged');
+    });
+
     it('popover shows low battery warning', async () => {
       mountBattery({
         connected: true,

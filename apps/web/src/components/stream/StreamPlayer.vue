@@ -3,6 +3,7 @@ import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import { ChevronLeft } from 'lucide-vue-next';
 import type { ClientStreamState } from '@/composables/useStream';
 import { useWhep } from '@/composables/useWhep';
+import { useStreamZoom } from '@/composables/useStreamZoom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StateOverlay from './StateOverlay.vue';
@@ -29,6 +30,7 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const tapOverlayVisible = ref(false);
 let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const { startWhep, stopWhep, isHealthy, clientFrozen } = useWhep();
+const { assignContainerRef, scale, isDragging, isResetting, zoomTransform } = useStreamZoom();
 
 // Admin preview: treat explicit-offline as live for WHEP connection when preview is active
 const effectiveStreamState = computed<ClientStreamState>(() =>
@@ -91,7 +93,12 @@ defineExpose({ videoRef });
 <template>
   <div
     data-stream-container
-    class="relative isolate w-full portrait:aspect-video landscape:h-full overflow-hidden"
+    :ref="assignContainerRef"
+    class="relative isolate w-full portrait:aspect-video landscape:h-full overflow-hidden touch-none"
+    :class="{
+      'cursor-grab': scale > 1 && !isDragging,
+      'cursor-grabbing': isDragging,
+    }"
     @click="handleTap"
   >
     <!-- Connecting: Skeleton -->
@@ -104,9 +111,14 @@ defineExpose({ videoRef });
     <!-- Video element -->
     <video
       ref="videoRef"
-      class="w-full h-full object-contain"
+      class="w-full h-full object-contain transform-gpu will-change-transform"
       role="img"
       :aria-label="`Live stream of ${petName}`"
+      :style="{
+        transform: zoomTransform,
+        transformOrigin: 'center center',
+        transition: isResetting ? 'transform 0.3s ease-out' : 'none',
+      }"
       autoplay
       muted
       playsinline

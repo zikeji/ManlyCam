@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import type { UserPresence, UserProfile } from '@manlycam/types';
+import { handleAdminUserUpdate } from './useAdminUsers';
 
 // Module-level singletons — same pattern as useChat.ts
 export const viewers = ref<UserPresence[]>([]);
@@ -46,6 +47,8 @@ export const handleTypingStart = (payload: { userId: string; displayName: string
 export const handleModerationMuted = ({ userId }: { userId: string }): void => {
   viewers.value = viewers.value.map((v) => (v.id === userId ? { ...v, isMuted: true } : v));
   mutedUserIds.value = new Set([...mutedUserIds.value, userId]);
+  // Sync with AdminUser list
+  handleAdminUserUpdate({ id: userId, mutedAt: new Date().toISOString() } as never);
 };
 
 export const handleModerationUnmuted = ({ userId }: { userId: string }): void => {
@@ -53,6 +56,8 @@ export const handleModerationUnmuted = ({ userId }: { userId: string }): void =>
   const next = new Set(mutedUserIds.value);
   next.delete(userId);
   mutedUserIds.value = next;
+  // Sync with AdminUser list
+  handleAdminUserUpdate({ id: userId, mutedAt: null } as never);
 };
 
 export const handlePresenceUserUpdate = (profile: UserProfile): void => {

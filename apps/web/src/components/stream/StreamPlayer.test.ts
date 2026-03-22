@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import StreamPlayer from './StreamPlayer.vue';
 
@@ -18,6 +18,24 @@ vi.mock('@/composables/useWhep', () => ({
   }),
 }));
 
+const mockScale = ref(1);
+const mockIsDragging = ref(false);
+const mockIsResetting = ref(false);
+const mockZoomTransform = ref('translate(0px, 0px) scale(1)');
+const mockContainerRef = ref(null);
+
+vi.mock('@/composables/useStreamZoom', () => ({
+  useStreamZoom: () => ({
+    containerRef: mockContainerRef,
+    assignContainerRef: vi.fn(),
+    scale: mockScale,
+    isDragging: mockIsDragging,
+    isResetting: mockIsResetting,
+    zoomTransform: mockZoomTransform,
+    resetZoom: vi.fn(),
+  }),
+}));
+
 describe('StreamPlayer', () => {
   let wrapper: VueWrapper<InstanceType<typeof StreamPlayer>> | null;
 
@@ -30,6 +48,10 @@ describe('StreamPlayer', () => {
     mockStopWhep.mockClear();
     mockIsHealthy.value = true; // reset to healthy for next test
     mockClientFrozen.value = false; // reset to not frozen for next test
+    mockScale.value = 1;
+    mockIsDragging.value = false;
+    mockIsResetting.value = false;
+    mockZoomTransform.value = 'translate(0px, 0px) scale(1)';
     if (wrapper) {
       wrapper.unmount();
       wrapper = null;
@@ -305,6 +327,89 @@ describe('StreamPlayer', () => {
       const button = wrapper.find('button');
       await button.trigger('click');
       expect(wrapper.emitted('toggleChatSidebar')).toBeTruthy();
+    });
+
+    it('clears existing tapTimer when second tap arrives before first timer expires', async () => {
+      vi.useFakeTimers();
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'live', showLandscapeTapToggle: true },
+      });
+      const container = wrapper.find('[data-stream-container]');
+
+      await container.trigger('click', { pointerType: 'touch' });
+      vi.advanceTimersByTime(1500);
+      await container.trigger('click', { pointerType: 'touch' });
+      await wrapper.vm.$nextTick();
+
+      const toggleOverlay = wrapper.find('.absolute.inset-y-0.right-3');
+      expect(toggleOverlay.classes()).toContain('opacity-100');
+      vi.useRealTimers();
+    });
+
+    it('aria-label includes unread count when unreadCount > 0', () => {
+      wrapper = mount(StreamPlayer, {
+        props: { streamState: 'live', showLandscapeTapToggle: true, unreadCount: 3 },
+      });
+      const btn = wrapper.find('button[aria-label]');
+      expect(btn.attributes('aria-label')).toContain('3 unread');
+    });
+  });
+
+  it('renders Stop Preview button when adminPreview is true and streamState is explicit-offline', () => {
+    wrapper = mount(StreamPlayer, {
+      props: { streamState: 'explicit-offline', adminPreview: true },
+    });
+    expect(wrapper.find('[data-preview-badge]').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Stop Preview');
+  });
+
+  it('emits stopPreview when Stop Preview button is clicked', async () => {
+    wrapper = mount(StreamPlayer, {
+      props: { streamState: 'explicit-offline', adminPreview: true },
+    });
+    await wrapper.find('[data-preview-badge]').trigger('click');
+    expect(wrapper.emitted('stopPreview')).toBeTruthy();
+  });
+
+  describe('zoom integration', () => {
+    it('video element has non-empty transform style from useStreamZoom', async () => {
+      mockZoomTransform.value = 'translate(10px, 20px) scale(2)';
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      await flushPromises();
+      const video = wrapper.find('video');
+      expect(video.attributes('style')).toContain('translate(10px, 20px) scale(2)');
+    });
+
+    it('container has cursor-grab class when scale > 1 and not dragging', () => {
+      mockScale.value = 2;
+      mockIsDragging.value = false;
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      const container = wrapper.find('[data-stream-container]');
+      expect(container.classes()).toContain('cursor-grab');
+    });
+
+    it('container has cursor-grabbing class when dragging', () => {
+      mockScale.value = 2;
+      mockIsDragging.value = true;
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      const container = wrapper.find('[data-stream-container]');
+      expect(container.classes()).toContain('cursor-grabbing');
+    });
+
+    it('video has transition style when isResetting is true', async () => {
+      mockIsResetting.value = true;
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      await nextTick();
+      const video = wrapper.find('video');
+      expect(video.attributes('style')).toContain('transition: transform 0.3s ease-out');
+    });
+
+    it('video has no transition style when isResetting is false', async () => {
+      mockIsResetting.value = false;
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      await nextTick();
+      const video = wrapper.find('video');
+      expect(video.attributes('style')).toContain('transition: none');
     });
   });
 });

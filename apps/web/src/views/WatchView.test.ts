@@ -170,21 +170,21 @@ vi.mock('@/components/ui/sheet', () => ({
   },
 }));
 
-vi.mock('@/components/admin/AdminPanel.vue', () => ({
+vi.mock('@/components/admin/CameraControlsPanel.vue', () => ({
   default: {
-    name: 'AdminPanel',
+    name: 'CameraControlsPanel',
     props: ['showClose', 'previewActive'],
     emits: ['close'],
-    template: '<div data-admin-panel />',
+    template: '<div data-camera-controls-panel />',
   },
 }));
 
-vi.mock('@/components/admin/UserManagerDialog.vue', () => ({
+vi.mock('@/components/admin/AdminDialog.vue', () => ({
   default: {
-    name: 'UserManagerDialog',
+    name: 'AdminDialog',
     props: ['open'],
     emits: ['update:open'],
-    template: '<div data-user-manager-dialog />',
+    template: '<div data-admin-dialog />',
   },
 }));
 
@@ -232,6 +232,7 @@ describe('WatchView', () => {
         removeEventListener: vi.fn(),
       })),
       writable: true,
+      configurable: true,
     });
 
     // Orientation now derives from screen.width/height (keyboard-safe).
@@ -480,9 +481,9 @@ describe('WatchView', () => {
       expect(streamPlayer.props('adminPreview')).toBe(false);
     });
 
-    it('passes previewActive=true to AdminPanel when adminPreviewActive is true', async () => {
+    it('passes previewActive=true to CameraControlsPanel when adminPreviewActive is true', async () => {
       // Open admin panel so the aside renders
-      mockLocalStorage.setItem('manlycam:admin-panel-open', 'true');
+      mockLocalStorage.setItem('manlycam:controls-panel-open', 'true');
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
@@ -490,18 +491,18 @@ describe('WatchView', () => {
       await wrapper.find('[data-stream-player]').trigger('click');
       await nextTick();
 
-      const adminPanel = wrapper.findComponent({ name: 'AdminPanel' });
-      expect(adminPanel.props('previewActive')).toBe(true);
+      const controlsPanel = wrapper.findComponent({ name: 'CameraControlsPanel' });
+      expect(controlsPanel.props('previewActive')).toBe(true);
     });
 
-    it('passes previewActive=false to AdminPanel by default', async () => {
+    it('passes previewActive=false to CameraControlsPanel by default', async () => {
       // Open admin panel so the aside renders
-      mockLocalStorage.setItem('manlycam:admin-panel-open', 'true');
+      mockLocalStorage.setItem('manlycam:controls-panel-open', 'true');
       wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
       await flushPromises();
 
-      const adminPanel = wrapper.findComponent({ name: 'AdminPanel' });
-      expect(adminPanel.props('previewActive')).toBe(false);
+      const controlsPanel = wrapper.findComponent({ name: 'CameraControlsPanel' });
+      expect(controlsPanel.props('previewActive')).toBe(false);
     });
 
     it('resets adminPreview when streamState changes away from explicit-offline', async () => {
@@ -565,6 +566,176 @@ describe('WatchView', () => {
       await nextTick();
 
       expect(mockExpand).toHaveBeenCalled();
+    });
+
+    it('clears existing splitterAnimateTimer when toggled rapidly', async () => {
+      vi.useFakeTimers();
+      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'true');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      await streamPlayer.vm.$emit('toggleChatSidebar');
+
+      await streamPlayer.vm.$emit('toggleChatSidebar');
+
+      vi.runAllTimers();
+      vi.useRealTimers();
+      expect(
+        (wrapper.vm as ComponentPublicInstance & { splitterAnimating: boolean }).splitterAnimating,
+      ).toBe(false);
+    });
+  });
+
+  describe('Mobile Chat sidebar toggling', () => {
+    it('toggles chatSidebarOpen directly on mobile when toggle triggered', async () => {
+      mockIsDesktop = false;
+      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'true');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      await streamPlayer.vm.$emit('toggleChatSidebar');
+      await nextTick();
+
+      expect(
+        (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen,
+      ).toBe(false);
+    });
+  });
+
+  describe('Controls Panel toggling', () => {
+    beforeEach(() => {
+      mockIsDesktop = true;
+      mockIsPortrait = false;
+      mockUser.value = { role: 'Admin', displayName: 'Admin User' };
+    });
+
+    it('toggles controlsPanelOpen when BroadcastConsole emits toggleControlsPanel', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const console = wrapper.findComponent({ name: 'BroadcastConsole' });
+      await console.vm.$emit('toggleControlsPanel');
+      await nextTick();
+
+      expect(
+        (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
+      ).toBe(true);
+    });
+
+    it('toggles controlsPanelOpen when ChatPanel emits openCameraControls', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const chatPanel = wrapper.findComponent({ name: 'ChatPanel' });
+      await chatPanel.vm.$emit('openCameraControls');
+      await nextTick();
+
+      expect(
+        (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
+      ).toBe(true);
+    });
+  });
+
+  describe('Orientation listener', () => {
+    it('adds event listener to screen.orientation if available', async () => {
+      const addEventListenerSpy = vi.fn();
+      Object.defineProperty(screen, 'orientation', {
+        value: { addEventListener: addEventListenerSpy, removeEventListener: vi.fn() },
+        writable: true,
+        configurable: true,
+      });
+
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(addEventListenerSpy).toHaveBeenCalledWith('change', expect.any(Function));
+    });
+  });
+
+  describe('localStorage error handling', () => {
+    it('silently catches errors when accessing localStorage on mount', async () => {
+      const errorStorage = {
+        getItem: () => {
+          throw new Error('Access denied');
+        },
+        setItem: () => {},
+        removeItem: () => {},
+      };
+      vi.stubGlobal('localStorage', errorStorage);
+
+      expect(() => {
+        wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      }).not.toThrow();
+    });
+
+    it('silently catches localStorage errors in controlsPanelOpen watcher', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const throwingStorage = {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('QuotaExceeded');
+        },
+        removeItem: () => {},
+      };
+      vi.stubGlobal('localStorage', throwingStorage);
+
+      const vm = wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean };
+      expect(() => {
+        vm.controlsPanelOpen = true;
+      }).not.toThrow();
+      await nextTick();
+    });
+
+    it('silently catches localStorage errors in chatSidebarOpen watcher', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const throwingStorage = {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('QuotaExceeded');
+        },
+        removeItem: () => {},
+      };
+      vi.stubGlobal('localStorage', throwingStorage);
+
+      const vm = wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean };
+      expect(() => {
+        vm.chatSidebarOpen = false;
+      }).not.toThrow();
+      await nextTick();
+    });
+  });
+
+  describe('messages watcher — unread increment', () => {
+    it('calls incrementUnread when a new message arrives and chat sidebar is closed', async () => {
+      mockIsDesktop = true;
+      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'false');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      mockIncrementUnread.mockClear();
+
+      mockMessages.value = [{ id: 'msg-1', content: 'hello', createdAt: new Date().toISOString() }];
+      await nextTick();
+
+      expect(mockIncrementUnread).toHaveBeenCalled();
+    });
+
+    it('does NOT call incrementUnread when chat sidebar is open', async () => {
+      mockIsDesktop = true;
+      mockLocalStorage.setItem('manlycam:chat-sidebar-open', 'true');
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+      mockIncrementUnread.mockClear();
+
+      mockMessages.value = [{ id: 'msg-2', content: 'world', createdAt: new Date().toISOString() }];
+      await nextTick();
+
+      expect(mockIncrementUnread).not.toHaveBeenCalled();
     });
   });
 });

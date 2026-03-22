@@ -137,6 +137,21 @@ describe('PresenceList', () => {
       wrapper = mount(PresenceList, { props: { viewers: [alice], currentUserRole: 'Admin' } });
       expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(false);
     });
+
+    it('shows MicOff in non-context-menu row when privileged user views a muted peer of equal/higher rank', () => {
+      const mutedAdmin: UserPresence = {
+        id: 'user-999',
+        displayName: 'Other Admin',
+        avatarUrl: null,
+        role: 'Admin',
+        isMuted: true,
+        userTag: null,
+      };
+      wrapper = mount(PresenceList, {
+        props: { viewers: [mutedAdmin], currentUserId: 'user-001', currentUserRole: 'Admin' },
+      });
+      expect(wrapper.find('[aria-label="Muted"]').exists()).toBe(true);
+    });
   });
 
   describe('context menu — mute/unmute', () => {

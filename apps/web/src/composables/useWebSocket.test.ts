@@ -47,6 +47,7 @@ vi.mock('@/composables/useStream', () => ({
 // --- useChat mock ---
 const mockHandleChatEdit = vi.hoisted(() => vi.fn());
 const mockHandleChatDelete = vi.hoisted(() => vi.fn());
+const mockHandleEphemeral = vi.hoisted(() => vi.fn());
 
 vi.mock('@/composables/useChat', () => ({
   useChat: () => ({
@@ -55,7 +56,7 @@ vi.mock('@/composables/useChat', () => ({
   handleUserUpdate: vi.fn(),
   handleChatEdit: mockHandleChatEdit,
   handleChatDelete: mockHandleChatDelete,
-  handleEphemeral: vi.fn(),
+  handleEphemeral: mockHandleEphemeral,
 }));
 
 // --- usePresence mock ---
@@ -83,6 +84,14 @@ vi.mock('./usePresence', () => ({
 const mockSetPiSugarStateFromWs = vi.hoisted(() => vi.fn());
 vi.mock('./usePiSugar', () => ({
   setStateFromWs: mockSetPiSugarStateFromWs,
+}));
+
+// --- useReactions mock ---
+const mockHandleReactionAdd = vi.hoisted(() => vi.fn());
+const mockHandleReactionRemove = vi.hoisted(() => vi.fn());
+vi.mock('./useReactions', () => ({
+  handleReactionAdd: mockHandleReactionAdd,
+  handleReactionRemove: mockHandleReactionRemove,
 }));
 
 // --- useUserCache mock ---
@@ -457,6 +466,36 @@ describe('useWebSocket', () => {
           new MessageEvent('message', { data: JSON.stringify({ type: 'users:info', payload }) }),
         );
       }).not.toThrow();
+    });
+
+    it('dispatches reaction:add payload to handleReactionAdd()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { messageId: 'msg-1', reaction: '👍', userId: 'user-1' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'reaction:add', payload }) }),
+      );
+      expect(mockHandleReactionAdd).toHaveBeenCalledWith(payload, 'user-self');
+    });
+
+    it('dispatches reaction:remove payload to handleReactionRemove()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { messageId: 'msg-1', reaction: '👍', userId: 'user-1' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'reaction:remove', payload }) }),
+      );
+      expect(mockHandleReactionRemove).toHaveBeenCalledWith(payload, 'user-self');
+    });
+
+    it('dispatches chat:ephemeral payload to handleEphemeral()', async () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = { id: 'e-001', content: 'Only for you', userId: 'system' };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', { data: JSON.stringify({ type: 'chat:ephemeral', payload }) }),
+      );
+      expect(mockHandleEphemeral).toHaveBeenCalledWith(payload);
     });
   });
 

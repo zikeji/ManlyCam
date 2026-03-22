@@ -6,6 +6,8 @@ vi.mock('../db/client.js', () => ({
     allowlistEntry: {
       upsert: vi.fn(),
       deleteMany: vi.fn(),
+      findMany: vi.fn(),
+      delete: vi.fn(),
     },
   },
 }));
@@ -19,7 +21,14 @@ vi.mock('../lib/logger.js', () => ({
 }));
 
 import { prisma } from '../db/client.js';
-import { addDomain, removeDomain, addEmail, removeEmail } from './allowlistService.js';
+import {
+  addDomain,
+  removeDomain,
+  addEmail,
+  removeEmail,
+  listEntries,
+  removeById,
+} from './allowlistService.js';
 
 describe('allowlistService', () => {
   beforeEach(() => {
@@ -122,6 +131,40 @@ describe('allowlistService', () => {
       await expect(removeEmail('notexist@gmail.com')).rejects.toThrow(
         'Email not found: notexist@gmail.com',
       );
+    });
+  });
+
+  describe('listEntries', () => {
+    it('returns entries ordered by createdAt ascending', async () => {
+      const mockEntries: AllowlistEntry[] = [
+        { id: 'e1', type: 'domain', value: 'alpha.com', createdAt: new Date('2024-01-01') },
+        { id: 'e2', type: 'email', value: 'b@beta.com', createdAt: new Date('2024-01-02') },
+      ];
+      vi.mocked(prisma.allowlistEntry.findMany).mockResolvedValue(mockEntries);
+      const result = await listEntries();
+      expect(prisma.allowlistEntry.findMany).toHaveBeenCalledWith({
+        orderBy: { createdAt: 'asc' },
+      });
+      expect(result).toEqual(mockEntries);
+    });
+  });
+
+  describe('removeById', () => {
+    it('calls delete with the given id', async () => {
+      vi.mocked(prisma.allowlistEntry.delete).mockResolvedValue({
+        id: 'e1',
+        type: 'domain',
+        value: 'alpha.com',
+        createdAt: new Date(),
+      });
+      await removeById('e1');
+      expect(prisma.allowlistEntry.delete).toHaveBeenCalledWith({ where: { id: 'e1' } });
+    });
+
+    it('bubbles errors (including P2025 not-found) to caller', async () => {
+      const err = Object.assign(new Error('Record not found'), { code: 'P2025' });
+      vi.mocked(prisma.allowlistEntry.delete).mockRejectedValue(err);
+      await expect(removeById('nope')).rejects.toThrow('Record not found');
     });
   });
 });
