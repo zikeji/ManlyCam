@@ -69,6 +69,31 @@ describe('banUser', () => {
     expect(wsHub.revokeUserSessions).toHaveBeenCalledWith('target-001', 'banned');
   });
 
+  it('returns without error when user is already banned (idempotent)', async () => {
+    const alreadyBannedTarget = { ...viewerTarget, bannedAt: new Date() };
+    const txMock = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue(alreadyBannedTarget),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      session: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+    vi.mocked(prisma.$transaction).mockImplementation(
+      async (cb: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+        return cb(txMock as unknown as Prisma.TransactionClient);
+      },
+    );
+
+    await expect(
+      banUser({ actorId: 'actor-001', actorRole: 'Moderator', targetUserId: 'target-001' }),
+    ).resolves.toBeUndefined();
+
+    expect(txMock.user.update).not.toHaveBeenCalled();
+    expect(txMock.auditLog.create).not.toHaveBeenCalled();
+    expect(txMock.session.deleteMany).not.toHaveBeenCalled();
+  });
+
   it('throws FORBIDDEN when caller is ViewerCompany', async () => {
     await expect(
       banUser({ actorId: 'actor-001', actorRole: 'ViewerCompany', targetUserId: 'target-001' }),
