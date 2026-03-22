@@ -381,6 +381,48 @@ Transform the chat experience from basic messaging into a rich, engaging communi
 
 ---
 
+### Epic 9: Admin Tooling & UX Enhancements
+
+Quality-of-life improvements across admin tooling, stream UX, and chat customisation. Delivers a web-based allowlist management UI, an audit log viewer, users list enhancements, camera settings improvements, stream pinch-to-zoom, and a customisable offline message with Fluent Emoji support.
+
+**Stories:**
+
+- 9-1: Camera Settings Enhancements
+- 9-2: Allowlist Management Web UI
+- 9-3: Audit Log Viewer
+- 9-4: Users List Enhancements
+- 9-5: Stream Scroll / Pinch-to-Zoom
+- 9-6: Fluent Emoji + Customisable Offline Message
+
+---
+
+### Epic 10: Clipping & Clip Sharing
+
+Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips page with three-tier visibility (private, shared, public), share clips into the chat timeline as a rich clip card, view clips in a modal overlay without leaving the stream, and share public clips externally via shareable pages with OG social meta tags. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
+
+**FRs covered:** FR66, FR67, FR68, FR69, FR70, FR71, FR72, FR73
+
+**Dependencies:**
+
+- All implementation stories depend on 10-1 (dev docs must land before any implementation begins)
+- 10-3 depends on 10-2 (infrastructure)
+- 10-4 depends on 10-2
+- 10-5 depends on 10-3 (clip records must exist)
+- 10-6 depends on 10-2 and 10-3
+- 10-7 closes the epic (no implementation dependency, but should come last)
+
+**Stories:**
+
+- 10-1: Dev Environment Documentation _(must be first; unblocks all implementation)_
+- 10-2: Clipping Infrastructure (HLS buffer, shared volume, ffmpeg, S3 client, Prisma Clip model)
+- 10-3: Clip Creation Pipeline (endpoint, ffmpeg, S3 upload, rate limiting, Sonner, GET+download endpoints) _(depends on 10-2)_
+- 10-4: My Clips Page (clip management, visibility + ACL, audit logging, shared clips toggle, deletion, download) _(depends on 10-2)_
+- 10-5: Chat Clip Integration (clip message type, Watch modal, tombstone, live visibility updates, download) _(depends on 10-3)_
+- 10-6: Public Clip Pages (unauthenticated route, OG meta injection, clipper attribution, stream-status CTA, download) _(depends on 10-2, 10-3)_
+- 10-7: Production Deployment Documentation _(closes epic)_
+
+---
+
 ## Epic 1: Monorepo Foundation & CI/CD
 
 The development team can scaffold, build, test, and deploy all three components of ManlyCam from a single repository.
