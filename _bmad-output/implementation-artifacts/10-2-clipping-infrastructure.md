@@ -1,6 +1,6 @@
 # Story 10.2: Clipping Infrastructure
 
-Status: ready-for-review
+Status: done
 
 ## Story
 
