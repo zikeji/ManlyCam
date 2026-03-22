@@ -22,4 +22,11 @@ describe('BannedView', () => {
     expect(wrapper.find('a').exists()).toBe(false);
     expect(wrapper.find('button').exists()).toBe(false);
   });
+
+  it('renders no-entry emoji as Fluent img (1f6ab.svg)', () => {
+    const wrapper = mount(BannedView);
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe('/emojis/1f6ab.svg');
+  });
 });

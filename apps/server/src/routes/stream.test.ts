@@ -33,6 +33,8 @@ vi.mock('../services/streamService.js', () => ({
     stop: vi.fn(),
     setAdminToggle: vi.fn(),
     isPiReachable: vi.fn(),
+    getOfflineMessage: vi.fn(),
+    setOfflineMessage: vi.fn(),
   },
   StreamService: vi.fn(),
 }));
@@ -266,7 +268,7 @@ describe('POST /api/stream/stop', () => {
     expect(vi.mocked(streamService.setAdminToggle)).not.toHaveBeenCalled();
   });
 
-  it('returns 200 and calls setAdminToggle("offline") for Admin', async () => {
+  it('returns 200 and calls setAdminToggle("offline", actorId) for Admin', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
     vi.mocked(streamService.setAdminToggle).mockResolvedValue(undefined);
     const res = await createApp().app.request('/api/stream/stop', {
@@ -275,7 +277,7 @@ describe('POST /api/stream/stop', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
-    expect(vi.mocked(streamService.setAdminToggle)).toHaveBeenCalledWith('offline');
+    expect(vi.mocked(streamService.setAdminToggle)).toHaveBeenCalledWith('offline', mockAdmin.id);
   });
 });
 
@@ -298,7 +300,7 @@ describe('POST /api/stream/start', () => {
     expect(vi.mocked(streamService.setAdminToggle)).not.toHaveBeenCalled();
   });
 
-  it('returns 200 and calls setAdminToggle("live") for Admin', async () => {
+  it('returns 200 and calls setAdminToggle("live", actorId) for Admin', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
     vi.mocked(streamService.setAdminToggle).mockResolvedValue(undefined);
     const res = await createApp().app.request('/api/stream/start', {
@@ -307,7 +309,7 @@ describe('POST /api/stream/start', () => {
     });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
-    expect(vi.mocked(streamService.setAdminToggle)).toHaveBeenCalledWith('live');
+    expect(vi.mocked(streamService.setAdminToggle)).toHaveBeenCalledWith('live', mockAdmin.id);
   });
 });
 
@@ -528,5 +530,142 @@ describe('PATCH /api/stream/camera-settings', () => {
 
     expect(res.status).toBe(200);
     expect(vi.mocked(prisma.cameraSettings.upsert)).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('GET /api/stream/offline-message', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream/offline-message');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for non-Admin role', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/offline-message', authHeaders);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns current offline message for Admin', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.getOfflineMessage).mockReturnValue({
+      emoji: '1f634',
+      title: null,
+      description: null,
+    });
+    const res = await createApp().app.request('/api/stream/offline-message', authHeaders);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ emoji: '1f634', title: null, description: null });
+  });
+});
+
+describe('PATCH /api/stream/offline-message', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream/offline-message', { method: 'PATCH' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for non-Admin role', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ emoji: null, title: null, description: null }),
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 when body is invalid JSON', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: 'not json',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 422 when emoji exceeds max length', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: '1f'.repeat(33), title: null, description: null }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when emoji has invalid format', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: '../../../etc/passwd', title: null, description: null }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('normalizes empty strings to null for title and description', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.setOfflineMessage).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: '1f634', title: '   ', description: '' }),
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(streamService.setOfflineMessage)).toHaveBeenCalledWith({
+      emoji: '1f634',
+      title: null,
+      description: null,
+      actorId: mockAdmin.id,
+    });
+  });
+
+  it('calls setOfflineMessage and returns ok:true for Admin', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.setOfflineMessage).mockResolvedValue(undefined);
+    const payload = { emoji: '1f634', title: 'My Title', description: 'My Desc' };
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(vi.mocked(streamService.setOfflineMessage)).toHaveBeenCalledWith({
+      emoji: '1f634',
+      title: 'My Title',
+      description: 'My Desc',
+      actorId: mockAdmin.id,
+    });
+  });
+
+  it('handles null values (reset case)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.setOfflineMessage).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: null, title: null, description: null }),
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(streamService.setOfflineMessage)).toHaveBeenCalledWith({
+      emoji: null,
+      title: null,
+      description: null,
+      actorId: mockAdmin.id,
+    });
   });
 });

@@ -1,6 +1,8 @@
 import { env } from '../env.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../db/client.js';
+import { streamConfig } from '../lib/stream-config.js';
+import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
 import type { StreamState } from '@manlycam/types';
 
@@ -8,10 +10,19 @@ export class StreamService {
   private adminToggle: 'live' | 'offline' = 'live';
   private piReachable = false;
   private stopped = false;
+  private offlineEmoji: string | null = null;
+  private offlineTitle: string | null = null;
+  private offlineDescription: string | null = null;
 
   getState(): StreamState {
     if (this.adminToggle === 'offline')
-      return { state: 'explicit-offline', piReachable: this.piReachable };
+      return {
+        state: 'explicit-offline',
+        piReachable: this.piReachable,
+        offlineEmoji: this.offlineEmoji,
+        offlineTitle: this.offlineTitle,
+        offlineDescription: this.offlineDescription,
+      };
     if (this.piReachable) return { state: 'live' };
     return { state: 'unreachable', adminToggle: 'live' };
   }
@@ -20,23 +31,31 @@ export class StreamService {
     return this.piReachable;
   }
 
-  async setAdminToggle(toggle: 'live' | 'offline'): Promise<void> {
+  async setAdminToggle(toggle: 'live' | 'offline', actorId: string): Promise<void> {
     this.adminToggle = toggle;
-    await prisma.streamConfig.upsert({
-      where: { id: 'cfg' },
-      update: { adminToggle: toggle },
-      create: { id: 'cfg', adminToggle: toggle },
+    await prisma.$transaction(async (tx) => {
+      await streamConfig.setWithClient(tx, 'adminToggle', toggle);
+      await tx.auditLog.create({
+        data: {
+          id: ulid(),
+          action: toggle === 'live' ? 'stream_start' : 'stream_stop',
+          actorId,
+        },
+      });
     });
     this.broadcastState();
   }
 
   async start(): Promise<void> {
-    const config = await prisma.streamConfig.upsert({
-      where: { id: 'cfg' },
-      update: {},
-      create: { id: 'cfg', adminToggle: 'live' },
-    });
-    this.adminToggle = config.adminToggle as 'live' | 'offline';
+    this.adminToggle = (await streamConfig.get('adminToggle', 'live')) as 'live' | 'offline';
+    const offlineFields = await streamConfig.getMany([
+      'offlineEmoji',
+      'offlineTitle',
+      'offlineDescription',
+    ]);
+    this.offlineEmoji = offlineFields['offlineEmoji'];
+    this.offlineTitle = offlineFields['offlineTitle'];
+    this.offlineDescription = offlineFields['offlineDescription'];
     this.pollLoop().catch(
       /* c8 ignore next -- pollLoop only throws in catastrophic failure; happy-path coverage impossible in unit tests */
       (err) => {
@@ -47,6 +66,44 @@ export class StreamService {
 
   stop(): void {
     this.stopped = true;
+  }
+
+  getOfflineMessage(): { emoji: string | null; title: string | null; description: string | null } {
+    return {
+      emoji: this.offlineEmoji,
+      title: this.offlineTitle,
+      description: this.offlineDescription,
+    };
+  }
+
+  async setOfflineMessage({
+    emoji,
+    title,
+    description,
+    actorId,
+  }: {
+    emoji: string | null;
+    title: string | null;
+    description: string | null;
+    actorId: string;
+  }): Promise<void> {
+    this.offlineEmoji = emoji;
+    this.offlineTitle = title;
+    this.offlineDescription = description;
+    await prisma.$transaction(async (tx) => {
+      await streamConfig.setWithClient(tx, 'offlineEmoji', emoji);
+      await streamConfig.setWithClient(tx, 'offlineTitle', title);
+      await streamConfig.setWithClient(tx, 'offlineDescription', description);
+      await tx.auditLog.create({
+        data: {
+          id: ulid(),
+          action: 'offline_message_update',
+          actorId,
+          metadata: { emoji, title, description },
+        },
+      });
+    });
+    this.broadcastState();
   }
 
   private broadcastState(): void {

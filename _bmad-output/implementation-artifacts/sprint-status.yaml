@@ -128,7 +128,8 @@ development_status:
   9-2-allowlist-management-web-ui: done # Code review: findings resolved (spec updated for toast.info pattern, error handling verified). Smoke tests passed. All ACs implemented.
   9-3-audit-log-viewer: done # Code review findings fixed (default sort state, NaN handling, error handling, type guards). All ACs implemented. 480 server tests, 1098+ web tests passing.
   9-4-users-list-enhancements: done # Code review complete 2026-03-21: 0 critical, 0 high, 12 patch findings fixed, 5 deferred. All quality gates passing (491 server tests, 1116 web tests). Awaiting smoke-test approval.
-  9-5-stream-scroll-pinch-to-zoom: ready-for-review
+  9-5-stream-scroll-pinch-to-zoom: done
+  fluent-emoji-customizable-offline-message: done
   epic-9-retrospective: optional
 
   # Post-MVP / Phase 2 (Deferred)

@@ -101,9 +101,9 @@ model AuditLog {
 }
 
 model StreamConfig {
-  id          String   @id
-  adminToggle String   @default("live") @map("admin_toggle") // 'live' | 'offline'
-  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamptz @map("updated_at")
+  key       String   @id
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz @map("updated_at")
 
   @@map("stream_config")
 }

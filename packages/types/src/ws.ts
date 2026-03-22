@@ -73,6 +73,9 @@ export interface StreamState {
   state: 'live' | 'unreachable' | 'explicit-offline'
   adminToggle?: 'live' | 'offline' // present on 'unreachable' to distinguish FR10 states
   piReachable?: boolean // present on 'explicit-offline' to indicate Pi reachability for admin preview
+  offlineEmoji?: string | null
+  offlineTitle?: string | null
+  offlineDescription?: string | null
 }
 
 export type PiSugarStatus =

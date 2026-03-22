@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { env } from '../env.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -96,14 +97,59 @@ streamRouter.on(['PATCH', 'DELETE'], '/api/stream/whep/:session', requireAuth, a
 });
 
 streamRouter.post('/api/stream/stop', requireAuth, requireRole(Role.Admin), async (c) => {
-  await streamService.setAdminToggle('offline');
+  const actor = c.get('user')!;
+  await streamService.setAdminToggle('offline', actor.id);
   return c.json({ ok: true });
 });
 
 streamRouter.post('/api/stream/start', requireAuth, requireRole(Role.Admin), async (c) => {
-  await streamService.setAdminToggle('live');
+  const actor = c.get('user')!;
+  await streamService.setAdminToggle('live', actor.id);
   return c.json({ ok: true });
 });
+
+const offlineMessageSchema = z.object({
+  emoji: z
+    .string()
+    .regex(/^[0-9a-f-]+$/, 'Invalid emoji codepoint format')
+    .max(32, 'Emoji codepoint too long')
+    .nullable(),
+  title: z
+    .string()
+    .max(100, 'Title too long')
+    .nullable()
+    .transform((val) => (val?.trim() ? val.trim() : null)),
+  description: z
+    .string()
+    .max(200, 'Description too long')
+    .nullable()
+    .transform((val) => (val?.trim() ? val.trim() : null)),
+});
+
+streamRouter.get('/api/stream/offline-message', requireAuth, requireRole(Role.Admin), (c) => {
+  return c.json(streamService.getOfflineMessage());
+});
+
+streamRouter.patch(
+  '/api/stream/offline-message',
+  requireAuth,
+  requireRole(Role.Admin),
+  async (c) => {
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch (_err) {
+      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
+    }
+    const parsed = offlineMessageSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new AppError('Invalid request body', 'VALIDATION_ERROR', 422);
+    }
+    const actor = c.get('user')!;
+    await streamService.setOfflineMessage({ ...parsed.data, actorId: actor.id });
+    return c.json({ ok: true });
+  },
+);
 
 // GET /api/stream/camera-settings
 streamRouter.get('/api/stream/camera-settings', requireAuth, requireRole(Role.Admin), async (c) => {
