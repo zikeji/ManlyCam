@@ -562,6 +562,54 @@ describe('useStreamZoom', () => {
     expect(isFinite(scale.value)).toBe(true);
   });
 
+  // --- setPointerCapture guard ---
+
+  it('setPointerCapture is NOT called at scale=1 with a single pointer (protects child clicks)', async () => {
+    await setupComposable();
+    const spy = vi.fn();
+    containerEl.setPointerCapture = spy;
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 100, bubbles: true }),
+    );
+
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('setPointerCapture IS called at scale>1 on first pan move (not on pointerdown)', async () => {
+    const { scale } = await setupComposable();
+    scale.value = 2;
+    const spy = vi.fn();
+    containerEl.setPointerCapture = spy;
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 100, bubbles: true }),
+    );
+    // Capture is deferred — must not be called yet on pointerdown
+    expect(spy).not.toHaveBeenCalled();
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointermove', { pointerId: 1, clientX: 110, clientY: 100, bubbles: true }),
+    );
+    expect(spy).toHaveBeenCalledWith(1);
+  });
+
+  it('setPointerCapture IS called on the second pointer for pinch at scale=1', async () => {
+    await setupComposable();
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 180, bubbles: true }),
+    );
+
+    const spy = vi.fn();
+    containerEl.setPointerCapture = spy;
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 180, bubbles: true }),
+    );
+
+    expect(spy).toHaveBeenCalledWith(2);
+  });
+
   it('double-tap from different pointerIds does not reset', async () => {
     const { scale } = await setupComposable();
     scale.value = 2;
