@@ -26,8 +26,9 @@ const draftTitle = ref('');
 const draftDescription = ref('');
 const isSubmitting = ref(false);
 const pickerVisible = ref(false);
+const fetchCancelled = ref(false);
 
-const { fetchOfflineMessage, saveOfflineMessage } = useOfflineMessage();
+const { fetchOfflineMessage, saveOfflineMessage, error } = useOfflineMessage();
 
 const emojiPreviewUrl = () => getEmojiUrl(draftEmoji.value ?? '1f634');
 
@@ -36,10 +37,14 @@ watch(
   async (isOpen) => {
     if (!isOpen) {
       pickerVisible.value = false;
+      fetchCancelled.value = true;
       return;
     }
+    fetchCancelled.value = false;
     pickerVisible.value = false;
     const data = await fetchOfflineMessage();
+    // Don't update state if dialog was closed during fetch
+    if (fetchCancelled.value) return;
     if (data) {
       draftEmoji.value = data.emoji;
       draftTitle.value = data.title ?? '';
@@ -85,75 +90,75 @@ function handleCancel() {
   <Dialog :open="props.open" @update:open="emit('update:open', $event)">
     <DialogContent class="sm:max-w-md">
       <div data-offline-dialog class="contents">
-      <DialogHeader>
-        <DialogTitle>Edit Offline Message</DialogTitle>
-      </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Edit Offline Message</DialogTitle>
+        </DialogHeader>
 
-      <div class="space-y-4">
-        <!-- Emoji row -->
-        <div class="relative flex items-center gap-3">
-          <button
-            type="button"
-            class="relative flex h-12 w-12 items-center justify-center rounded-lg border border-input hover:bg-accent transition-colors"
-            data-emoji-trigger
-            @click="pickerVisible = !pickerVisible"
-          >
-            <img :src="emojiPreviewUrl()" alt="Offline emoji" class="w-8 h-8" />
-          </button>
-          <span class="text-sm text-muted-foreground">Click emoji to change</span>
-          <EmojiPicker
-            :visible="pickerVisible"
-            :position="{ bottom: 60, right: 16 }"
-            @select="handleEmojiSelect"
-            @close="pickerVisible = false"
-          />
+        <div class="space-y-4">
+          <!-- Emoji row -->
+          <div class="relative flex items-center gap-3">
+            <button
+              type="button"
+              class="relative flex h-12 w-12 items-center justify-center rounded-lg border border-input hover:bg-accent transition-colors"
+              data-emoji-trigger
+              @click="pickerVisible = !pickerVisible"
+            >
+              <img :src="emojiPreviewUrl()" alt="Offline emoji" class="w-8 h-8" />
+            </button>
+            <span class="text-sm text-muted-foreground">Click emoji to change</span>
+            <EmojiPicker
+              :visible="pickerVisible"
+              :position="{ bottom: 60, right: 16 }"
+              @select="handleEmojiSelect"
+              @close="pickerVisible = false"
+            />
+          </div>
+
+          <!-- Title input -->
+          <div class="space-y-1">
+            <label class="text-sm font-medium" for="offline-title">Title</label>
+            <input
+              id="offline-title"
+              v-model="draftTitle"
+              type="text"
+              :placeholder="defaultTitle"
+              class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              data-title-input
+            />
+          </div>
+
+          <!-- Description input -->
+          <div class="space-y-1">
+            <label class="text-sm font-medium" for="offline-description">Description</label>
+            <input
+              id="offline-description"
+              v-model="draftDescription"
+              type="text"
+              :placeholder="defaultDescription"
+              class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              data-description-input
+            />
+          </div>
         </div>
 
-        <!-- Title input -->
-        <div class="space-y-1">
-          <label class="text-sm font-medium" for="offline-title">Title</label>
-          <input
-            id="offline-title"
-            v-model="draftTitle"
-            type="text"
-            :placeholder="defaultTitle"
-            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            data-title-input
-          />
-        </div>
+        <p v-if="error" class="text-sm text-destructive" data-error-message>{{ error }}</p>
 
-        <!-- Description input -->
-        <div class="space-y-1">
-          <label class="text-sm font-medium" for="offline-description">Description</label>
-          <input
-            id="offline-description"
-            v-model="draftDescription"
-            type="text"
-            :placeholder="defaultDescription"
-            class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            data-description-input
-          />
-        </div>
-      </div>
-
-      <DialogFooter class="flex-row items-center justify-between sm:justify-between">
-        <Button
-          variant="ghost"
-          :disabled="isSubmitting"
-          data-reset-button
-          @click="handleReset"
-        >
-          Reset
-        </Button>
-        <div class="flex gap-2">
-          <Button variant="ghost" :disabled="isSubmitting" data-cancel-button @click="handleCancel">
-            Cancel
+        <DialogFooter class="flex-row items-center justify-between sm:justify-between">
+          <Button variant="ghost" :disabled="isSubmitting" data-reset-button @click="handleReset">
+            Reset
           </Button>
-          <Button :disabled="isSubmitting" data-save-button @click="handleSave">
-            Save
-          </Button>
-        </div>
-      </DialogFooter>
+          <div class="flex gap-2">
+            <Button
+              variant="ghost"
+              :disabled="isSubmitting"
+              data-cancel-button
+              @click="handleCancel"
+            >
+              Cancel
+            </Button>
+            <Button :disabled="isSubmitting" data-save-button @click="handleSave"> Save </Button>
+          </div>
+        </DialogFooter>
       </div>
     </DialogContent>
   </Dialog>

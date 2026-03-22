@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { nextTick } from 'vue';
+import { nextTick, ref } from 'vue';
 import OfflineMessageDialog from './OfflineMessageDialog.vue';
 
 vi.mock('@/components/chat/EmojiPicker.vue', () => ({
@@ -240,6 +240,49 @@ describe('OfflineMessageDialog', () => {
 
       expect(mockSave).toHaveBeenCalledWith({ emoji: null, title: null, description: null });
       expect(w.emitted('update:open')).toEqual([[false]]);
+    });
+  });
+
+  describe('Error display', () => {
+    it('displays error message when save fails', async () => {
+      const errorRef = ref('Failed to save offline message');
+      vi.mocked(useOfflineMessage).mockReturnValue({
+        fetchOfflineMessage: vi
+          .fn()
+          .mockResolvedValue({ emoji: null, title: null, description: null }),
+        saveOfflineMessage: vi.fn().mockResolvedValue(false),
+        isLoading: ref(false),
+        error: errorRef,
+      });
+      await openDialog();
+
+      (bodyFind('[data-save-button]') as HTMLButtonElement | null)?.click();
+      await nextTick();
+
+      const errorEl = bodyFind('[data-error-message]');
+      expect(errorEl).not.toBeNull();
+      expect(errorEl?.textContent).toBe('Failed to save offline message');
+    });
+
+    it('clears error when dialog is reopened', async () => {
+      const errorRef = ref<string | null>(null);
+      vi.mocked(useOfflineMessage).mockReturnValue({
+        fetchOfflineMessage: vi
+          .fn()
+          .mockResolvedValue({ emoji: null, title: null, description: null }),
+        saveOfflineMessage: vi.fn().mockResolvedValue(true),
+        isLoading: ref(false),
+        error: errorRef,
+      });
+      const w = await openDialog();
+
+      await w.setProps({ open: false });
+      await nextTick();
+      await w.setProps({ open: true });
+      await nextTick();
+
+      const errorEl = bodyFind('[data-error-message]');
+      expect(errorEl).toBeNull();
     });
   });
 });

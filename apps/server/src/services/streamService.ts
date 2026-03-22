@@ -33,13 +33,15 @@ export class StreamService {
 
   async setAdminToggle(toggle: 'live' | 'offline', actorId: string): Promise<void> {
     this.adminToggle = toggle;
-    await streamConfig.set('adminToggle', toggle);
-    await prisma.auditLog.create({
-      data: {
-        id: ulid(),
-        action: toggle === 'live' ? 'stream_start' : 'stream_stop',
-        actorId,
-      },
+    await prisma.$transaction(async (tx) => {
+      await streamConfig.setWithClient(tx, 'adminToggle', toggle);
+      await tx.auditLog.create({
+        data: {
+          id: ulid(),
+          action: toggle === 'live' ? 'stream_start' : 'stream_stop',
+          actorId,
+        },
+      });
     });
     this.broadcastState();
   }
@@ -88,16 +90,18 @@ export class StreamService {
     this.offlineEmoji = emoji;
     this.offlineTitle = title;
     this.offlineDescription = description;
-    await streamConfig.set('offlineEmoji', emoji);
-    await streamConfig.set('offlineTitle', title);
-    await streamConfig.set('offlineDescription', description);
-    await prisma.auditLog.create({
-      data: {
-        id: ulid(),
-        action: 'offline_message_update',
-        actorId,
-        metadata: { emoji, title, description },
-      },
+    await prisma.$transaction(async (tx) => {
+      await streamConfig.setWithClient(tx, 'offlineEmoji', emoji);
+      await streamConfig.setWithClient(tx, 'offlineTitle', title);
+      await streamConfig.setWithClient(tx, 'offlineDescription', description);
+      await tx.auditLog.create({
+        data: {
+          id: ulid(),
+          action: 'offline_message_update',
+          actorId,
+          metadata: { emoji, title, description },
+        },
+      });
     });
     this.broadcastState();
   }

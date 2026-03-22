@@ -591,15 +591,44 @@ describe('PATCH /api/stream/offline-message', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 422 when body fails validation', async () => {
+  it('returns 422 when emoji exceeds max length', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
     const res = await createApp().app.request('/api/stream/offline-message', {
       ...authHeaders,
       method: 'PATCH',
       headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ emoji: 'x'.repeat(51), title: null, description: null }),
+      body: JSON.stringify({ emoji: '1f'.repeat(33), title: null, description: null }),
     });
     expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when emoji has invalid format', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: '../../../etc/passwd', title: null, description: null }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('normalizes empty strings to null for title and description', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(streamService.setOfflineMessage).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/stream/offline-message', {
+      ...authHeaders,
+      method: 'PATCH',
+      headers: { ...authHeaders.headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: '1f634', title: '   ', description: '' }),
+    });
+    expect(res.status).toBe(200);
+    expect(vi.mocked(streamService.setOfflineMessage)).toHaveBeenCalledWith({
+      emoji: '1f634',
+      title: null,
+      description: null,
+      actorId: mockAdmin.id,
+    });
   });
 
   it('calls setOfflineMessage and returns ok:true for Admin', async () => {

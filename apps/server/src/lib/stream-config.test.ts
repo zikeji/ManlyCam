@@ -12,7 +12,7 @@ vi.mock('../db/client.js', () => ({
 }));
 
 import { prisma } from '../db/client.js';
-import { streamConfig } from './stream-config.js';
+import { streamConfig, type TransactionClient } from './stream-config.js';
 
 describe('streamConfig.get', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -103,5 +103,41 @@ describe('streamConfig.getMany', () => {
     expect(prisma.streamConfig.findMany).toHaveBeenCalledWith({
       where: { key: { in: ['a', 'b'] } },
     });
+  });
+});
+
+describe('streamConfig.setWithClient', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('upserts when value is a non-null string using provided client', async () => {
+    const mockClient = {
+      streamConfig: {
+        upsert: vi.fn().mockResolvedValue({} as never),
+        deleteMany: vi.fn(),
+      },
+    } as unknown as TransactionClient;
+
+    await streamConfig.setWithClient(mockClient, 'adminToggle', 'offline');
+    expect(mockClient.streamConfig.upsert).toHaveBeenCalledWith({
+      where: { key: 'adminToggle' },
+      update: { value: 'offline' },
+      create: { key: 'adminToggle', value: 'offline' },
+    });
+    expect(mockClient.streamConfig.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('deletes row when value is null using provided client', async () => {
+    const mockClient = {
+      streamConfig: {
+        upsert: vi.fn(),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 } as never),
+      },
+    } as unknown as TransactionClient;
+
+    await streamConfig.setWithClient(mockClient, 'offlineEmoji', null);
+    expect(mockClient.streamConfig.deleteMany).toHaveBeenCalledWith({
+      where: { key: 'offlineEmoji' },
+    });
+    expect(mockClient.streamConfig.upsert).not.toHaveBeenCalled();
   });
 });

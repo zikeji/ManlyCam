@@ -1,4 +1,7 @@
+import type { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from '../db/client.js';
+
+export type TransactionClient = Prisma.TransactionClient;
 
 export const streamConfig = {
   async get(key: string, defaultValue: string): Promise<string> {
@@ -14,6 +17,21 @@ export const streamConfig = {
       await prisma.streamConfig.deleteMany({ where: { key } });
     } else {
       await prisma.streamConfig.upsert({
+        where: { key },
+        update: { value },
+        create: { key, value },
+      });
+    }
+  },
+  async setWithClient(
+    client: PrismaClient | TransactionClient,
+    key: string,
+    value: string | null,
+  ): Promise<void> {
+    if (value === null) {
+      await client.streamConfig.deleteMany({ where: { key } });
+    } else {
+      await client.streamConfig.upsert({
         where: { key },
         update: { value },
         create: { key, value },

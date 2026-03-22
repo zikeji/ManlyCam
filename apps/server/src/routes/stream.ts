@@ -109,9 +109,21 @@ streamRouter.post('/api/stream/start', requireAuth, requireRole(Role.Admin), asy
 });
 
 const offlineMessageSchema = z.object({
-  emoji: z.string().max(50).nullable(),
-  title: z.string().max(100).nullable(),
-  description: z.string().max(200).nullable(),
+  emoji: z
+    .string()
+    .regex(/^[0-9a-f-]+$/, 'Invalid emoji codepoint format')
+    .max(32, 'Emoji codepoint too long')
+    .nullable(),
+  title: z
+    .string()
+    .max(100, 'Title too long')
+    .nullable()
+    .transform((val) => (val?.trim() ? val.trim() : null)),
+  description: z
+    .string()
+    .max(200, 'Description too long')
+    .nullable()
+    .transform((val) => (val?.trim() ? val.trim() : null)),
 });
 
 streamRouter.get('/api/stream/offline-message', requireAuth, requireRole(Role.Admin), (c) => {

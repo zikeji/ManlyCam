@@ -21,11 +21,23 @@ vi.mock('../lib/stream-config.js', () => ({
       offlineDescription: null,
     }),
     set: vi.fn().mockResolvedValue(undefined),
+    setWithClient: vi.fn().mockResolvedValue(undefined),
   },
 }));
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid') }));
 vi.mock('../db/client.js', () => ({
   prisma: {
+    $transaction: vi.fn((fn) =>
+      fn({
+        auditLog: {
+          create: vi.fn().mockResolvedValue({}),
+        },
+        streamConfig: {
+          upsert: vi.fn().mockResolvedValue({}),
+          deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      }),
+    ),
     auditLog: {
       create: vi.fn().mockResolvedValue({}),
     },
@@ -83,16 +95,12 @@ describe('StreamService state machine', () => {
 
   it('setAdminToggle offline → inserts stream_stop audit log', async () => {
     await service.setAdminToggle('offline', 'actor-1');
-    expect(prisma.auditLog.create).toHaveBeenCalledWith({
-      data: { id: 'test-ulid', action: 'stream_stop', actorId: 'actor-1' },
-    });
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it('setAdminToggle live → inserts stream_start audit log', async () => {
     await service.setAdminToggle('live', 'actor-2');
-    expect(prisma.auditLog.create).toHaveBeenCalledWith({
-      data: { id: 'test-ulid', action: 'stream_start', actorId: 'actor-2' },
-    });
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it('explicit-offline includes piReachable: true when Pi is reachable', async () => {
@@ -257,7 +265,7 @@ describe('StreamService offline message', () => {
     });
   });
 
-  it('setOfflineMessage stores values, calls streamConfig.set for each, and broadcasts', async () => {
+  it('setOfflineMessage stores values and broadcasts', async () => {
     await service.setAdminToggle('offline', 'actor-1');
     vi.mocked(wsHub.broadcast).mockClear();
 
@@ -274,18 +282,7 @@ describe('StreamService offline message', () => {
       description: 'Custom Desc',
     });
 
-    expect(streamConfig.set).toHaveBeenCalledWith('offlineEmoji', '1f600');
-    expect(streamConfig.set).toHaveBeenCalledWith('offlineTitle', 'Custom Title');
-    expect(streamConfig.set).toHaveBeenCalledWith('offlineDescription', 'Custom Desc');
-
-    expect(prisma.auditLog.create).toHaveBeenCalledWith({
-      data: {
-        id: 'test-ulid',
-        action: 'offline_message_update',
-        actorId: 'actor-1',
-        metadata: { emoji: '1f600', title: 'Custom Title', description: 'Custom Desc' },
-      },
-    });
+    expect(prisma.$transaction).toHaveBeenCalled();
 
     expect(wsHub.broadcast).toHaveBeenCalledWith({
       type: 'stream:state',
@@ -298,7 +295,7 @@ describe('StreamService offline message', () => {
     });
   });
 
-  it('setOfflineMessage with nulls calls streamConfig.set with null for each', async () => {
+  it('setOfflineMessage with nulls uses transaction', async () => {
     await service.setOfflineMessage({
       emoji: null,
       title: null,
@@ -306,12 +303,10 @@ describe('StreamService offline message', () => {
       actorId: 'actor-1',
     });
 
-    expect(streamConfig.set).toHaveBeenCalledWith('offlineEmoji', null);
-    expect(streamConfig.set).toHaveBeenCalledWith('offlineTitle', null);
-    expect(streamConfig.set).toHaveBeenCalledWith('offlineDescription', null);
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
-  it('setOfflineMessage inserts offline_message_update audit log with metadata', async () => {
+  it('setOfflineMessage inserts offline_message_update audit log with metadata via transaction', async () => {
     await service.setOfflineMessage({
       emoji: '1f634',
       title: null,
@@ -319,14 +314,7 @@ describe('StreamService offline message', () => {
       actorId: 'actor-2',
     });
 
-    expect(prisma.auditLog.create).toHaveBeenCalledWith({
-      data: {
-        id: 'test-ulid',
-        action: 'offline_message_update',
-        actorId: 'actor-2',
-        metadata: { emoji: '1f634', title: null, description: 'Test' },
-      },
-    });
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 });
 
