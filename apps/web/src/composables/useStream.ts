@@ -7,13 +7,22 @@ export type ClientStreamState = 'connecting' | 'live' | 'unreachable' | 'explici
 // Module-level singleton — all callers share the same ref (same pattern as useAuth)
 const streamState = ref<ClientStreamState>('connecting');
 const piReachableWhileOffline = ref(false);
+const offlineEmoji = ref<string | null>(null);
+const offlineTitle = ref<string | null>(null);
+const offlineDescription = ref<string | null>(null);
 
 function toClientState(s: StreamState): Exclude<ClientStreamState, 'connecting'> {
   if (s.state === 'explicit-offline') {
     piReachableWhileOffline.value = s.piReachable ?? false;
+    offlineEmoji.value = s.offlineEmoji ?? null;
+    offlineTitle.value = s.offlineTitle ?? null;
+    offlineDescription.value = s.offlineDescription ?? null;
     return 'explicit-offline';
   }
   piReachableWhileOffline.value = false;
+  offlineEmoji.value = null;
+  offlineTitle.value = null;
+  offlineDescription.value = null;
   if (s.state === 'live') return 'live';
   return 'unreachable';
 }
@@ -33,5 +42,13 @@ export const useStream = () => {
     streamState.value = toClientState(payload);
   };
 
-  return { streamState, piReachableWhileOffline, initStream, setStateFromWs };
+  return {
+    streamState,
+    piReachableWhileOffline,
+    offlineEmoji,
+    offlineTitle,
+    offlineDescription,
+    initStream,
+    setStateFromWs,
+  };
 };

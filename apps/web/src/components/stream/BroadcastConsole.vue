@@ -7,6 +7,7 @@ import {
   Camera,
   ArrowLeftFromLine,
   ArrowRightFromLine,
+  SquarePen,
 } from 'lucide-vue-next';
 import type { ClientStreamState } from '@/composables/useStream';
 import { useAuth } from '@/composables/useAuth';
@@ -23,6 +24,7 @@ import StreamStatusBadge from './StreamStatusBadge.vue';
 import BatteryIndicator from './BatteryIndicator.vue';
 import { viewers } from '@/composables/usePresence';
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue';
+import OfflineMessageDialog from './OfflineMessageDialog.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -76,10 +78,16 @@ const isPulsing = ref(false);
 let pulseTimer: number | null = null;
 const isProfileOpen = ref(false);
 const preferencesOpen = ref(false);
+const offlineMessageOpen = ref(false);
 
 const handleOpenPreferences = () => {
   isProfileOpen.value = false;
   preferencesOpen.value = true;
+};
+
+const handleOpenOfflineMessage = () => {
+  isProfileOpen.value = false;
+  offlineMessageOpen.value = true;
 };
 
 /* c8 ignore start -- pulse animation timer cleanup and watcher require real DOM timing */
@@ -212,6 +220,25 @@ const streamToggleLabel = computed(() => {
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger as-child>
+              <Button
+                variant="ghost"
+                size="icon"
+                class="w-11 h-11 rounded"
+                aria-label="Edit offline message"
+                data-offline-message-btn
+                @click="offlineMessageOpen = true"
+              >
+                <SquarePen class="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Edit offline message</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </template>
 
       <!-- Battery indicator (admin only, both orientations) -->
@@ -305,6 +332,14 @@ const streamToggleLabel = computed(() => {
             >
               Admin
             </button>
+            <button
+              v-if="!isDesktop"
+              class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
+              data-offline-message-mobile-btn
+              @click="handleOpenOfflineMessage"
+            >
+              Offline Message
+            </button>
             <div class="h-px bg-border my-1" />
           </template>
 
@@ -352,6 +387,7 @@ const streamToggleLabel = computed(() => {
     </div>
   </div>
   <PreferencesDialog v-model:open="preferencesOpen" />
+  <OfflineMessageDialog v-model:open="offlineMessageOpen" />
 </template>
 
 <style scoped>

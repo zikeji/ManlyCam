@@ -23,6 +23,16 @@ vi.mock('@/components/preferences/PreferencesDialog.vue', () => ({
   },
 }));
 
+// Mock OfflineMessageDialog
+vi.mock('./OfflineMessageDialog.vue', () => ({
+  default: {
+    name: 'OfflineMessageDialog',
+    template: '<div data-testid="offline-message-dialog"></div>',
+    props: ['open'],
+    emits: ['update:open'],
+  },
+}));
+
 const mockStartStream = vi.fn().mockResolvedValue(undefined);
 const mockStopStream = vi.fn().mockResolvedValue(undefined);
 const mockLogout = vi.fn().mockResolvedValue(undefined);
@@ -350,6 +360,54 @@ describe('BroadcastConsole', () => {
     await snapshotBtn?.trigger('click');
 
     expect(mockTakeSnapshot).toHaveBeenCalledWith(mockVideoElement);
+  });
+
+  // Offline message button tests
+  it('renders offline message button in desktop admin controls', () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: true });
+    expect(wrapper.find('[data-offline-message-btn]').exists()).toBe(true);
+  });
+
+  it('does not render offline message button when not admin', () => {
+    wrapper = mountConsole({ isAdmin: false, isDesktop: true });
+    expect(wrapper.find('[data-offline-message-btn]').exists()).toBe(false);
+  });
+
+  it('does not render desktop offline message button on mobile', () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: false });
+    expect(wrapper.find('[data-offline-message-btn]').exists()).toBe(false);
+  });
+
+  it('opens OfflineMessageDialog when offline message button is clicked', async () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: true });
+    const btn = wrapper.find('[data-offline-message-btn]');
+    await btn.trigger('click');
+    await flushPromises();
+    const dialog = wrapper.findComponent({ name: 'OfflineMessageDialog' });
+    expect(dialog.props('open')).toBe(true);
+  });
+
+  it('renders offline message button in mobile profile popover for admin', async () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: false });
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+    const body = document.body.innerHTML;
+    expect(body).toContain('Offline Message');
+  });
+
+  it('opens OfflineMessageDialog from mobile profile popover', async () => {
+    wrapper = mountConsole({ isAdmin: true, isDesktop: false });
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+    const mobileBtn = Array.from(document.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'Offline Message',
+    ) as HTMLButtonElement | undefined;
+    mobileBtn?.click();
+    await flushPromises();
+    const dialog = wrapper.findComponent({ name: 'OfflineMessageDialog' });
+    expect(dialog.props('open')).toBe(true);
   });
 
   it('calls logout when Log out button is clicked in profile popover', async () => {

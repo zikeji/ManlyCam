@@ -28,4 +28,11 @@ describe('RejectedView', () => {
     expect(wrapper.find('a').exists()).toBe(false);
     expect(wrapper.find('button').exists()).toBe(false);
   });
+
+  it('renders lock emoji as Fluent img (1f512.svg)', () => {
+    const wrapper = mount(RejectedView);
+    const img = wrapper.find('img');
+    expect(img.exists()).toBe(true);
+    expect(img.attributes('src')).toBe('/emojis/1f512.svg');
+  });
 });

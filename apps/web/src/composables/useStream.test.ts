@@ -18,6 +18,14 @@ describe('useStream', () => {
     expect(piReachableWhileOffline.value).toBe(false);
   });
 
+  it('offline message refs start as null', async () => {
+    const { useStream } = await import('./useStream');
+    const { offlineEmoji, offlineTitle, offlineDescription } = useStream();
+    expect(offlineEmoji.value).toBeNull();
+    expect(offlineTitle.value).toBeNull();
+    expect(offlineDescription.value).toBeNull();
+  });
+
   it('initStream sets state to live when server returns live', async () => {
     vi.stubGlobal(
       'fetch',
@@ -62,6 +70,30 @@ describe('useStream', () => {
     await initStream();
     expect(streamState.value).toBe('explicit-offline');
     expect(piReachableWhileOffline.value).toBe(false);
+  });
+
+  it('initStream sets offline message fields from explicit-offline payload', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            state: 'explicit-offline',
+            piReachable: false,
+            offlineEmoji: '1f600',
+            offlineTitle: 'Custom Title',
+            offlineDescription: 'Custom Desc',
+          }),
+      } as Response),
+    );
+
+    const { useStream } = await import('./useStream');
+    const { offlineEmoji, offlineTitle, offlineDescription, initStream } = useStream();
+    await initStream();
+    expect(offlineEmoji.value).toBe('1f600');
+    expect(offlineTitle.value).toBe('Custom Title');
+    expect(offlineDescription.value).toBe('Custom Desc');
   });
 
   it('initStream sets piReachableWhileOffline=true when explicit-offline + piReachable', async () => {
@@ -117,6 +149,35 @@ describe('useStream', () => {
     const { streamState, setStateFromWs } = useStream();
     setStateFromWs({ state: 'explicit-offline' });
     expect(streamState.value).toBe('explicit-offline');
+  });
+
+  it('setStateFromWs populates offline message fields from explicit-offline WS payload', async () => {
+    const { useStream } = await import('./useStream');
+    const { offlineEmoji, offlineTitle, offlineDescription, setStateFromWs } = useStream();
+    setStateFromWs({
+      state: 'explicit-offline',
+      offlineEmoji: '1f634',
+      offlineTitle: 'WS Title',
+      offlineDescription: 'WS Desc',
+    });
+    expect(offlineEmoji.value).toBe('1f634');
+    expect(offlineTitle.value).toBe('WS Title');
+    expect(offlineDescription.value).toBe('WS Desc');
+  });
+
+  it('setStateFromWs clears offline fields when transitioning away from explicit-offline', async () => {
+    const { useStream } = await import('./useStream');
+    const { offlineEmoji, offlineTitle, offlineDescription, setStateFromWs } = useStream();
+    setStateFromWs({
+      state: 'explicit-offline',
+      offlineEmoji: '1f600',
+      offlineTitle: 'T',
+      offlineDescription: 'D',
+    });
+    setStateFromWs({ state: 'live' });
+    expect(offlineEmoji.value).toBeNull();
+    expect(offlineTitle.value).toBeNull();
+    expect(offlineDescription.value).toBeNull();
   });
 
   it('setStateFromWs sets piReachableWhileOffline=true when explicit-offline + piReachable', async () => {

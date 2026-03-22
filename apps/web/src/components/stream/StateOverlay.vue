@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import { getPetName } from '@/lib/env';
+import { getEmojiUrl } from '@/lib/emoji-data';
+import { useStream } from '@/composables/useStream';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 
@@ -13,6 +16,15 @@ const emit = defineEmits<{
 }>();
 
 const petName = getPetName();
+const { offlineEmoji, offlineTitle, offlineDescription } = useStream();
+
+const emojiUrl = computed(() => getEmojiUrl(offlineEmoji.value ?? '1f634'));
+const displayTitle = computed(() => offlineTitle.value || `${petName} needs their Zzzs`);
+const displayDescription = computed(
+  () =>
+    offlineDescription.value ||
+    "The stream is offline for now. Check back later — they'll be back.",
+);
 </script>
 
 <template>
@@ -49,12 +61,12 @@ const petName = getPetName();
     data-overlay
     class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[hsl(var(--surface))]"
   >
-    <span class="text-5xl leading-none opacity-70" aria-hidden="true">😴</span>
+    <img :src="emojiUrl" aria-hidden="true" alt="" class="w-12 h-12 opacity-70" />
     <p class="text-base font-semibold text-[hsl(var(--foreground))]">
-      {{ petName }} needs their Zzzs
+      {{ displayTitle }}
     </p>
     <p class="text-sm text-[hsl(var(--muted-foreground))]">
-      The stream is offline for now. Check back later — they'll be back.
+      {{ displayDescription }}
     </p>
     <div class="mt-1">
       <StreamStatusBadge state="explicit-offline" />
