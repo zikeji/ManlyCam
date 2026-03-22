@@ -101,15 +101,17 @@ So that I can edit clip details, control visibility, share to chat, download, an
 ### Prerequisites
 
 Story 10-2 (Clipping Infrastructure) MUST be completed first. It provides:
+
 - `Clip` Prisma model with all columns (id, userId, name, description, status, visibility, s3Key, thumbnailKey, durationSeconds, showClipper, showClipperAvatar, clipperName, clipperAvatarUrl, createdAt, updatedAt, lastEditedAt, deletedAt)
 - `clips` relation on User model
 - `message_type` and `clip_id` columns on Message model
 - `clip:status-changed` and `clip:visibility-changed` WsMessage types in `packages/types/src/ws.ts`
 - `ClipChatMessage` type with tombstone support
 - S3 client singleton at `apps/server/src/lib/s3-client.ts`
-- S3 env vars in `apps/server/src/env.ts` (S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY, S3_REGION, S3_PUBLIC_BASE_URL, HLS_SEGMENTS_PATH, MTX_STREAM_PATH)
+- S3 env vars in `apps/server/src/env.ts` (S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY, S3_REGION, S3_PUBLIC_BASE_URL, MTX_HLS_URL)
 
 Story 10-3 (Clip Creation Pipeline) provides:
+
 - `POST /api/clips` endpoint
 - `GET /api/clips/:id` endpoint
 - `GET /api/clips/:id/download` endpoint (presigned redirect)
@@ -118,6 +120,7 @@ Story 10-3 (Clip Creation Pipeline) provides:
 ### Architecture Patterns to Follow
 
 **Server patterns:**
+
 - Route file: `apps/server/src/routes/clips.ts` -- use `createClipsRouter()` named export, register in `app.ts` (follow `createModerationRouter()` pattern)
 - Service file: `apps/server/src/services/clipService.ts` -- business logic separate from routes
 - Use `requireAuth` middleware from `apps/server/src/middleware/requireAuth.ts` on all endpoints
@@ -133,6 +136,7 @@ Story 10-3 (Clip Creation Pipeline) provides:
 - WS broadcasts via `wsHub.broadcast()` or `wsHub.sendToUser()` from `apps/server/src/services/wsHub.ts`
 
 **Web patterns:**
+
 - Composable: `apps/web/src/composables/useClips.ts` -- stateful logic, API calls, WS message handling
 - View: `apps/web/src/views/MyClipsView.vue` -- page component
 - Component: `apps/web/src/components/clips/ClipEditForm.vue` -- edit form
@@ -144,6 +148,7 @@ Story 10-3 (Clip Creation Pipeline) provides:
 - WS message handling: subscribe to `clip:status-changed` and `clip:visibility-changed` via `useWebSocket` composable
 
 **RBAC Rules (CRITICAL):**
+
 - DELETE: not owner AND `canModerateOver(actor.role, clip.owner.role)` fails -> 404 (not 403)
 - PATCH: same RBAC check -> 404 (not 403)
 - Viewer/ViewerGuest setting `visibility: 'public'` -> 422 (role-gated validation, not RBAC)
@@ -151,11 +156,13 @@ Story 10-3 (Clip Creation Pipeline) provides:
 - Admin `?all=true` silently ignored for non-Admin (no error)
 
 **S3 ACL Transition Rules:**
+
 - Public: `PutObjectAcl(public-read)` on VIDEO only; thumbnail already public-read from upload
 - Private/Shared: `PutObjectAcl(private)` on VIDEO only; thumbnail stays public-read forever
 - ACL failures: logged but non-fatal (try/catch, do not fail the visibility transition)
 
 **Soft-Delete Rules:**
+
 - `DELETE /api/clips/:id` for `status: 'ready'` or `status: 'failed'` clips
 - `status: 'failed'` -> hard delete (no S3 objects exist)
 - `status: 'ready'` -> soft delete (set `deletedAt`), then S3 cleanup
@@ -163,6 +170,7 @@ Story 10-3 (Clip Creation Pipeline) provides:
 - `onDelete: SetNull` on message FK is a safety net only; normal flow uses soft-delete
 
 **Broadcast Timing (CRITICAL):**
+
 - `clip:visibility-changed` broadcast fires ONLY after `prisma.$transaction()` commit
 - Never broadcast optimistically before commit
 - `chatClipIds` capped at first 100 message IDs

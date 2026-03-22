@@ -18,7 +18,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 4. **Clip record creation** -- Valid requests create a `pending` clip record with server-generated ULID. Returns `{ id, status: 'pending' }` immediately. `shareToChat` is persisted to the `shareToChat` boolean column on the clip record (defaults to `false`).
 
-5. **ffmpeg processing** -- Async processing calls ffmpeg: `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (duration = `Math.ceil((new Date(endTime) - new Date(startTime)) / 1000)` -- do NOT use `-to`). Thumbnail: `-ss {startTime_ISO8601} -i {HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8 -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`. Video uploaded to S3 with **private** ACL. Thumbnail uploaded with **`public-read`** ACL. Clip record updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, `durationSeconds`. Temp files deleted after upload or on error. Non-zero ffmpeg exit or short output: retry once silently, then set `status: 'failed'` on second failure. On any failure, abort and clean up any pending/partial S3 multipart uploads.
+5. **ffmpeg processing** -- Async processing calls ffmpeg: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam.m3u8 -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (duration = `Math.ceil((new Date(endTime) - new Date(startTime)) / 1000)` -- do NOT use `-to`; the `cam` path name is hardcoded in mediamtx config). Thumbnail: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam.m3u8 -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`. Video uploaded to S3 with **private** ACL. Thumbnail uploaded with **`public-read`** ACL. Clip record updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, `durationSeconds`. Temp files deleted after upload or on error. Non-zero ffmpeg exit or short output: retry once silently, then set `status: 'failed'` on second failure. On any failure, abort and clean up any pending/partial S3 multipart uploads.
 
 6. **Client timestamp derivation** -- Client derives `startTime`/`endTime` from segment timestamps parsed from the live `.m3u8` playlist (with `useAbsoluteTimestamp: true`, segment timestamps correspond to original frame timestamps). Using `Date.now()` or any wall-clock source is prohibited.
 
@@ -46,8 +46,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 - [ ] Task 1: Add new env vars to `env.ts` (AC: #3, #5)
   - [ ] Add `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL` (all `z.string().min(1)`)
-  - [ ] Add `HLS_SEGMENTS_PATH` (`z.string().default('/hls')`)
-  - [ ] Add `MTX_STREAM_PATH` (`z.string().default('cam')`)
+  - [ ] Add `MTX_HLS_URL` (`z.string().url().default('http://127.0.0.1:8090')`)
 
 - [ ] Task 2: Create S3 client singleton `apps/server/src/lib/s3-client.ts` (AC: #5)
   - [ ] Import from `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`
@@ -100,7 +99,7 @@ So that I can capture memorable moments with an optional name, description, chat
 ### Frontend
 
 - [ ] Task 11: Create clip composable `apps/web/src/composables/useClipCreate.ts` (AC: #2, #6, #10)
-  - [ ] `fetchPlaylist()` -- fetch and parse `.m3u8` from `{HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8` (via API proxy or direct)
+  - [ ] `fetchPlaylist()` -- fetch and parse `.m3u8` from `{MTX_HLS_URL}/cam.m3u8` (via HTTP from mediamtx HLS endpoint)
   - [ ] Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
   - [ ] `submitClip()` -- call `POST /api/clips` via `apiFetch`
   - [ ] Track pending clip IDs for toast state
@@ -186,7 +185,7 @@ Story 10-2 delivers the infrastructure foundation. If 10-2 is not yet merged, th
 
 **M3u8 parsing:**
 
-- Read `{HLS_SEGMENTS_PATH}/{MTX_STREAM_PATH}.m3u8` from filesystem (the server container has read-only access to the HLS volume)
+- Fetch `{MTX_HLS_URL}/cam.m3u8` from the mediamtx HLS endpoint via HTTP (server accesses HLS via HTTP, not filesystem)
 - Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
 - Validate that requested startTime/endTime fall within available segment range
 

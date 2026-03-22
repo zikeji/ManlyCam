@@ -24,7 +24,7 @@ So that I can deploy the full clipping feature without guessing at configuration
 
 7. **Soft-delete and S3 orphan notice**: documentation notes that `DELETE /api/clips/:id` soft-deletes the clip record and then attempts best-effort S3 deletion; if S3 deletion fails, S3 objects are orphaned until manual cleanup; operators can identify orphaned objects by querying `SELECT id, s3_key, thumbnail_key FROM clips WHERE deleted_at IS NOT NULL` and cross-referencing with S3 bucket contents.
 
-8. **Env var name match**: all documented env var names exactly match those validated in `apps/server/src/env.ts`; the `MTX_STREAM_PATH` env var (default `cam`) must also be configured to match the mediamtx path name used by the Pi camera.
+8. **Env var name match**: all documented env var names exactly match those validated in `apps/server/src/env.ts`; the `MTX_HLS_URL` env var must be configured to point to the mediamtx HLS server (e.g., `http://mediamtx:8090`).
 
 9. **Dev environment cross-reference**: the operator guide cross-references the dev environment documentation (Story 10-1) so operators can verify local behaviour before deploying.
 
@@ -56,7 +56,6 @@ So that I can deploy the full clipping feature without guessing at configuration
   - [ ] 6.1 Add all new clipping env vars to the "Required variables" table in `docs/deploy/README.md`
   - [ ] 6.2 Add all new clipping env vars to `apps/server/.env.example` with comments
   - [ ] 6.3 Verify all documented env var names match `apps/server/src/env.ts` exactly
-  - [ ] 6.4 Document `MTX_STREAM_PATH` and its relationship to the Pi mediamtx path name
 - [ ] Task 7: Update `mediamtx-server.yml` with HLS output config (AC: #2)
   - [ ] 7.1 Add HLS-related settings to `docs/deploy/mediamtx-server.yml` with comments
   - [ ] 7.2 Add HLS segment output path configuration using shared volume mount
@@ -87,16 +86,14 @@ This is a **documentation-only story** -- no application code changes. All modif
 
 These env vars will be added to `apps/server/src/env.ts` by Story 10-2. This story documents them for operators:
 
-| Variable             | Description                                      | Example (Production)                               |
-| -------------------- | ------------------------------------------------ | -------------------------------------------------- |
-| `S3_ENDPOINT`        | S3-compatible endpoint URL                       | `https://s3.us-west-004.backblazeb2.com`           |
-| `S3_BUCKET`          | Bucket name                                      | `manlycam-clips`                                   |
-| `S3_ACCESS_KEY`      | B2 application key ID                            | _(from B2 dashboard)_                              |
-| `S3_SECRET_KEY`      | B2 application key secret                        | _(from B2 dashboard)_                              |
-| `S3_REGION`          | B2 region                                        | `us-west-004`                                      |
-| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails                   | `https://f004.backblazeb2.com/file/manlycam-clips` |
-| `HLS_SEGMENTS_PATH`  | Absolute path where mediamtx writes HLS segments | `/hls` (default)                                   |
-| `MTX_STREAM_PATH`    | mediamtx path name matching Pi RTSP stream       | `cam` (default)                                    |
+| Variable             | Description                    | Example (Production)                               |
+| -------------------- | ------------------------------ | -------------------------------------------------- |
+| `S3_ENDPOINT`        | S3-compatible endpoint URL     | `https://s3.us-west-004.backblazeb2.com`           |
+| `S3_BUCKET`          | Bucket name                    | `manlycam-clips`                                   |
+| `S3_ACCESS_KEY`      | B2 application key ID          | _(from B2 dashboard)_                              |
+| `S3_SECRET_KEY`      | B2 application key secret      | _(from B2 dashboard)_                              |
+| `S3_REGION`          | B2 region                      | `us-west-004`                                      |
+| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails | `https://f004.backblazeb2.com/file/manlycam-clips` |
 
 ### mediamtx HLS Configuration
 
