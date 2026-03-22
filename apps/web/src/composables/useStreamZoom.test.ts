@@ -497,4 +497,85 @@ describe('useStreamZoom', () => {
     );
     expect(isDragging.value).toBe(false);
   });
+
+  it('3+ finger gestures are ignored', async () => {
+    const { scale } = await setupComposable();
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 180, bubbles: true }),
+    );
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 180, bubbles: true }),
+    );
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 3, clientX: 300, clientY: 180, bubbles: true }),
+    );
+
+    expect(scale.value).toBe(1);
+  });
+
+  it('drag re-enables when transitioning from 2 pointers to 1 while zoomed', async () => {
+    const { scale, isDragging } = await setupComposable();
+    scale.value = 2;
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 180, bubbles: true }),
+    );
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 180, bubbles: true }),
+    );
+    expect(isDragging.value).toBe(false);
+
+    containerEl.dispatchEvent(new PointerEvent('pointerup', { pointerId: 2, bubbles: true }));
+    expect(isDragging.value).toBe(true);
+  });
+
+  it('lostpointercapture cleans up gesture state', async () => {
+    const { scale, isDragging } = await setupComposable();
+    scale.value = 2;
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 180, bubbles: true }),
+    );
+    expect(isDragging.value).toBe(true);
+
+    containerEl.dispatchEvent(
+      new PointerEvent('lostpointercapture', { pointerId: 1, bubbles: true }),
+    );
+    expect(isDragging.value).toBe(false);
+  });
+
+  it('handles pinch with prevPinchDistance=0 gracefully', async () => {
+    const { scale } = await setupComposable();
+
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 180, bubbles: true }),
+    );
+    containerEl.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 180, bubbles: true }),
+    );
+    containerEl.dispatchEvent(
+      new PointerEvent('pointermove', { pointerId: 1, clientX: 50, clientY: 180, bubbles: true }),
+    );
+
+    expect(scale.value).toBeGreaterThanOrEqual(1);
+    expect(isFinite(scale.value)).toBe(true);
+  });
+
+  it('double-tap from different pointerIds does not reset', async () => {
+    const { scale } = await setupComposable();
+    scale.value = 2;
+
+    vi.useFakeTimers();
+    const t0 = 1000;
+    vi.setSystemTime(t0);
+
+    containerEl.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1, bubbles: true }));
+
+    vi.setSystemTime(t0 + 200);
+    containerEl.dispatchEvent(new PointerEvent('pointerup', { pointerId: 2, bubbles: true }));
+
+    expect(scale.value).toBe(2);
+    vi.useRealTimers();
+  });
 });
