@@ -47,11 +47,11 @@ describe('useAdminUsers', () => {
 
     vi.mocked(apiFetch).mockImplementation(async (_url, options) => {
       if (!firstRequestSignal) {
-        firstRequestSignal = options?.signal;
+        firstRequestSignal = options?.signal ?? undefined;
         await new Promise((resolve) => setTimeout(resolve, 100));
         return mockUsers;
       }
-      secondRequestSignal = options?.signal;
+      secondRequestSignal = options?.signal ?? undefined;
       return mockUsers;
     });
 
@@ -85,7 +85,7 @@ describe('useAdminUsers', () => {
 
     let requestSignal: AbortSignal | undefined;
     vi.mocked(apiFetch).mockImplementation(async (_url, options) => {
-      requestSignal = options?.signal;
+      requestSignal = options?.signal ?? undefined;
       await new Promise((resolve) => setTimeout(resolve, 100));
       return mockUsers;
     });
