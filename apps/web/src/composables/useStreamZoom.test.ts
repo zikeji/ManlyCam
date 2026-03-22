@@ -576,7 +576,7 @@ describe('useStreamZoom', () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it('setPointerCapture IS called at scale>1 for pan', async () => {
+  it('setPointerCapture IS called at scale>1 on first pan move (not on pointerdown)', async () => {
     const { scale } = await setupComposable();
     scale.value = 2;
     const spy = vi.fn();
@@ -585,7 +585,12 @@ describe('useStreamZoom', () => {
     containerEl.dispatchEvent(
       new PointerEvent('pointerdown', { pointerId: 1, clientX: 100, clientY: 100, bubbles: true }),
     );
+    // Capture is deferred — must not be called yet on pointerdown
+    expect(spy).not.toHaveBeenCalled();
 
+    containerEl.dispatchEvent(
+      new PointerEvent('pointermove', { pointerId: 1, clientX: 110, clientY: 100, bubbles: true }),
+    );
     expect(spy).toHaveBeenCalledWith(1);
   });
 

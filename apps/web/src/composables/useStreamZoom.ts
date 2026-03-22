@@ -85,22 +85,20 @@ export function useStreamZoom() {
     activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
     if (activePointers.size === 2) {
-      // Second finger — start pinch tracking
+      // Second finger — start pinch tracking; capture immediately so we track
+      // both pointers even if they leave the element bounds.
       const [p1, p2] = Array.from(activePointers.values());
       prevPinchDistance = Math.hypot(p2.x - p1.x, p2.y - p1.y);
       isDragging.value = false;
-    } else if (activePointers.size === 1 && scale.value > 1) {
-      isDragging.value = true;
-    }
-
-    // Only capture when tracking is needed: pan (scale>1) or pinch (2nd pointer).
-    // At scale=1 with a single pointer, capturing would redirect pointerup to the container
-    // and prevent click from firing on child elements (e.g. the "Preview Stream" button).
-    if (activePointers.size === 2 || scale.value > 1) {
       /* c8 ignore next 3 -- setPointerCapture not implemented in jsdom */
       (
         event.currentTarget as { setPointerCapture?: (id: number) => void } | null
       )?.setPointerCapture?.(event.pointerId);
+    } else if (activePointers.size === 1 && scale.value > 1) {
+      // Single-pointer pan: defer capture to the first pointermove so that a
+      // simple tap never redirects pointerup away from child elements (e.g.
+      // the "Stop Preview" button), which would suppress their click events.
+      isDragging.value = true;
     }
   }
 
@@ -134,6 +132,12 @@ export function useStreamZoom() {
       clampPan();
     } else if (isDragging.value) {
       event.preventDefault();
+      // Capture on first actual movement so pointer is tracked outside element bounds.
+      // Deferring to here (rather than pointerdown) preserves click on child buttons.
+      /* c8 ignore next 3 -- setPointerCapture not implemented in jsdom */
+      (
+        event.currentTarget as { setPointerCapture?: (id: number) => void } | null
+      )?.setPointerCapture?.(event.pointerId);
       translateX.value += newPos.x - prevPos.x;
       translateY.value += newPos.y - prevPos.y;
       clampPan();
