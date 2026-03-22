@@ -43,13 +43,12 @@ export interface ReactionPayload {
   createdAt: string
 }
 
-export interface ChatMessage {
+interface ChatMessageBase {
   id: string
   userId: string
   displayName: string
   avatarUrl: string | null
   authorRole: Role
-  content: string
   editHistory: { content: string; editedAt: string }[] | null // null = never edited
   updatedAt: string | null
   deletedAt: string | null
@@ -59,6 +58,25 @@ export interface ChatMessage {
   reactions?: Reaction[]  // undefined = not loaded, [] = loaded but empty
   ephemeral?: boolean // client-only: not persisted, only sent to invoking user
 }
+
+export interface TextChatMessage extends ChatMessageBase {
+  messageType: 'text'
+  content: string
+}
+
+export interface ClipChatMessage extends ChatMessageBase {
+  messageType: 'clip'
+  content: string
+  clipId: string
+  clipName: string
+  clipDurationSeconds: number | null
+  clipThumbnailUrl?: string // omitted when thumbnailKey is null
+  clipperName?: string
+  clipperAvatarUrl?: string // omitted when null
+  tombstone?: boolean // true when clip is private, deleted, or cascade-nulled
+}
+
+export type ChatMessage = TextChatMessage | ClipChatMessage
 
 export interface ChatEdit {
   messageId: string
@@ -82,24 +100,36 @@ export type PiSugarStatus =
   | { connected: true; level: number; plugged: boolean; charging: boolean; chargingRange: [number, number] | null }
   | { connected: false };
 
+export type ClipStatusChangedPayload =
+  | { clipId: string; status: 'ready'; durationSeconds: number; thumbnailKey: string | null }
+  | { clipId: string; status: 'failed' }
+
+export interface ClipVisibilityChangedPayload {
+  clipId: string
+  visibility: string
+  clip?: ClipChatMessage // present only when visibility moves to 'shared'/'public' (tombstone restoration)
+}
+
 export type WsMessage =
-  | { type: 'chat:message';       payload: ChatMessage }
-  | { type: 'chat:edit';          payload: ChatEdit }
-  | { type: 'chat:delete';        payload: { messageId: string } }
-  | { type: 'stream:state';       payload: StreamState }
-  | { type: 'presence:seed';      payload: UserPresence[] }
-  | { type: 'presence:join';      payload: UserPresence }
-  | { type: 'presence:leave';     payload: { userId: string } }
-  | { type: 'typing:start';       payload: { userId: string; displayName: string } }
-  | { type: 'typing:stop';        payload: { userId: string } }
-  | { type: 'session:revoked';    payload: { reason: 'banned' } }
-  | { type: 'moderation:muted';   payload: { userId: string } }
-  | { type: 'moderation:unmuted'; payload: { userId: string } }
-  | { type: 'user:update';        payload: UserProfile }
-  | { type: 'pisugar:status';     payload: PiSugarStatus }
+  | { type: 'chat:message';            payload: TextChatMessage | ClipChatMessage }
+  | { type: 'chat:edit';               payload: ChatEdit }
+  | { type: 'chat:delete';             payload: { messageId: string } }
+  | { type: 'stream:state';            payload: StreamState }
+  | { type: 'presence:seed';           payload: UserPresence[] }
+  | { type: 'presence:join';           payload: UserPresence }
+  | { type: 'presence:leave';          payload: { userId: string } }
+  | { type: 'typing:start';            payload: { userId: string; displayName: string } }
+  | { type: 'typing:stop';             payload: { userId: string } }
+  | { type: 'session:revoked';         payload: { reason: 'banned' } }
+  | { type: 'moderation:muted';        payload: { userId: string } }
+  | { type: 'moderation:unmuted';      payload: { userId: string } }
+  | { type: 'user:update';             payload: UserProfile }
+  | { type: 'pisugar:status';          payload: PiSugarStatus }
   | { type: 'users:directory' }
-  | { type: 'users:lookup';       payload: { ids: string[] } }
-  | { type: 'users:info';         payload: UserPresence[] }
-  | { type: 'chat:ephemeral';     payload: ChatMessage }
-  | { type: 'reaction:add';       payload: ReactionPayload }
-  | { type: 'reaction:remove';    payload: { messageId: string; userId: string; emoji: string } }
+  | { type: 'users:lookup';            payload: { ids: string[] } }
+  | { type: 'users:info';              payload: UserPresence[] }
+  | { type: 'chat:ephemeral';          payload: TextChatMessage | ClipChatMessage }
+  | { type: 'reaction:add';            payload: ReactionPayload }
+  | { type: 'reaction:remove';         payload: { messageId: string; userId: string; emoji: string } }
+  | { type: 'clip:status-changed';     payload: ClipStatusChangedPayload }
+  | { type: 'clip:visibility-changed'; payload: ClipVisibilityChangedPayload }

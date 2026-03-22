@@ -26,6 +26,7 @@ model User {
   deletedMessages Message[] @relation("MessageDeleter")
   auditActions    AuditLog[]
   reactions       Reaction[]
+  clips           Clip[]
 
   @@map("users")
 }
@@ -61,13 +62,17 @@ model Message {
   deletedAt   DateTime? @db.Timestamptz @map("deleted_at")
   deletedBy   String?   @db.Char(26) @map("deleted_by")
   createdAt   DateTime  @default(now()) @db.Timestamptz @map("created_at")
+  clipId      String?   @db.Char(26) @map("clip_id")
+  messageType String    @default("text") @map("message_type")
 
   user      User       @relation(fields: [userId], references: [id])
   deleter   User?      @relation("MessageDeleter", fields: [deletedBy], references: [id])
   reactions Reaction[]
+  clip      Clip?      @relation(fields: [clipId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([deletedBy])
+  @@index([clipId])
   @@map("messages")
 }
 
@@ -114,4 +119,29 @@ model CameraSettings {
   updatedAt DateTime @default(now()) @updatedAt @db.Timestamptz @map("updated_at")
 
   @@map("camera_settings")
+}
+
+model Clip {
+  id                String    @id @db.Char(26)
+  userId            String    @db.Char(26) @map("user_id")
+  name              String    @db.VarChar(100)
+  description       String?   @db.VarChar(500)
+  status            String    @default("pending")
+  visibility        String    @default("private")
+  thumbnailKey      String?   @map("thumbnail_key")
+  durationSeconds   Int?      @map("duration_seconds")
+  showClipper       Boolean   @default(false) @map("show_clipper")
+  showClipperAvatar Boolean   @default(false) @map("show_clipper_avatar")
+  clipperName       String?   @db.VarChar(50) @map("clipper_name")
+  clipperAvatarUrl  String?   @map("clipper_avatar_url")
+  createdAt         DateTime  @default(now()) @db.Timestamptz @map("created_at")
+  updatedAt         DateTime? @updatedAt @db.Timestamptz @map("updated_at")
+  lastEditedAt      DateTime? @db.Timestamptz @map("last_edited_at")
+  deletedAt         DateTime? @db.Timestamptz @map("deleted_at")
+
+  user     User      @relation(fields: [userId], references: [id])
+  messages Message[]
+
+  @@index([userId])
+  @@map("clips")
 }

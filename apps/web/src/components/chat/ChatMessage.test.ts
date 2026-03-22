@@ -76,6 +76,7 @@ const baseMessage: ChatMessageType = {
   displayName: 'Test User',
   avatarUrl: null,
   authorRole: 'ViewerCompany',
+  messageType: 'text',
   content: 'Hello world',
   editHistory: null,
   updatedAt: null,

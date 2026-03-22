@@ -68,6 +68,7 @@ const mockChatMessage = {
   displayName: 'Test User',
   avatarUrl: null,
   authorRole: 'ViewerCompany' as const,
+  messageType: 'text' as const,
   content: 'Hello world',
   editHistory: null,
   updatedAt: null,

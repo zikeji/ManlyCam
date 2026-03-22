@@ -66,6 +66,7 @@ services:
       S3_SECRET_KEY: '${S3_SECRET_KEY:-manlycam}'
       S3_REGION: '${S3_REGION:-us-east-1}'
       S3_PUBLIC_BASE_URL: '${S3_PUBLIC_BASE_URL:-http://rustfs:9000}'
+      S3_FORCE_PATH_STYLE: '${S3_FORCE_PATH_STYLE:-true}'
     labels:
       # Enable Traefik routing for this container
       - 'traefik.enable=true'

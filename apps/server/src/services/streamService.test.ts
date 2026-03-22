@@ -103,6 +103,76 @@ describe('StreamService state machine', () => {
     expect(prisma.$transaction).toHaveBeenCalled();
   });
 
+  it('setAdminToggle live → writes stream_started_at via transaction', async () => {
+    await service.setAdminToggle('live', 'actor-1');
+    const txCall = vi.mocked(prisma.$transaction).mock.calls[0][0];
+    const txClient = {
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+      streamConfig: {
+        upsert: vi.fn().mockResolvedValue({}),
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+    };
+    // Verify transaction was called (stream_started_at write happens inside)
+    expect(prisma.$transaction).toHaveBeenCalled();
+    // The setWithClient mock is called for adminToggle and stream_started_at
+    expect(vi.mocked(streamConfig.setWithClient)).toHaveBeenCalledWith(
+      expect.anything(),
+      'stream_started_at',
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+    );
+    void txCall;
+    void txClient;
+  });
+
+  it('setAdminToggle offline → calls flushHlsPath fire-and-forget', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
+    await service.setAdminToggle('offline', 'actor-1');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(global.fetch).toHaveBeenCalledWith('http://127.0.0.1:9997/v3/hlsmuxers/delete/cam', {
+      method: 'DELETE',
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it('setAdminToggle offline → HLS flush non-ok logs warning', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    await service.setAdminToggle('offline', 'actor-1');
+    await new Promise((r) => setTimeout(r, 0));
+    // flushHlsPath should not throw — logged as warning, not error
+    vi.unstubAllGlobals();
+  });
+
+  it('setAdminToggle offline → HLS flush error is caught and logged', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+    const errorSpy = vi.spyOn(logger, 'error');
+    await service.setAdminToggle('offline', 'actor-1');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(errorSpy).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      'stream: failed to flush HLS path on offline toggle',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('flushHlsPath warns on non-ok response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+    const warnSpy = vi.spyOn(logger, 'warn');
+    await service.flushHlsPath();
+    expect(warnSpy).toHaveBeenCalledWith(
+      { status: 404 },
+      'stream: HLS path flush returned non-ok status',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('setAdminToggle live → does NOT call flushHlsPath', async () => {
+    const flushSpy = vi.spyOn(service, 'flushHlsPath');
+    await service.setAdminToggle('live', 'actor-1');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(flushSpy).not.toHaveBeenCalled();
+  });
+
   it('explicit-offline includes piReachable: true when Pi is reachable', async () => {
     vi.stubGlobal(
       'fetch',

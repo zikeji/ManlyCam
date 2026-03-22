@@ -25,6 +25,7 @@ function makeMessage(id: string, reactions: Reaction[] = []): ChatMessage {
     displayName: 'User',
     avatarUrl: null,
     authorRole: 'ViewerCompany',
+    messageType: 'text',
     content: 'Hello',
     editHistory: null,
     updatedAt: null,
