@@ -90,11 +90,17 @@ cp apps/server/.env.example .env
 | -------------------- | ------------------------------ | ----------------------- | ------------------------------------- |
 | `S3_ENDPOINT`        | S3-compatible endpoint URL     | `http://localhost:9000` | `https://s3.{region}.backblazeb2.com` |
 | `S3_BUCKET`          | Bucket name for clip storage   | _(your bucket)_         | _(your B2 bucket)_                    |
-| `S3_ACCESS_KEY`      | S3 access key                  | `minioadmin`            | _(your B2 key)_                       |
-| `S3_SECRET_KEY`      | S3 secret key                  | `minioadmin`            | _(your B2 secret)_                    |
+| `S3_ACCESS_KEY`      | S3 access key                  | `manlycam`              | _(your B2 key)_                       |
+| `S3_SECRET_KEY`      | S3 secret key                  | `manlycam`              | _(your B2 secret)_                    |
 | `S3_REGION`          | S3 region identifier           | `us-east-1`             | _(your B2 region)_                    |
-| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails | `http://localhost:9000` | `https://f{n}.backblazeb2.com/file`   |
+| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails | `http://rustfs:9000`    | `https://f{n}.backblazeb2.com/file`   |
 | `MTX_HLS_URL`        | mediamtx HLS server base URL   | `http://mediamtx:8090`  | `http://mediamtx:8090`                |
+
+**S3_PUBLIC_BASE_URL notes:**
+
+- **Docker (RustFS):** Use `http://rustfs:9000` so the server can generate presigned URLs that resolve within the Docker network
+- **Bare-metal (RustFS):** Use `http://localhost:9000` when running RustFS directly on the host
+- **Production (B2):** Use your B2 CDN URL
 
 ### Container image
 
@@ -371,8 +377,8 @@ After=network.target
 ExecStart=/usr/local/bin/rustfs server /var/lib/rustfs --console-address :9001
 Restart=on-failure
 RestartSec=5
-Environment="RUSTFS_ROOT_USER=minioadmin"
-Environment="RUSTFS_ROOT_PASSWORD=minioadmin"
+Environment="RUSTFS_ROOT_USER=manlycam"
+Environment="RUSTFS_ROOT_PASSWORD=manlycam"
 
 [Install]
 WantedBy=multi-user.target
@@ -382,7 +388,9 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now rustfs
 ```
 
-**Access the web console** at `http://localhost:9001` and create a bucket with ACL support enabled (not owner-enforced mode). The default credentials are `minioadmin` / `minioadmin`.
+**Access the web console** at `http://localhost:9001` and create a bucket (e.g., `manlycam-clips`). The default credentials are `manlycam` / `manlycam`.
+
+> **Security Warning:** Change the default credentials to secure random values for any non-local deployment.
 
 **Configure Hono server environment variables:**
 
@@ -391,12 +399,10 @@ Add these to your server environment:
 ```bash
 S3_ENDPOINT=http://localhost:9000
 S3_BUCKET=manlycam-clips
-S3_ACCESS_KEY=minioadmin
-S3_SECRET_KEY=minioadmin
+S3_ACCESS_KEY=manlycam
+S3_SECRET_KEY=manlycam
 S3_REGION=us-east-1
 S3_PUBLIC_BASE_URL=http://localhost:9000
-HLS_SEGMENTS_PATH=/hls
-MTX_STREAM_PATH=cam
 ```
 
 ## First-Run Admin Steps
@@ -504,23 +510,13 @@ This section covers the additional infrastructure required for the clip recordin
 
 The clipping pipeline uses:
 
-- **HLS segments**: mediamtx writes HLS segments to a shared volume for rolling buffer storage
+- **HLS segments**: mediamtx writes HLS segments to a rolling buffer (15 minutes max)
 - **RustFS**: Local S3-compatible storage for clip files and thumbnails
 - **ffmpeg**: Extracts clip segments from the HLS buffer and generates thumbnails
 
 ### Docker Compose Additions
 
 Both Docker Compose variants (simple and Traefik) include these additions for clipping:
-
-#### Named Volume
-
-The `hls_segments` volume is shared between mediamtx (writes) and the server (reads):
-
-```yaml
-volumes:
-  pgdata:
-  hls_segments: # Shared HLS segment buffer between mediamtx and server
-```
 
 #### RustFS Service
 
@@ -532,8 +528,8 @@ volumes:
       - "9000:9000"   # S3 API endpoint
       - "9001:9001"   # Web console (bucket management)
     environment:
-      RUSTFS_ROOT_USER: minioadmin
-      RUSTFS_ROOT_PASSWORD: minioadmin
+      RUSTFS_ROOT_USER: manlycam
+      RUSTFS_ROOT_PASSWORD: manlycam
     volumes:
       - rustfsdata:/data
 
@@ -541,6 +537,8 @@ volumes:
   # ... existing volumes ...
   rustfsdata:  # RustFS data persistence
 ```
+
+> **Security Warning:** The default credentials (`manlycam`/`manlycam`) are for local development only. Change these to secure random values for any non-local deployment.
 
 ### RustFS Bucket Setup
 
@@ -560,10 +558,12 @@ The `mediamtx-server.yml` includes HLS output settings for the clipping buffer:
 hls: true # Enable HLS output
 hlsAddress: ':8090' # HLS output (internal-only, not exposed to browsers)
 hlsSegmentDuration: '2s' # Segment length
-hlsSegmentCount: 450 # Rolling buffer depth (~15 min at 2s segments)
+hlsSegmentCount: 450 # Rolling buffer depth
 hlsVariant: mpegts # Use MPEG-TS format for better clip extraction compatibility
 hlsAlwaysRemux: true # Generate HLS segments continuously
 ```
+
+**Clip Duration Limit:** With 450 segments at 2-second intervals, the maximum clip duration is **15 minutes**. Requests for longer clips will be rejected.
 
 **HLS Access:** The HLS playlist is served via HTTP at `{MTX_HLS_URL}/cam/video1_stream.m3u8` (internal network only). The server container accesses this URL directly for clip extraction. No shared volume is required.
 
@@ -584,10 +584,5 @@ Add these to your `.env` file for clipping support:
 | `S3_REGION`          | `us-east-1`             | _(your B2 region)_                    | S3 region identifier           |
 | `S3_PUBLIC_BASE_URL` | `http://localhost:9000` | `https://f{n}.backblazeb2.com/file`   | Public URL base for thumbnails |
 | `MTX_HLS_URL`        | `http://mediamtx:8090`  | `http://mediamtx:8090`                | mediamtx HLS server base URL   |
-
-**`S3_PUBLIC_BASE_URL` notes:**
-
-- **Development (RustFS)**: `http://localhost:9000` — serves files directly from RustFS
-- **Production (Backblaze B2)**: `https://f{n}.backblazeb2.com/file` — replace `{n}` with your B2 CDN hostname number (supplied by your B2 bucket info)
 
 The `MTX_HLS_URL` is the base URL for the mediamtx HLS server (e.g., `http://mediamtx:8090`). The server constructs the full playlist URL as `{MTX_HLS_URL}/cam/video1_stream.m3u8` for ffmpeg clip extraction.

@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-06
-last_updated: 2026-03-22 # Story 10-1 moved to review
+last_updated: 2026-03-22 # Story 10-1 code review complete, fixes applied, ready-for-review
 project: ManlyCam
 project_key: NOKEY
 tracking_system: file-system
@@ -134,7 +134,7 @@ development_status:
 
   # Epic 10: Clipping Feature
   epic-10: in-progress
-  10-1-dev-environment-documentation-clipping-infrastructure: review
+  10-1-dev-environment-documentation-clipping-infrastructure: done
   10-2-clipping-infrastructure: ready-for-dev
   10-3-clip-creation-pipeline: ready-for-dev
   10-4-my-clips-page: ready-for-dev
