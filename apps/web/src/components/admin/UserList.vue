@@ -62,6 +62,8 @@ const {
   fetchUsers,
   banUserById,
   unbanUserById,
+  muteUserById,
+  unmuteUserById,
   updateRole,
   updateUserTag,
   clearUserTag,
@@ -104,6 +106,24 @@ async function handleUnban(userId: string) {
   pendingActionUserId.value = userId;
   try {
     await unbanUserById(userId);
+  } finally {
+    pendingActionUserId.value = null;
+  }
+}
+
+async function handleMute(userId: string) {
+  pendingActionUserId.value = userId;
+  try {
+    await muteUserById(userId);
+  } finally {
+    pendingActionUserId.value = null;
+  }
+}
+
+async function handleUnmute(userId: string) {
+  pendingActionUserId.value = userId;
+  try {
+    await unmuteUserById(userId);
   } finally {
     pendingActionUserId.value = null;
   }
@@ -557,6 +577,27 @@ const columns: ColumnDef<AdminUser>[] = [
                     onClick: () => handleUnban(user.id),
                   },
                   () => (pendingActionUserId.value === user.id ? 'Unbanning…' : 'Unban'),
+                ),
+            !user.mutedAt
+              ? h(
+                  DropdownMenuItem,
+                  {
+                    class: 'cursor-pointer',
+                    'data-testid': `action-mute-${user.id}`,
+                    disabled: pendingActionUserId.value === user.id,
+                    onClick: () => handleMute(user.id),
+                  },
+                  () => (pendingActionUserId.value === user.id ? 'Muting…' : 'Mute'),
+                )
+              : h(
+                  DropdownMenuItem,
+                  {
+                    class: 'cursor-pointer',
+                    'data-testid': `action-unmute-${user.id}`,
+                    disabled: pendingActionUserId.value === user.id,
+                    onClick: () => handleUnmute(user.id),
+                  },
+                  () => (pendingActionUserId.value === user.id ? 'Unmuting…' : 'Unmute'),
                 ),
             h(DropdownMenuSeparator),
             h(DropdownMenuSub, null, {

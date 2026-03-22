@@ -283,4 +283,59 @@ describe('useAdminUsers', () => {
       expect(toast.error).toHaveBeenCalledWith('Network error');
     });
   });
+
+  describe('muteUserById', () => {
+    it('calls POST /api/users/:id/mute and updates mutedAt on success', async () => {
+      const mockUser = { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany, mutedAt: null };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, muteUserById } = useAdminUsers();
+      await muteUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/mute', { method: 'POST' });
+      expect(users.value[0].mutedAt).not.toBeNull();
+    });
+
+    it('calls toast.error on muteUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { muteUserById } = useAdminUsers();
+
+      await muteUserById('u1');
+
+      expect(toast.error).toHaveBeenCalledWith('Network error');
+    });
+  });
+
+  describe('unmuteUserById', () => {
+    it('calls POST /api/users/:id/unmute and clears mutedAt on success', async () => {
+      const mockUser = {
+        id: 'u1',
+        email: 'u@e.com',
+        role: Role.ViewerCompany,
+        mutedAt: '2026-01-01T00:00:00Z',
+      };
+      usersRef.value = [mockUser] as unknown as AdminUser[];
+
+      vi.mocked(apiFetch).mockResolvedValue(undefined);
+
+      const { users, unmuteUserById } = useAdminUsers();
+      await unmuteUserById('u1');
+
+      expect(apiFetch).toHaveBeenCalledWith('/api/users/u1/unmute', { method: 'POST' });
+      expect(users.value[0].mutedAt).toBeNull();
+    });
+
+    it('calls toast.error on unmuteUserById failure', async () => {
+      const { toast } = await import('vue-sonner');
+      vi.mocked(apiFetch).mockRejectedValue(new Error('Network error'));
+      const { unmuteUserById } = useAdminUsers();
+
+      await unmuteUserById('u1');
+
+      expect(toast.error).toHaveBeenCalledWith('Network error');
+    });
+  });
 });

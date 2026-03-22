@@ -158,6 +158,30 @@ export function useAdminUsers() {
     }
   };
 
+  const muteUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/mute`, { method: 'POST' });
+      handleAdminUserUpdate({ id: userId, mutedAt: new Date().toISOString() } as never);
+      toast.success('User muted');
+    } catch (err: unknown) {
+      console.error('Failed to mute user:', err);
+      const message = err instanceof Error ? err.message : 'Failed to mute user';
+      toast.error(message);
+    }
+  };
+
+  const unmuteUserById = async (userId: string) => {
+    try {
+      await apiFetch(`/api/users/${userId}/unmute`, { method: 'POST' });
+      handleAdminUserUpdate({ id: userId, mutedAt: null } as never);
+      toast.success('User unmuted');
+    } catch (err: unknown) {
+      console.error('Failed to unmute user:', err);
+      const message = err instanceof Error ? err.message : 'Failed to unmute user';
+      toast.error(message);
+    }
+  };
+
   return {
     users,
     isLoading,
@@ -168,5 +192,7 @@ export function useAdminUsers() {
     clearUserTag,
     banUserById,
     unbanUserById,
+    muteUserById,
+    unmuteUserById,
   };
 }
