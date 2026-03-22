@@ -37,6 +37,75 @@ describe('useAdminUsers', () => {
     expect(isLoading.value).toBe(false);
   });
 
+  it('cancels previous request when fetchUsers is called again', async () => {
+    const mockUsers = [
+      { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany },
+    ] as unknown as AdminUser[];
+
+    let firstRequestSignal: AbortSignal | undefined;
+    let secondRequestSignal: AbortSignal | undefined;
+
+    vi.mocked(apiFetch).mockImplementation(async (_url, options) => {
+      if (!firstRequestSignal) {
+        firstRequestSignal = options?.signal;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        return mockUsers;
+      }
+      secondRequestSignal = options?.signal;
+      return mockUsers;
+    });
+
+    const { fetchUsers } = useAdminUsers();
+
+    const firstPromise = fetchUsers();
+    const secondPromise = fetchUsers();
+
+    await Promise.all([firstPromise, secondPromise]);
+
+    expect(firstRequestSignal?.aborted).toBe(true);
+    expect(secondRequestSignal?.aborted).toBe(false);
+  });
+
+  it('silently ignores AbortError when request is cancelled', async () => {
+    const abortError = new Error('The operation was aborted');
+    abortError.name = 'AbortError';
+    vi.mocked(apiFetch).mockRejectedValue(abortError);
+
+    const { error, fetchUsers } = useAdminUsers();
+
+    await fetchUsers();
+
+    expect(error.value).toBeNull();
+  });
+
+  it('aborts pending request on unmount', async () => {
+    const mockUsers = [
+      { id: 'u1', email: 'u@e.com', role: Role.ViewerCompany },
+    ] as unknown as AdminUser[];
+
+    let requestSignal: AbortSignal | undefined;
+    vi.mocked(apiFetch).mockImplementation(async (_url, options) => {
+      requestSignal = options?.signal;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return mockUsers;
+    });
+
+    const TestComponent = defineComponent({
+      setup() {
+        const { fetchUsers } = useAdminUsers();
+        return { fetchUsers };
+      },
+      template: '<div></div>',
+    });
+
+    const wrapper = mount(TestComponent);
+    const promise = (wrapper.vm as { fetchUsers: () => Promise<void> }).fetchUsers();
+    wrapper.unmount();
+    await promise;
+
+    expect(requestSignal?.aborted).toBe(true);
+  });
+
   it('updates user role optimistically and shows toast', async () => {
     const { toast } = await import('vue-sonner');
     const mockUsers = [

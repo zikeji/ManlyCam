@@ -15,6 +15,8 @@ const mockUpdateUserTag = vi.fn();
 const mockClearUserTag = vi.fn();
 const mockBanUserById = vi.fn();
 const mockUnbanUserById = vi.fn();
+const mockMuteUserById = vi.fn();
+const mockUnmuteUserById = vi.fn();
 
 vi.mock('@/composables/useAdminUsers', () => ({
   useAdminUsers: () => ({
@@ -24,6 +26,8 @@ vi.mock('@/composables/useAdminUsers', () => ({
     fetchUsers: mockFetchUsers,
     banUserById: mockBanUserById,
     unbanUserById: mockUnbanUserById,
+    muteUserById: mockMuteUserById,
+    unmuteUserById: mockUnmuteUserById,
     updateRole: mockUpdateRole,
     updateUserTag: mockUpdateUserTag,
     clearUserTag: mockClearUserTag,
@@ -451,8 +455,29 @@ describe('UserList.vue', () => {
     mockUsers.value[0].userTagColor = '#ef4444';
     wrapper = mount(UserList);
     const adminRow = wrapper.findAll('[data-testid="set-tag-btn"]');
-    // First set-tag-btn is for admin user (u1 with tag set) — should show color dot
     expect(adminRow[0].find('span[style]').exists()).toBe(true);
+  });
+
+  it('calls muteUserById when Mute action is clicked', async () => {
+    mockUsers.value = [makeUser({ id: 'u2', displayName: 'User Two', mutedAt: null })];
+    wrapper = mount(UserList);
+
+    await wrapper.find('[data-testid="actions-trigger-u2"]').trigger('click');
+    await wrapper.find('[data-testid="action-mute-u2"]').trigger('click');
+
+    expect(mockMuteUserById).toHaveBeenCalledWith('u2');
+  });
+
+  it('calls unmuteUserById when Unmute action is clicked', async () => {
+    mockUsers.value = [
+      makeUser({ id: 'u2', displayName: 'User Two', mutedAt: '2026-01-01T00:00:00Z' }),
+    ];
+    wrapper = mount(UserList);
+
+    await wrapper.find('[data-testid="actions-trigger-u2"]').trigger('click');
+    await wrapper.find('[data-testid="action-unmute-u2"]').trigger('click');
+
+    expect(mockUnmuteUserById).toHaveBeenCalledWith('u2');
   });
 
   // Task 10.8: afterEach cleanup is satisfied by the afterEach block above
