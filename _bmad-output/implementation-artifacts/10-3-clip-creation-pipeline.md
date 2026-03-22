@@ -12,33 +12,35 @@ So that I can capture memorable moments with an optional name, description, chat
 
 1. **Clip button in Broadcast Console** -- A clip button (lucide `Videotape` icon, tooltip "Clip Stream") appears in the Broadcast Console to the right of the snapshot button. Visible to all authenticated roles including ViewerGuest.
 
-2. **Clip modal UI** -- Clicking the clip button opens a modal overlay with: an HLS scrubber populated from the live `.m3u8` playlist (using segment timestamps derived from the HLS playlist); preset buttons (30s, 1min, 2min) that preselect the corresponding tail of the available buffer as the initial range; drag handles on both ends for manual adjustment; name and description input fields; a "Share to chat when ready" checkbox; a Submit button.
+2. **Clip modal UI** -- Clicking the clip button opens a modal overlay with: an HLS scrubber populated from the live stream playlist (using segment timestamps derived from the HLS playlist); preset buttons (30s, 1min, 2min) that preselect the corresponding tail of the available buffer as the initial range; drag handles on both ends for manual adjustment; name and description input fields; a "Share to chat when ready" checkbox; a Submit button.
 
-3. **POST /api/clips validation** -- `POST /api/clips` accepts `{ startTime: ISO8601, endTime: ISO8601, name: string, description?: string, shareToChat?: boolean }`. Validation: `stream_started_at` must exist in `stream_config` (else 422 "Stream has not started"); `startTime >= stream_started_at` (else 422); `startTime` and `endTime` fall within available HLS segment range parsed from m3u8 (else 422); `endTime > startTime`; duration <= 15 minutes (else 422); `name` <= 200 chars (else 422); `description` <= 500 chars if provided (else 422). Requires active session (401 if unauthenticated).
+3. **HLS two-level playlist hierarchy** -- mediamtx serves HLS via a master playlist at `{MTX_HLS_URL}/cam/index.m3u8` which references a stream playlist (e.g., `video1_stream.m3u8`). The server fetches `index.m3u8` **once on stream start** to extract the stream playlist filename, then caches it for the stream session. All subsequent segment range validation and ffmpeg input uses the full stream playlist URL: `{MTX_HLS_URL}/cam/{streamPlaylistName}`. Do NOT re-fetch `index.m3u8` for every clip request — only fetch it when `stream_started_at` is written (stream online transition).
 
-4. **Clip record creation** -- Valid requests create a `pending` clip record with server-generated ULID. Returns `{ id, status: 'pending' }` immediately. `shareToChat` is persisted to the `shareToChat` boolean column on the clip record (defaults to `false`).
+4. **POST /api/clips validation** -- `POST /api/clips` accepts `{ startTime: ISO8601, endTime: ISO8601, name: string, description?: string, shareToChat?: boolean }`. Validation: `stream_started_at` must exist in `stream_config` (else 422 "Stream has not started"); `startTime >= stream_started_at` (else 422); `startTime` and `endTime` fall within available HLS segment range parsed from m3u8 (else 422); `endTime > startTime`; duration <= 15 minutes (else 422); `name` <= 200 chars (else 422); `description` <= 500 chars if provided (else 422). Requires active session (401 if unauthenticated).
 
-5. **ffmpeg processing** -- Async processing calls ffmpeg: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam.m3u8 -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (duration = `Math.ceil((new Date(endTime) - new Date(startTime)) / 1000)` -- do NOT use `-to`; the `cam` path name is hardcoded in mediamtx config). Thumbnail: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam.m3u8 -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`. Video uploaded to S3 with **private** ACL. Thumbnail uploaded with **`public-read`** ACL. Clip record updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, `durationSeconds`. Temp files deleted after upload or on error. Non-zero ffmpeg exit or short output: retry once silently, then set `status: 'failed'` on second failure. On any failure, abort and clean up any pending/partial S3 multipart uploads.
+5. **Clip record creation** -- Valid requests create a `pending` clip record with server-generated ULID. Returns `{ id, status: 'pending' }` immediately. `shareToChat` is persisted to the `shareToChat` boolean column on the clip record (defaults to `false`).
 
-6. **Client timestamp derivation** -- Client derives `startTime`/`endTime` from segment timestamps parsed from the live `.m3u8` playlist (with `useAbsoluteTimestamp: true`, segment timestamps correspond to original frame timestamps). Using `Date.now()` or any wall-clock source is prohibited.
+6. **ffmpeg processing** -- Async processing calls ffmpeg: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (duration = `Math.ceil((new Date(endTime) - new Date(startTime)) / 1000)` -- do NOT use `-to`; `{streamPlaylistName}` is the cached stream playlist filename extracted from `index.m3u8` at stream start, e.g., `video1_stream.m3u8`). Thumbnail: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`. Video uploaded to S3 with **private** ACL. Thumbnail uploaded with **`public-read`** ACL. Clip record updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, `durationSeconds`. Temp files deleted after upload or on error. Non-zero ffmpeg exit or short output: retry once silently, then set `status: 'failed'` on second failure. On any failure, abort and clean up any pending/partial S3 multipart uploads.
 
-7. **Share-to-chat on ready** -- When clip record's `shareToChat` is `true` and processing succeeds: update clip `visibility` to `shared` and create `Message` record atomically via `prisma.$transaction()`; broadcast `chat:message` with `messageType: 'clip'` and clip card payload; broadcast `clip:status-changed` with `status: 'ready'`; broadcast `clip:visibility-changed` with `{ clipId, visibility: 'shared', chatClipIds: [new message id], clip: {card data} }`.
+7. **Client timestamp derivation** -- Client derives `startTime`/`endTime` from segment timestamps parsed from the live `.m3u8` playlist (with `useAbsoluteTimestamp: true`, segment timestamps correspond to original frame timestamps). Using `Date.now()` or any wall-clock source is prohibited.
 
-8. **Private clip on ready** -- When clip record's `shareToChat` is `false` and processing succeeds: send targeted `clip:status-changed` WsMessage to clip owner's connections via `wsHub.sendToUser` with `status: 'ready'`. No chat message. Clip remains `private`.
+8. **Share-to-chat on ready** -- When clip record's `shareToChat` is `true` and processing succeeds: update clip `visibility` to `shared` and create `Message` record atomically via `prisma.$transaction()`; broadcast `chat:message` with `messageType: 'clip'` and clip card payload; broadcast `clip:status-changed` with `status: 'ready'`; broadcast `clip:visibility-changed` with `{ clipId, visibility: 'shared', chatClipIds: [new message id], clip: {card data} }`.
 
-9. **Failure handling** -- On ffmpeg/S3 error: set clip to `status: 'failed'`; clean up temp files; send targeted `clip:status-changed` to owner with `status: 'failed'`.
+9. **Private clip on ready** -- When clip record's `shareToChat` is `false` and processing succeeds: send targeted `clip:status-changed` WsMessage to clip owner's connections via `wsHub.sendToUser` with `status: 'ready'`. No chat message. Clip remains `private`.
 
-10. **Processing toast** -- Frontend shows persistent Sonner toast with clip name and processing state. Updates to success on `clip:status-changed` `ready`. Updates to error on `failed`. Must not obscure stream video area.
+10. **Failure handling** -- On ffmpeg/S3 error: set clip to `status: 'failed'`; clean up temp files; send targeted `clip:status-changed` to owner with `status: 'failed'`.
 
-11. **Rate limiting** -- Users with `ROLE_RANK[user.role] < ROLE_RANK['Moderator']` (Viewer, ViewerGuest) are limited to 5 clips per rolling 60 minutes. Returns 429 with descriptive error. Moderator/Admin exempt.
+11. **Processing toast** -- Frontend shows persistent Sonner toast with clip name and processing state. Updates to success on `clip:status-changed` `ready`. Updates to error on `failed`. Must not obscure stream video area.
 
-12. **GET /api/clips/:id** -- Returns clip record with all non-sensitive fields. Access: owner; Admin; Moderator for own or shared/public clips (404 for private clips of others -- not 403); unauthenticated users for public clips only (401 otherwise). Soft-deleted clips return 404 for all. `thumbnailUrl` = `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`.
+12. **Rate limiting** -- Users with `ROLE_RANK[user.role] < ROLE_RANK['Moderator']` (Viewer, ViewerGuest) are limited to 5 clips per rolling 60 minutes. Returns 429 with descriptive error. Moderator/Admin exempt.
 
-13. **GET /api/clips/:id/download** -- 401 if unauthenticated; 404 if not found, soft-deleted, or no access; 409 if status not `ready`. Generates presigned S3 URL (60min expiry) with `ResponseContentDisposition: attachment; filename="{slugified-name}.mp4"`. Returns 302 redirect. Empty slugified name falls back to `{clipId}.mp4`.
+13. **GET /api/clips/:id** -- Returns clip record with all non-sensitive fields. Access: owner; Admin; Moderator for own or shared/public clips (404 for private clips of others -- not 403); unauthenticated users for public clips only (401 otherwise). Soft-deleted clips return 404 for all. `thumbnailUrl` = `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`.
 
-14. **Clip attribution** -- `showClipper`, `showClipperAvatar`, `clipperName` cannot be set via POST -- PATCH-only (Story 10-4).
+14. **GET /api/clips/:id/download** -- 401 if unauthenticated; 404 if not found, soft-deleted, or no access; 409 if status not `ready`. Generates presigned S3 URL (60min expiry) with `ResponseContentDisposition: attachment; filename="{slugified-name}.mp4"`. Returns 302 redirect. Empty slugified name falls back to `{clipId}.mp4`.
 
-15. **Offline owner delivery** -- If clip owner has no WS connections when processing completes, `clip:status-changed` is silently dropped. Status queryable via GET.
+15. **Clip attribution** -- `showClipper`, `showClipperAvatar`, `clipperName` cannot be set via POST -- PATCH-only (Story 10-4).
+
+16. **Offline owner delivery** -- If clip owner has no WS connections when processing completes, `clip:status-changed` is silently dropped. Status queryable via GET.
 
 ## Tasks / Subtasks
 
@@ -98,14 +100,14 @@ So that I can capture memorable moments with an optional name, description, chat
 
 ### Frontend
 
-- [ ] Task 11: Create clip composable `apps/web/src/composables/useClipCreate.ts` (AC: #2, #6, #10)
-  - [ ] `fetchPlaylist()` -- fetch and parse `.m3u8` from `{MTX_HLS_URL}/cam.m3u8` (via HTTP from mediamtx HLS endpoint)
+- [ ] Task 11: Create clip composable `apps/web/src/composables/useClipCreate.ts` (AC: #2, #7, #11)
+  - [ ] `fetchPlaylist()` -- fetch and parse stream playlist from `{MTX_HLS_URL}/cam/{streamPlaylistName}` (via HTTP from mediamtx HLS endpoint; stream playlist name is provided by server from cached `index.m3u8` lookup)
   - [ ] Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
   - [ ] `submitClip()` -- call `POST /api/clips` via `apiFetch`
   - [ ] Track pending clip IDs for toast state
   - [ ] Handle `clip:status-changed` WsMessage for toast updates
 
-- [ ] Task 12: Create `ClipModal.vue` component (AC: #2, #6)
+- [ ] Task 12: Create `ClipModal.vue` component (AC: #2, #7)
   - [ ] HLS scrubber with timeline visualization from parsed playlist
   - [ ] Preset buttons (30s, 1min, 2min) selecting tail of buffer
   - [ ] Drag handles for manual range adjustment
@@ -183,10 +185,13 @@ Story 10-2 delivers the infrastructure foundation. If 10-2 is not yet merged, th
 - Count query: `prisma.clip.count({ where: { userId, createdAt: { gte: new Date(Date.now() - 3_600_000) } } })`
 - Race condition on concurrent submissions: accepted known limitation
 
-**M3u8 parsing:**
+**HLS playlist hierarchy (two-level):**
 
-- Fetch `{MTX_HLS_URL}/cam.m3u8` from the mediamtx HLS endpoint via HTTP (server accesses HLS via HTTP, not filesystem)
-- Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
+- mediamtx serves a **master playlist** at `{MTX_HLS_URL}/cam/index.m3u8` which references a **stream playlist** (e.g., `video1_stream.m3u8`)
+- On stream start (when `stream_started_at` is written), fetch `index.m3u8` **once** and extract the stream playlist filename; cache it in `stream_config` for the session
+- All segment range validation and ffmpeg input uses the full stream playlist URL: `{MTX_HLS_URL}/cam/{streamPlaylistName}`
+- Do NOT re-fetch `index.m3u8` for every clip request — only on stream start
+- Parse segment timestamps from the stream playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
 - Validate that requested startTime/endTime fall within available segment range
 
 **WS broadcast patterns:**
