@@ -5,8 +5,8 @@ Status: ready-for-review
 ## Story
 
 As an **admin**,
-I want a refreshable, filterable users data table with direct ban and unban actions,
-So that I can manage user access without hunting through a static list or using the CLI.
+I want a refreshable, filterable users data table with direct ban, unban, mute, and unmute actions,
+So that I can manage user access and chat permissions without hunting through a static list or using the CLI.
 
 ## Acceptance Criteria
 
@@ -22,11 +22,13 @@ So that I can manage user access without hunting through a static list or using 
 
 6. **Given** the users table is loaded, **Then** banned users are excluded by default using client-side filtering on the Status field (external pre-filter approach), **And** a "Show banned users" toggle above the table enables/disables the filter. _Note: Implementation uses an external Vue computed ref (`filteredUsers`) rather than TanStack Table's internal `getFilteredRowModel` for simpler integration with `DataTable.vue` and identical UX._
 
-7. **Given** any user row is visible, **When** I open the row's Actions dropdown (using the existing `DropdownMenu` shadcn component), **Then** available actions are shown contextually: Ban (if not banned), Unban (if banned), Change Role, **And** destructive actions (Ban) require a confirmation step before firing.
+7. **Given** any user row is visible, **When** I open the row's Actions dropdown (using the existing `DropdownMenu` shadcn component), **Then** available actions are shown contextually: Ban (if not banned), Unban (if banned), Mute (if not muted), Unmute (if muted), Change Role, **And** destructive actions (Ban) require a confirmation step before firing.
 
 8. **Given** a banned user is visible with "Show banned" active, **When** I click Unban for that user (no confirmation dialog required — see Dev Notes), **Then** `POST /api/users/:userId/unban` is called, **And** the server clears `bannedAt`, records `unban` in the audit log (bare verb, consistent with `ban`/`mute`/`unmute`), and returns 204, **And** the row's Status updates to Active in the local table.
 
 9. **Given** `POST /api/users/:userId/unban` is called, **Then** it requires Admin role (403 for Moderator or below), **And** an Admin cannot unban another Admin (403).
+
+10. **Given** any user row is visible in the Users tab, **When** I open the row's Actions dropdown, **Then** I see "Mute" (if not muted) or "Unmute" (if muted) options, **And** clicking the action calls the appropriate endpoint (`POST /api/users/:userId/mute` or `POST /api/users/:userId/unmute`), **And** the row's Status updates immediately in the local table.
 
 ## Tasks / Subtasks
 
