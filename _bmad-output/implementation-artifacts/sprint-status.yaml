@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-06
-last_updated: 2026-03-22 # Story 10-3 clip creation pipeline in-progress
+last_updated: 2026-03-23 # Story 10-3 clip creation pipeline done
 project: ManlyCam
 project_key: NOKEY
 tracking_system: file-system
@@ -136,7 +136,7 @@ development_status:
   epic-10: in-progress
   10-1-dev-environment-documentation-clipping-infrastructure: done
   10-2-clipping-infrastructure: done # Code review complete 2026-03-22: specs updated to match implementation (S3 keys derived from clipId, MTX_HLS_URL env var). All quality gates passing (538 server tests, 1202 web tests).
-  10-3-clip-creation-pipeline: in-progress
+  10-3-clip-creation-pipeline: ready-for-review # smoke-tested 2026-03-23. ffmpeg seek fix (relative offset), 2min max clip duration, rpiCameraFPS key fix. 626 server + 1241 web tests.
   10-4-my-clips-page: ready-for-dev
   10-5-chat-clip-integration: ready-for-dev
   10-6-public-clip-pages: ready-for-dev
