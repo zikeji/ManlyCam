@@ -15,7 +15,6 @@ import { useAuth } from '@/composables/useAuth';
 import { useAdminStream } from '@/composables/useAdminStream';
 import { useSnapshot } from '@/composables/useSnapshot';
 import { piSugarStatus } from '@/composables/usePiSugar';
-// import { Role } from '@manlycam/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -23,7 +22,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 import BatteryIndicator from './BatteryIndicator.vue';
-import ClipModal from './ClipModal.vue';
+import { useClipCreate, isStreamTooNew } from '@/composables/useClipCreate';
+import { toast } from 'vue-sonner';
 import { viewers } from '@/composables/usePresence';
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue';
 import OfflineMessageDialog from './OfflineMessageDialog.vue';
@@ -39,6 +39,7 @@ const props = withDefaults(
     showChatToggle?: boolean;
     showViewerCount?: boolean;
     videoRef?: HTMLVideoElement | null;
+    clipEditorOpen?: boolean;
   }>(),
   {
     isAdmin: false,
@@ -49,6 +50,7 @@ const props = withDefaults(
     showChatToggle: true,
     showViewerCount: true,
     videoRef: null,
+    clipEditorOpen: false,
   },
 );
 
@@ -56,6 +58,7 @@ const emit = defineEmits<{
   toggleControlsPanel: [];
   toggleChatSidebar: [];
   openAdminDialog: [];
+  'clip-editor-open': [segmentRange: import('@/composables/useClipCreate').SegmentRange];
 }>();
 
 const { user, logout } = useAuth();
@@ -81,7 +84,50 @@ let pulseTimer: number | null = null;
 const isProfileOpen = ref(false);
 const preferencesOpen = ref(false);
 const offlineMessageOpen = ref(false);
-const clipModalOpen = ref(false);
+
+const { fetchSegmentRange } = useClipCreate();
+const clipLoading = ref(false);
+const clipDisabled = ref(false);
+
+const clipTooltip = computed(() => {
+  if (props.streamState !== 'live') return 'Stream is offline';
+  return 'Clip Stream';
+});
+
+const isClipButtonDisabled = computed(() => {
+  return clipDisabled.value || clipLoading.value || props.streamState !== 'live';
+});
+
+const handleClipClick = async () => {
+  if (isClipButtonDisabled.value) return;
+  clipDisabled.value = true;
+  clipLoading.value = true;
+  try {
+    const range = await fetchSegmentRange();
+    if (isStreamTooNew(range.streamStartedAt)) {
+      clipDisabled.value = false;
+      toast.info('Stream just started — try again in a moment');
+      return;
+    }
+    emit('clip-editor-open', range);
+    // Keep button disabled until clip editor closes (parent sets clipEditorOpen=false)
+  } catch {
+    clipDisabled.value = false;
+    toast.error('Failed to open clip editor — try again');
+  } finally {
+    clipLoading.value = false;
+  }
+};
+
+// Re-enable clip button when editor closes
+watch(
+  () => props.clipEditorOpen,
+  (open) => {
+    if (!open) {
+      clipDisabled.value = false;
+    }
+  },
+);
 
 const handleOpenPreferences = () => {
   isProfileOpen.value = false;
@@ -272,19 +318,30 @@ const streamToggleLabel = computed(() => {
         <Camera class="w-5 h-5" />
       </Button>
 
-      <!-- 10-3: clip -->
-      <Button
-        v-if="user"
-        variant="ghost"
-        size="icon"
-        class="w-11 h-11 rounded"
-        title="Clip Stream"
-        @click="clipModalOpen = true"
-      >
-        <Videotape class="w-5 h-5" />
-      </Button>
-
-      <ClipModal v-model:open="clipModalOpen" />
+      <!-- 10-3b: clip (desktop only) -->
+      <TooltipProvider v-if="user && isDesktop">
+        <Tooltip>
+          <TooltipTrigger as-child>
+            <Button
+              variant="ghost"
+              size="icon"
+              class="w-11 h-11 rounded"
+              :disabled="isClipButtonDisabled"
+              data-clip-btn
+              @click="handleClipClick"
+            >
+              <div
+                v-if="clipLoading"
+                class="w-5 h-5 border-2 border-t-transparent border-foreground rounded-full animate-spin"
+              />
+              <Videotape v-else class="w-5 h-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{{ clipTooltip }}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
 
       <Popover v-model:open="isProfileOpen">
         <PopoverTrigger as-child>

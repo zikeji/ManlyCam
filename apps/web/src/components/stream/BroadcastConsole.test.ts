@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import BroadcastConsole from './BroadcastConsole.vue';
 import { Role } from '@manlycam/types';
 import { piSugarStatus } from '@/composables/usePiSugar';
+import { isStreamTooNew } from '@/composables/useClipCreate';
 
 // Mock useSnapshot composable
 const mockTakeSnapshot = vi.fn();
@@ -23,14 +24,31 @@ vi.mock('@/components/preferences/PreferencesDialog.vue', () => ({
   },
 }));
 
-// Mock ClipModal to avoid pulling in its composable dependencies
-vi.mock('./ClipModal.vue', () => ({
-  default: {
-    name: 'ClipModal',
-    template: '<div data-testid="clip-modal"></div>',
-    props: ['open'],
-    emits: ['update:open'],
-  },
+// Mock useClipCreate composable
+const { mockFetchSegmentRange } = vi.hoisted(() => ({
+  mockFetchSegmentRange: vi.fn(),
+}));
+vi.mock('@/composables/useClipCreate', () => ({
+  useClipCreate: () => ({
+    isSubmitting: { value: false },
+    fetchSegmentRange: mockFetchSegmentRange,
+    submitClip: vi.fn(),
+  }),
+  isStreamTooNew: vi.fn().mockReturnValue(false),
+}));
+
+// Mock vue-sonner
+const { mockToastInfo, mockToastError } = vi.hoisted(() => ({
+  mockToastInfo: vi.fn(),
+  mockToastError: vi.fn(),
+}));
+vi.mock('vue-sonner', () => ({
+  toast: Object.assign(vi.fn(), {
+    info: mockToastInfo,
+    error: mockToastError,
+    loading: vi.fn(),
+    success: vi.fn(),
+  }),
 }));
 
 // Mock OfflineMessageDialog
@@ -449,20 +467,80 @@ describe('BroadcastConsole', () => {
     expect(wrapper.find('.animate-spin').exists()).toBe(true);
   });
 
-  // 10-3: clip button
+  // 10-3b: clip button (desktop only, emits clip-editor-open)
   describe('clip button', () => {
-    it('renders clip button when user is authenticated', () => {
-      wrapper = mountConsole();
-      const clipBtn = wrapper.findAll('button').find((b) => b.html().includes('lucide-videotape'));
-      expect(clipBtn?.exists()).toBe(true);
+    const mockRange = {
+      earliest: '2026-03-22T10:00:00.000Z',
+      latest: '2026-03-22T10:05:00.000Z',
+      minDurationSeconds: 10,
+      maxDurationSeconds: 120,
+      streamStartedAt: '2026-03-22T09:55:00.000Z',
+    };
+
+    it('renders clip button on desktop when user is authenticated', () => {
+      wrapper = mountConsole({ isDesktop: true });
+      expect(wrapper.find('[data-clip-btn]').exists()).toBe(true);
     });
 
-    it('opens ClipModal when clip button is clicked', async () => {
-      wrapper = mountConsole();
-      const clipBtn = wrapper.findAll('button').find((b) => b.html().includes('lucide-videotape'));
-      await clipBtn?.trigger('click');
-      const modal = wrapper.findComponent({ name: 'ClipModal' });
-      expect(modal.props('open')).toBe(true);
+    it('hides clip button on mobile', () => {
+      wrapper = mountConsole({ isDesktop: false });
+      expect(wrapper.find('[data-clip-btn]').exists()).toBe(false);
+    });
+
+    it('is disabled when stream is not live', () => {
+      wrapper = mountConsole({ isDesktop: true, streamState: 'explicit-offline' });
+      const btn = wrapper.find('[data-clip-btn]');
+      expect(btn.attributes('disabled')).toBeDefined();
+    });
+
+    it('fetches segment range and emits clip-editor-open on click', async () => {
+      mockFetchSegmentRange.mockResolvedValue(mockRange);
+      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+      const btn = wrapper.find('[data-clip-btn]');
+      await btn.trigger('click');
+      await flushPromises();
+      expect(mockFetchSegmentRange).toHaveBeenCalled();
+      expect(wrapper.emitted('clip-editor-open')?.[0]?.[0]).toEqual(mockRange);
+    });
+
+    it('shows toast.info when stream is too new', async () => {
+      mockFetchSegmentRange.mockResolvedValue(mockRange);
+      vi.mocked(isStreamTooNew).mockReturnValue(true);
+      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+      await wrapper.find('[data-clip-btn]').trigger('click');
+      await flushPromises();
+      expect(mockToastInfo).toHaveBeenCalledWith(expect.stringContaining('just started'));
+      vi.mocked(isStreamTooNew).mockReturnValue(false);
+    });
+
+    it('shows toast.error when fetchSegmentRange fails', async () => {
+      mockFetchSegmentRange.mockRejectedValue(new Error('fail'));
+      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+      await wrapper.find('[data-clip-btn]').trigger('click');
+      await flushPromises();
+      expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining('Failed'));
+    });
+
+    it('re-enables clip button when clipEditorOpen changes to false', async () => {
+      mockFetchSegmentRange.mockResolvedValue(mockRange);
+      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+
+      // Click to open editor (which disables the button via clipDisabled)
+      await wrapper.find('[data-clip-btn]').trigger('click');
+      await flushPromises();
+      expect(wrapper.emitted('clip-editor-open')).toBeTruthy();
+      expect(wrapper.find('[data-clip-btn]').attributes('disabled')).toBeDefined();
+
+      // Parent opens editor (simulating the flow)
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      // Still disabled
+      expect(wrapper.find('[data-clip-btn]').attributes('disabled')).toBeDefined();
+
+      // Parent closes editor — watcher sets clipDisabled = false
+      await wrapper.setProps({ clipEditorOpen: false });
+      await flushPromises();
+      expect(wrapper.find('[data-clip-btn]').attributes('disabled')).toBeUndefined();
     });
   });
 });

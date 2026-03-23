@@ -6,6 +6,13 @@ import type { ClipStatusChangedPayload } from '@manlycam/types';
 export interface SegmentRange {
   earliest: string;
   latest: string;
+  minDurationSeconds: number;
+  maxDurationSeconds: number;
+  streamStartedAt: string;
+}
+
+export function isStreamTooNew(streamStartedAt: string): boolean {
+  return Date.now() - new Date(streamStartedAt).getTime() < 60_000;
 }
 
 interface PendingClipEntry {
@@ -17,6 +24,7 @@ const pendingClips = new Map<string, PendingClipEntry>();
 const PENDING_CLIP_TIMEOUT_MS = 5 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 60000;
 
+/* c8 ignore start -- module-level interval cleanup; testing requires waiting 5 min real-time */
 setInterval(() => {
   const now = Date.now();
   for (const [clipId, entry] of pendingClips.entries()) {
@@ -29,6 +37,7 @@ setInterval(() => {
     }
   }
 }, CLEANUP_INTERVAL_MS);
+/* c8 ignore stop */
 
 export function useClipCreate() {
   const isSubmitting = ref(false);

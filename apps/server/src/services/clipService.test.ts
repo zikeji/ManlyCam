@@ -12,6 +12,8 @@ vi.mock('../env.js', () => ({
     S3_ACCESS_KEY: 'key',
     S3_SECRET_KEY: 'secret',
     S3_FORCE_PATH_STYLE: true,
+    CLIP_MIN_DURATION_SECONDS: 10,
+    CLIP_MAX_DURATION_SECONDS: 120,
   },
 }));
 
@@ -54,6 +56,7 @@ vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
 vi.mock('node:fs/promises', () => ({
   readFile: vi.fn().mockResolvedValue(Buffer.from('data')),
   unlink: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { prisma } from '../db/client.js';
@@ -63,6 +66,7 @@ import { wsHub } from '../services/wsHub.js';
 import { spawn } from 'node:child_process';
 import {
   parseHlsSegmentRange,
+  resolvePlaylistUrls,
   getSegmentRange,
   createClip,
   processClip,
@@ -129,6 +133,29 @@ describe('parseHlsSegmentRange', () => {
   });
 });
 
+describe('resolvePlaylistUrls', () => {
+  it('rewrites relative .ts segment URLs to absolute', () => {
+    const m3u8 = '#EXTM3U\n#EXTINF:6.000,\nseg0.ts\n#EXTINF:6.000,\nseg1.ts\n';
+    const result = resolvePlaylistUrls(m3u8, 'http://127.0.0.1:8090/cam/video1_stream.m3u8');
+    expect(result).toContain('http://127.0.0.1:8090/cam/seg0.ts');
+    expect(result).toContain('http://127.0.0.1:8090/cam/seg1.ts');
+  });
+
+  it('leaves already-absolute URLs unchanged', () => {
+    const m3u8 = '#EXTM3U\n#EXTINF:6.000,\nhttp://cdn.example.com/seg0.ts\n';
+    const result = resolvePlaylistUrls(m3u8, 'http://127.0.0.1:8090/cam/video1_stream.m3u8');
+    expect(result).toContain('http://cdn.example.com/seg0.ts');
+    expect(result).not.toContain('http://127.0.0.1:8090/cam/http://');
+  });
+
+  it('preserves non-segment lines', () => {
+    const m3u8 = '#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6.000,\nseg.ts\n';
+    const result = resolvePlaylistUrls(m3u8, 'http://host/path/stream.m3u8');
+    expect(result).toContain('#EXTM3U');
+    expect(result).toContain('#EXT-X-TARGETDURATION:6');
+  });
+});
+
 describe('getSegmentRange', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -147,10 +174,24 @@ describe('getSegmentRange', () => {
     vi.unstubAllGlobals();
   });
 
-  it('returns earliest and latest ISO strings', async () => {
+  it('returns earliest and latest ISO strings with duration config and streamStartedAt', async () => {
     const result = await getSegmentRange();
     expect(result.earliest).toBe('2026-03-22T10:00:00.000Z');
     expect(result.latest).toBe('2026-03-22T10:00:12.000Z');
+    expect(result.minDurationSeconds).toBe(10);
+    expect(result.maxDurationSeconds).toBe(120);
+    expect(result.streamStartedAt).toBe('2026-03-22T10:00:00.000Z');
+  });
+
+  it('clamps earliest to max(stream_started_at, hlsEarliest)', async () => {
+    // stream started AFTER the earliest HLS segment
+    vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
+      if (key === 'stream_started_at') return '2026-03-22T10:00:05.000Z';
+      if (key === 'hls_stream_playlist') return 'video1_stream.m3u8';
+      return null;
+    });
+    const result = await getSegmentRange();
+    expect(result.earliest).toBe('2026-03-22T10:00:05.000Z');
   });
 
   it('throws 422 when stream has not started', async () => {
@@ -161,7 +202,8 @@ describe('getSegmentRange', () => {
   it('throws 422 when playlist unavailable', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce({ ok: true }) // HEAD: cache validation passes
         .mockResolvedValueOnce({ ok: false, status: 503 }), // content fetch fails
     );
@@ -183,7 +225,7 @@ describe('createClip', () => {
     userId: 'user-001',
     userRole: 'ViewerGuest' as const,
     startTime: '2026-03-22T10:00:01.000Z',
-    endTime: '2026-03-22T10:00:07.000Z',
+    endTime: '2026-03-22T10:00:11.000Z', // 10s = min duration
     name: 'Test Clip',
     shareToChat: false,
   };
@@ -257,12 +299,22 @@ describe('createClip', () => {
     ).rejects.toMatchObject({ statusCode: 422 });
   });
 
-  it('throws 422 when duration > 2 minutes', async () => {
+  it('throws 422 when duration exceeds max', async () => {
     await expect(
       createClip({
         ...validParams,
         startTime: '2026-03-22T10:00:01.000Z',
         endTime: '2026-03-22T10:02:02.000Z',
+      }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it('throws 422 when duration below min', async () => {
+    await expect(
+      createClip({
+        ...validParams,
+        startTime: '2026-03-22T10:00:01.000Z',
+        endTime: '2026-03-22T10:00:05.000Z', // 4s < 10s min
       }),
     ).rejects.toMatchObject({ statusCode: 422 });
   });
@@ -294,7 +346,8 @@ describe('createClip', () => {
     // HEAD validation passes (cached name ok), but content GET returns non-ok
     vi.stubGlobal(
       'fetch',
-      vi.fn()
+      vi
+        .fn()
         .mockResolvedValueOnce({ ok: true }) // HEAD: cache validation passes
         .mockResolvedValueOnce({ ok: false, status: 503 }), // GET: content fetch fails
     );
@@ -395,7 +448,7 @@ describe('processClip', () => {
     clipId: 'TESTULID0000000000000001',
     seekOffsetSeconds: 1,
     durationSeconds: 6,
-    playlistUrl: 'http://127.0.0.1:8090/cam/video1_stream.m3u8',
+    playlistSnapshot: '/tmp/TESTULID0000000000000001-playlist.m3u8',
   };
 
   const pendingClip = {

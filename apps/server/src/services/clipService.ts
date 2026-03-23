@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { readFile, unlink } from 'node:fs/promises';
+import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { env } from '../env.js';
 import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
@@ -14,7 +14,6 @@ import type { Role, ClipChatMessage, ClipStatusChangedPayload } from '@manlycam/
 
 const RATE_LIMIT_COUNT = 5;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-const MAX_DURATION_S = 2 * 60;
 const MAX_NAME_LEN = 200;
 const MAX_DESC_LEN = 500;
 
@@ -44,6 +43,14 @@ export function parseHlsSegmentRange(m3u8Text: string): { earliest: Date; latest
   const latest = new Date(lastTimestamp.getTime() + Math.ceil(lastDuration * 1000));
 
   return { earliest, latest };
+}
+
+/** Rewrite relative segment URLs in an m3u8 playlist to absolute URLs. */
+export function resolvePlaylistUrls(m3u8Text: string, playlistUrl: string): string {
+  const baseUrl = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
+  return m3u8Text.replace(/^([^#\s][^\s]*\.ts)$/gm, (seg) =>
+    seg.startsWith('http') ? seg : `${baseUrl}${seg}`,
+  );
 }
 
 /** Fetch the HLS master playlist and extract the stream playlist filename. */
@@ -102,7 +109,10 @@ function runFfmpeg(args: string[]): Promise<void> {
       if (code === 0) {
         resolve();
       } else {
-        logger.warn({ stderr: stderr.slice(0, 2000) }, 'ffmpeg stderr');
+        /* c8 ignore next 2 -- truncation branch depends on ffmpeg stderr length */
+        const trimmed =
+          stderr.length > 2000 ? `${stderr.slice(0, 998)}\n[…]\n${stderr.slice(-998)}` : stderr;
+        logger.warn({ stderr: trimmed }, 'ffmpeg stderr');
         reject(new Error(`ffmpeg exited with code ${code}`));
       }
     });
@@ -118,12 +128,12 @@ export async function processClip({
   clipId,
   seekOffsetSeconds,
   durationSeconds,
-  playlistUrl,
+  playlistSnapshot,
 }: {
   clipId: string;
   seekOffsetSeconds: number;
   durationSeconds: number;
-  playlistUrl: string;
+  playlistSnapshot: string;
 }): Promise<void> {
   const videoTmp = `/tmp/${clipId}.mp4`;
   const thumbTmp = `/tmp/${clipId}-thumb.jpg`;
@@ -138,6 +148,7 @@ export async function processClip({
     await Promise.allSettled([
       unlink(videoTmp).catch(() => undefined),
       unlink(thumbTmp).catch(() => undefined),
+      unlink(playlistSnapshot).catch(() => undefined),
     ]);
   }
 
@@ -153,11 +164,16 @@ export async function processClip({
   while (attempt < 2) {
     try {
       // Generate video clip
+      // -protocol_whitelist is required because the local m3u8 snapshot
+      // references segments via absolute http:// URLs; without it ffmpeg
+      // restricts to file,crypto,data when reading a local file.
       await runFfmpeg([
+        '-protocol_whitelist',
+        'file,http,https,tcp,tls,crypto',
         '-ss',
         String(seekOffsetSeconds),
         '-i',
-        playlistUrl,
+        playlistSnapshot,
         '-t',
         String(durationSeconds),
         '-c',
@@ -167,10 +183,12 @@ export async function processClip({
       ]);
       // Generate thumbnail
       await runFfmpeg([
+        '-protocol_whitelist',
+        'file,http,https,tcp,tls,crypto',
         '-ss',
         String(seekOffsetSeconds),
         '-i',
-        playlistUrl,
+        playlistSnapshot,
         '-vframes',
         '1',
         '-q:v',
@@ -302,7 +320,13 @@ export async function processClip({
   }
 }
 
-export async function getSegmentRange(): Promise<{ earliest: string; latest: string }> {
+export async function getSegmentRange(): Promise<{
+  earliest: string;
+  latest: string;
+  minDurationSeconds: number;
+  maxDurationSeconds: number;
+  streamStartedAt: string;
+}> {
   const streamStartedAt = await streamConfig.getOrNull('stream_started_at');
   if (!streamStartedAt) throw new AppError('Stream has not started', 'STREAM_NOT_STARTED', 422);
 
@@ -314,7 +338,17 @@ export async function getSegmentRange(): Promise<{ earliest: string; latest: str
   const range = parseHlsSegmentRange(m3u8Text);
   if (!range) throw new AppError('Cannot determine HLS segment range', 'STREAM_NOT_READY', 422);
 
-  return { earliest: range.earliest.toISOString(), latest: range.latest.toISOString() };
+  // Clamp earliest to max(stream_started_at, hlsEarliest)
+  const streamStart = new Date(streamStartedAt);
+  const clampedEarliest = new Date(Math.max(streamStart.getTime(), range.earliest.getTime()));
+
+  return {
+    earliest: clampedEarliest.toISOString(),
+    latest: range.latest.toISOString(),
+    minDurationSeconds: env.CLIP_MIN_DURATION_SECONDS,
+    maxDurationSeconds: env.CLIP_MAX_DURATION_SECONDS,
+    streamStartedAt,
+  };
 }
 
 export async function createClip(params: {
@@ -363,8 +397,19 @@ export async function createClip(params: {
   }
 
   const durationSeconds = Math.round((end.getTime() - start.getTime()) / 1000);
-  if (durationSeconds > MAX_DURATION_S) {
-    throw new AppError('Clip duration must not exceed 2 minutes', 'VALIDATION_ERROR', 422);
+  if (durationSeconds < env.CLIP_MIN_DURATION_SECONDS) {
+    throw new AppError(
+      `Clip duration must be at least ${env.CLIP_MIN_DURATION_SECONDS} seconds`,
+      'VALIDATION_ERROR',
+      422,
+    );
+  }
+  if (durationSeconds > env.CLIP_MAX_DURATION_SECONDS) {
+    throw new AppError(
+      `Clip duration must not exceed ${env.CLIP_MAX_DURATION_SECONDS} seconds`,
+      'VALIDATION_ERROR',
+      422,
+    );
   }
   if (name.length > MAX_NAME_LEN) {
     throw new AppError(`name must not exceed ${MAX_NAME_LEN} characters`, 'VALIDATION_ERROR', 422);
@@ -389,7 +434,9 @@ export async function createClip(params: {
   if (!range) {
     throw new AppError('Cannot determine HLS segment range', 'STREAM_NOT_READY', 422);
   }
-  if (start < range.earliest || end > range.latest) {
+  // Use the same clamped lower bound as getSegmentRange to avoid frontend/backend mismatch
+  const effectiveEarliest = new Date(Math.max(streamStart.getTime(), range.earliest.getTime()));
+  if (start < effectiveEarliest || end > range.latest) {
     throw new AppError(
       'startTime/endTime must fall within available HLS segment range',
       'VALIDATION_ERROR',
@@ -412,9 +459,25 @@ export async function createClip(params: {
 
   const seekOffsetSeconds = Math.max(0, (start.getTime() - range.earliest.getTime()) / 1000);
 
+  // Snapshot the playlist with absolute segment URLs so ffmpeg reads the exact
+  // segments used to calculate seekOffsetSeconds (the live rolling buffer moves).
+  // Append #EXT-X-ENDLIST so ffmpeg treats it as a finite VOD playlist — without
+  // it, ffmpeg hangs waiting for a local file that will never update with new segments.
+  const snapshotPath = `/tmp/${id}-playlist.m3u8`;
+  let absolutePlaylist = resolvePlaylistUrls(m3u8Text, playlistUrl);
+  if (!absolutePlaylist.includes('#EXT-X-ENDLIST')) {
+    absolutePlaylist += '\n#EXT-X-ENDLIST\n';
+  }
+  await writeFile(snapshotPath, absolutePlaylist, 'utf8');
+
   // Spawn async processing (fire-and-forget)
   setImmediate(() => {
-    processClip({ clipId: id, seekOffsetSeconds, durationSeconds, playlistUrl }).catch(
+    processClip({
+      clipId: id,
+      seekOffsetSeconds,
+      durationSeconds,
+      playlistSnapshot: snapshotPath,
+    }).catch(
       /* c8 ignore next 3 -- processClip only rejects in catastrophic failure; happy-path coverage via unit tests */
       (err) => {
         logger.error({ err, clipId: id }, 'clip: processClip rejected unexpectedly');

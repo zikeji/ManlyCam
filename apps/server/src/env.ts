@@ -28,6 +28,8 @@ const envSchema = z.object({
     .transform((v) => v !== 'false')
     .default('true'),
   MTX_HLS_URL: z.string().url().default('http://127.0.0.1:8090'),
+  CLIP_MIN_DURATION_SECONDS: z.coerce.number().min(1).default(10),
+  CLIP_MAX_DURATION_SECONDS: z.coerce.number().min(1).default(120),
 });
 
 const result = envSchema.safeParse(process.env);

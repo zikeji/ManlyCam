@@ -127,8 +127,10 @@ vi.mock('@/components/stream/StreamPlayer.vue', () => ({
       'showLandscapeTapToggle',
       'showPreviewButton',
       'adminPreview',
+      'clipEditorOpen',
+      'clipSegmentRange',
     ],
-    emits: ['toggleChatSidebar', 'startPreview', 'stopPreview'],
+    emits: ['toggleChatSidebar', 'startPreview', 'stopPreview', 'clip-editor-close'],
     template:
       '<button data-stream-player @dblclick="$emit(\'toggleChatSidebar\')" @click="$emit(\'startPreview\')" @contextmenu="$emit(\'stopPreview\')" />',
   },
@@ -145,6 +147,16 @@ vi.mock('@/components/chat/ChatPanel.vue', () => ({
 vi.mock('@/components/stream/BroadcastConsole.vue', () => ({
   default: {
     name: 'BroadcastConsole',
+    props: [
+      'streamState',
+      'isAdmin',
+      'controlsPanelOpen',
+      'chatSidebarOpen',
+      'unreadCount',
+      'isDesktop',
+      'clipEditorOpen',
+    ],
+    emits: ['toggleChatSidebar', 'toggleAdminPanel', 'clip-editor-open'],
     template: '<div data-broadcast-console />',
   },
 }));
@@ -736,6 +748,87 @@ describe('WatchView', () => {
       await nextTick();
 
       expect(mockIncrementUnread).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Clip editor state lifting', () => {
+    beforeEach(() => {
+      mockIsDesktop = true;
+      mockIsPortrait = false;
+    });
+
+    it('passes clipEditorOpen=false and clipSegmentRange=null to StreamPlayer initially', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('clipEditorOpen')).toBe(false);
+      expect(streamPlayer.props('clipSegmentRange')).toBeNull();
+    });
+
+    it('sets clipEditorOpen=true and passes segment range when BroadcastConsole emits clip-editor-open', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const segmentRange = {
+        earliest: '2026-03-22T10:00:00.000Z',
+        latest: '2026-03-22T10:05:00.000Z',
+        minDurationSeconds: 10,
+        maxDurationSeconds: 120,
+        streamStartedAt: '2026-03-22T09:55:00.000Z',
+      };
+
+      const bc = wrapper.findComponent({ name: 'BroadcastConsole' });
+      bc.vm.$emit('clip-editor-open', segmentRange);
+      await nextTick();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('clipEditorOpen')).toBe(true);
+      expect(streamPlayer.props('clipSegmentRange')).toEqual(segmentRange);
+    });
+
+    it('sets clipEditorOpen=false when StreamPlayer emits clip-editor-close', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      // Open first
+      const bc = wrapper.findComponent({ name: 'BroadcastConsole' });
+      bc.vm.$emit('clip-editor-open', {
+        earliest: '2026-03-22T10:00:00.000Z',
+        latest: '2026-03-22T10:05:00.000Z',
+        minDurationSeconds: 10,
+        maxDurationSeconds: 120,
+        streamStartedAt: '2026-03-22T09:55:00.000Z',
+      });
+      await nextTick();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('clipEditorOpen')).toBe(true);
+
+      // Close
+      streamPlayer.vm.$emit('clip-editor-close');
+      await nextTick();
+
+      expect(streamPlayer.props('clipEditorOpen')).toBe(false);
+    });
+
+    it('passes clipEditorOpen to BroadcastConsole', async () => {
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const bc = wrapper.findComponent({ name: 'BroadcastConsole' });
+      expect(bc.props('clipEditorOpen')).toBe(false);
+
+      bc.vm.$emit('clip-editor-open', {
+        earliest: '2026-03-22T10:00:00.000Z',
+        latest: '2026-03-22T10:05:00.000Z',
+        minDurationSeconds: 10,
+        maxDurationSeconds: 120,
+        streamStartedAt: '2026-03-22T09:55:00.000Z',
+      });
+      await nextTick();
+
+      expect(bc.props('clipEditorOpen')).toBe(true);
     });
   });
 });

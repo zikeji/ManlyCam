@@ -80,6 +80,16 @@ watch(
 const isAdmin = computed(() => user.value?.role === Role.Admin);
 
 const adminPreviewActive = ref(false);
+const clipEditorOpen = ref(false);
+const clipSegmentRange = ref<import('@/composables/useClipCreate').SegmentRange | null>(null);
+
+const handleClipEditorOpen = (range: import('@/composables/useClipCreate').SegmentRange) => {
+  clipSegmentRange.value = range;
+  clipEditorOpen.value = true;
+};
+const handleClipEditorClose = () => {
+  clipEditorOpen.value = false;
+};
 const showPreviewButton = computed(() => isAdmin.value && piReachableWhileOffline.value);
 
 // Reset preview when the stream is no longer explicit-offline
@@ -208,9 +218,12 @@ onMounted(() => {
             :showLandscapeTapToggle="false"
             :showPreviewButton="showPreviewButton"
             :adminPreview="adminPreviewActive"
+            :clipEditorOpen="clipEditorOpen"
+            :clipSegmentRange="clipSegmentRange"
             @toggle-chat-sidebar="handleToggleChatSidebar"
             @start-preview="handleStartPreview"
             @stop-preview="handleStopPreview"
+            @clip-editor-close="handleClipEditorClose"
           />
         </div>
         <BroadcastConsole
@@ -222,9 +235,11 @@ onMounted(() => {
           :isDesktop="isDesktop"
           :showChatToggle="true"
           :videoRef="streamVideoRef"
+          :clipEditorOpen="clipEditorOpen"
           @toggle-controls-panel="handleToggleControlsPanel"
           @toggle-chat-sidebar="handleToggleChatSidebar"
           @open-admin-dialog="adminDialogOpen = true"
+          @clip-editor-open="handleClipEditorOpen"
         />
       </SplitterPanel>
 

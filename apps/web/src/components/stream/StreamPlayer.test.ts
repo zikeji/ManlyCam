@@ -24,6 +24,16 @@ const mockIsResetting = ref(false);
 const mockZoomTransform = ref('translate(0px, 0px) scale(1)');
 const mockContainerRef = ref(null);
 
+// Mock ClipEditor to avoid pulling in HLS dependencies
+vi.mock('./ClipEditor.vue', () => ({
+  default: {
+    name: 'ClipEditor',
+    template: '<div data-clip-editor><slot /></div>',
+    props: ['segmentRange', 'streamState', 'open', 'hlsVideoEl'],
+    emits: ['close'],
+  },
+}));
+
 vi.mock('@/composables/useStreamZoom', () => ({
   useStreamZoom: () => ({
     containerRef: mockContainerRef,
@@ -68,9 +78,9 @@ describe('StreamPlayer', () => {
     expect(wrapper.find('[data-skeleton]').exists()).toBe(false);
   });
 
-  it('renders video element with role="img" and aria-label', () => {
+  it('renders WHEP video element with role="img" and aria-label', () => {
     wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
-    const video = wrapper.find('video');
+    const video = wrapper.find('[data-whep-video]');
     expect(video.exists()).toBe(true);
     expect(video.attributes('role')).toBe('img');
     expect(video.attributes('aria-label')).toContain('Buddy');
@@ -176,6 +186,13 @@ describe('StreamPlayer', () => {
     expect(container.exists()).toBe(true);
     expect(container.classes()).toContain('w-full');
     expect(container.classes()).toContain('overflow-hidden');
+  });
+
+  it('container uses flex-col layout', () => {
+    wrapper = mount(StreamPlayer, { props: { streamState: 'connecting' } });
+    const container = wrapper.find('[data-stream-container]');
+    expect(container.classes()).toContain('flex');
+    expect(container.classes()).toContain('flex-col');
   });
 
   it('handles startWhep error gracefully without crashing', async () => {
@@ -372,11 +389,11 @@ describe('StreamPlayer', () => {
   });
 
   describe('zoom integration', () => {
-    it('video element has non-empty transform style from useStreamZoom', async () => {
+    it('WHEP video element has non-empty transform style from useStreamZoom', async () => {
       mockZoomTransform.value = 'translate(10px, 20px) scale(2)';
       wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
       await flushPromises();
-      const video = wrapper.find('video');
+      const video = wrapper.find('[data-whep-video]');
       expect(video.attributes('style')).toContain('translate(10px, 20px) scale(2)');
     });
 
@@ -396,20 +413,170 @@ describe('StreamPlayer', () => {
       expect(container.classes()).toContain('cursor-grabbing');
     });
 
-    it('video has transition style when isResetting is true', async () => {
+    it('WHEP video has transition style when isResetting is true', async () => {
       mockIsResetting.value = true;
       wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
       await nextTick();
-      const video = wrapper.find('video');
+      const video = wrapper.find('[data-whep-video]');
       expect(video.attributes('style')).toContain('transition: transform 0.3s ease-out');
     });
 
-    it('video has no transition style when isResetting is false', async () => {
+    it('WHEP video has no transition style when isResetting is false', async () => {
       mockIsResetting.value = false;
       wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
       await nextTick();
-      const video = wrapper.find('video');
+      const video = wrapper.find('[data-whep-video]');
       expect(video.attributes('style')).toContain('transition: none');
+    });
+  });
+
+  describe('clip editor integration', () => {
+    const mockSegmentRange = {
+      earliest: '2026-03-22T10:00:00.000Z',
+      latest: '2026-03-22T10:05:00.000Z',
+      minDurationSeconds: 10,
+      maxDurationSeconds: 120,
+      streamStartedAt: '2026-03-22T09:55:00.000Z',
+    };
+
+    it('does not render ClipEditor initially (lazy-mount)', () => {
+      wrapper = mount(StreamPlayer, { props: { streamState: 'live' } });
+      expect(wrapper.findComponent({ name: 'ClipEditor' }).exists()).toBe(false);
+    });
+
+    it('renders ClipEditor once clipEditorOpen becomes true (lazy-mount)', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      expect(wrapper.findComponent({ name: 'ClipEditor' }).exists()).toBe(false);
+
+      // Trigger the watch that sets hasClipEditorBeenOpened
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      await nextTick();
+      expect(wrapper.findComponent({ name: 'ClipEditor' }).exists()).toBe(true);
+    });
+
+    it('keeps ClipEditor in DOM after closing (lazy-mount keeps alive)', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      // Open the editor (triggers watch → hasClipEditorBeenOpened = true)
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      expect(wrapper.findComponent({ name: 'ClipEditor' }).exists()).toBe(true);
+
+      // Close the editor
+      await wrapper.setProps({ clipEditorOpen: false });
+      await flushPromises();
+      // hasClipEditorBeenOpened stays true, so v-if keeps it in DOM
+      const editor = wrapper.findComponent({ name: 'ClipEditor' });
+      expect(editor.exists()).toBe(true);
+      expect(editor.props('open')).toBe(false);
+    });
+
+    it('WHEP video stays visible when clip editor is open (HLS overlays at z-20)', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      await wrapper.setProps({ clipEditorOpen: true });
+      await nextTick();
+      const video = wrapper.find('[data-whep-video]');
+      expect(video.attributes('style')).not.toContain('visibility: hidden');
+    });
+
+    it('renders HLS video element when clip editor has been opened', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      expect(wrapper.find('[data-hls-video]').exists()).toBe(false);
+
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      expect(wrapper.find('[data-hls-video]').exists()).toBe(true);
+    });
+
+    it('HLS video has no autoplay attribute', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      const hlsVideo = wrapper.find('[data-hls-video]');
+      expect(hlsVideo.attributes('autoplay')).toBeUndefined();
+    });
+
+    it('controls wrapper uses max-height transition for slide animation', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      // Find the max-height transition wrapper
+      const transitionWrapper = wrapper.find('.overflow-hidden.transition-\\[max-height\\]');
+      expect(transitionWrapper.exists()).toBe(true);
+      // Closed: 0px
+      expect(transitionWrapper.attributes('style')).toContain('max-height: 0px');
+
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      // Open: 600px
+      expect(transitionWrapper.attributes('style')).toContain('max-height: 600px');
+    });
+
+    it('emits clip-editor-close when ClipEditor emits close', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      // Open the editor first so it mounts
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      const editor = wrapper.findComponent({ name: 'ClipEditor' });
+      expect(editor.exists()).toBe(true);
+      editor.vm.$emit('close');
+      await nextTick();
+      expect(wrapper.emitted('clip-editor-close')).toBeTruthy();
+    });
+
+    it('passes hlsVideoEl prop to ClipEditor', async () => {
+      wrapper = mount(StreamPlayer, {
+        props: {
+          streamState: 'live',
+          clipEditorOpen: false,
+          clipSegmentRange: mockSegmentRange,
+        },
+      });
+      await wrapper.setProps({ clipEditorOpen: true });
+      await flushPromises();
+      const editor = wrapper.findComponent({ name: 'ClipEditor' });
+      // hlsVideoEl should be the video element ref
+      expect(editor.props('hlsVideoEl')).toBeInstanceOf(HTMLVideoElement);
     });
   });
 });

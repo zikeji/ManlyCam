@@ -42,5 +42,6 @@ onMounted(() => {
     </svg>
   </div>
   <LoginView v-else />
-  <Toaster position="top-center" />
+  <!-- offset clears the ~48px broadcast console strip -->
+  <Toaster position="bottom-center" :duration="10000" offset="52px" />
 </template>

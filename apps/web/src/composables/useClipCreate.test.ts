@@ -19,7 +19,7 @@ vi.mock('vue-sonner', () => ({
 }));
 
 import { apiFetch } from '@/lib/api';
-import { useClipCreate, handleClipStatusChanged } from './useClipCreate';
+import { useClipCreate, handleClipStatusChanged, isStreamTooNew } from './useClipCreate';
 
 const baseParams = {
   startTime: '2026-01-01T00:00:00.000Z',
@@ -105,6 +105,18 @@ describe('useClipCreate', () => {
           body: expect.stringContaining('A great moment'),
         }),
       );
+    });
+  });
+
+  describe('isStreamTooNew', () => {
+    it('returns true when stream started less than 60 seconds ago', () => {
+      const recent = new Date(Date.now() - 30_000).toISOString();
+      expect(isStreamTooNew(recent)).toBe(true);
+    });
+
+    it('returns false when stream started more than 60 seconds ago', () => {
+      const old = new Date(Date.now() - 120_000).toISOString();
+      expect(isStreamTooNew(old)).toBe(false);
     });
   });
 

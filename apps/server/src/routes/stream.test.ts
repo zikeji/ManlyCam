@@ -6,6 +6,7 @@ vi.mock('../env.js', () => ({
     BASE_URL: 'http://localhost:3000',
     MTX_WEBRTC_PORT: '8889',
     MTX_API_PORT: '9997',
+    MTX_HLS_URL: 'http://127.0.0.1:8090',
     FRP_HOST: 'localhost',
     FRP_API_PORT: '7400',
   },
@@ -667,5 +668,89 @@ describe('PATCH /api/stream/offline-message', () => {
       description: null,
       actorId: mockAdmin.id,
     });
+  });
+});
+
+describe('GET /api/stream/hls/*', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('returns 401 when not authenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream/hls/index.m3u8');
+    expect(res.status).toBe(401);
+  });
+
+  it('proxies HLS playlist from mediamtx', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const playlistContent = '#EXTM3U\n#EXT-X-VERSION:3\n';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(playlistContent, {
+          status: 200,
+          headers: { 'Content-Type': 'application/vnd.apple.mpegurl' },
+        }),
+      ),
+    );
+
+    const res = await createApp().app.request('/api/stream/hls/index.m3u8', authHeaders);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/vnd.apple.mpegurl');
+    const body = await res.text();
+    expect(body).toBe(playlistContent);
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledWith('http://127.0.0.1:8090/cam/index.m3u8');
+  });
+
+  it('captures multi-segment wildcard paths', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(new ArrayBuffer(8), {
+          status: 200,
+          headers: { 'Content-Type': 'video/mp2t' },
+        }),
+      ),
+    );
+
+    const res = await createApp().app.request(
+      '/api/stream/hls/video1_stream/seg001.ts',
+      authHeaders,
+    );
+    expect(res.status).toBe(200);
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
+      'http://127.0.0.1:8090/cam/video1_stream/seg001.ts',
+    );
+  });
+
+  it('rejects paths containing .. with 400', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/hls/foo/..%2fbar', authHeaders);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects paths with disallowed characters with 400', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/hls/foo%00bar', authHeaders);
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 502 when mediamtx HLS is unreachable', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+
+    const res = await createApp().app.request('/api/stream/hls/index.m3u8', authHeaders);
+    expect(res.status).toBe(502);
+  });
+
+  it('forwards upstream status code', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('not found', { status: 404 })));
+
+    const res = await createApp().app.request('/api/stream/hls/nonexistent.m3u8', authHeaders);
+    expect(res.status).toBe(404);
   });
 });

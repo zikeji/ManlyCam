@@ -309,6 +309,9 @@ describe('GET /api/clips/segment-range', () => {
     vi.mocked(getSegmentRange).mockResolvedValue({
       earliest: '2026-03-22T10:00:00.000Z',
       latest: '2026-03-22T10:05:00.000Z',
+      minDurationSeconds: 10,
+      maxDurationSeconds: 120,
+      streamStartedAt: '2026-03-22T09:55:00.000Z',
     });
     const res = await createApp().app.request('/api/clips/segment-range', {
       headers: { cookie: 'session_id=valid' },
