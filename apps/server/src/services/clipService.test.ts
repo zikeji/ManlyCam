@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventEmitter } from 'node:events';
+import { logger } from '../lib/logger.js';
 
 vi.mock('../env.js', () => ({
   env: {
@@ -158,7 +159,12 @@ describe('getSegmentRange', () => {
   });
 
   it('throws 422 when playlist unavailable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn()
+        .mockResolvedValueOnce({ ok: true }) // HEAD: cache validation passes
+        .mockResolvedValueOnce({ ok: false, status: 503 }), // content fetch fails
+    );
     await expect(getSegmentRange()).rejects.toMatchObject({ statusCode: 422 });
   });
 
@@ -284,6 +290,17 @@ describe('createClip', () => {
     await expect(createClip(validParams)).rejects.toMatchObject({ statusCode: 422 });
   });
 
+  it('throws 422 when playlist content fetch fails after cache hit', async () => {
+    // HEAD validation passes (cached name ok), but content GET returns non-ok
+    vi.stubGlobal(
+      'fetch',
+      vi.fn()
+        .mockResolvedValueOnce({ ok: true }) // HEAD: cache validation passes
+        .mockResolvedValueOnce({ ok: false, status: 503 }), // GET: content fetch fails
+    );
+    await expect(createClip(validParams)).rejects.toMatchObject({ statusCode: 422 });
+  });
+
   it('throws 422 when segment range cannot be parsed', async () => {
     vi.stubGlobal(
       'fetch',
@@ -321,6 +338,33 @@ describe('createClip', () => {
         }),
     );
     await createClip(validParams);
+    expect(streamConfig.set).toHaveBeenCalledWith('hls_stream_playlist', 'video1_stream.m3u8');
+  });
+
+  it('invalidates stale cached playlist name when HEAD returns 404', async () => {
+    vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
+      if (key === 'stream_started_at') return streamStarted;
+      return 'stale_playlist.m3u8';
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce({ ok: false, status: 404 })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => '#EXTM3U\nvideo1_stream.m3u8\n',
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          text: async () => M3U8_WITH_TIMESTAMPS,
+        }),
+    );
+    await createClip(validParams);
+    expect(logger.warn).toHaveBeenCalledWith(
+      { cached: 'stale_playlist.m3u8' },
+      'clip: cached HLS playlist returned 404, invalidating cache',
+    );
     expect(streamConfig.set).toHaveBeenCalledWith('hls_stream_playlist', 'video1_stream.m3u8');
   });
 
@@ -441,6 +485,23 @@ describe('processClip', () => {
     );
   });
 
+  it('captures ffmpeg stderr and logs it on failure', async () => {
+    vi.mocked(spawn).mockImplementation(() => {
+      const proc = new EventEmitter() as EventEmitter & { stdout: null; stderr: EventEmitter };
+      proc.stdout = null;
+      proc.stderr = new EventEmitter();
+      setImmediate(() => {
+        proc.stderr.emit('data', Buffer.from('codec not found'));
+        proc.emit('close', 1);
+      });
+      return proc as unknown as ReturnType<typeof spawn>;
+    });
+    await processClip(clipParams);
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'failed' } }),
+    );
+  });
+
   it('sets status failed after two ffmpeg failures', async () => {
     makeSpawnMockSequence([1, 1]); // both fail
     await processClip(clipParams);
@@ -458,6 +519,33 @@ describe('processClip', () => {
     vi.mocked(uploadToS3).mockRejectedValueOnce(new Error('S3 error'));
     await processClip(clipParams);
     expect(deleteS3Objects).toHaveBeenCalled();
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'failed' } }),
+    );
+  });
+
+  it('deletes only uploaded keys when second S3 upload fails', async () => {
+    makeSpawnMockSequence([0, 0]);
+    // First upload (video) succeeds, second (thumbnail) fails
+    vi.mocked(uploadToS3)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('thumb upload failed'));
+    await processClip(clipParams);
+    expect(deleteS3Objects).toHaveBeenCalledWith(['clips/TESTULID0000000000000001.mp4']);
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { status: 'failed' } }),
+    );
+  });
+
+  it('logs error when S3 cleanup fails after upload error', async () => {
+    makeSpawnMockSequence([0, 0]);
+    vi.mocked(uploadToS3).mockRejectedValueOnce(new Error('S3 error'));
+    vi.mocked(deleteS3Objects).mockRejectedValueOnce(new Error('Cleanup failed'));
+    await processClip(clipParams);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.objectContaining({ deleteErr: expect.any(Error) }),
+      'clip: failed to clean up partial S3 uploads',
+    );
     expect(prisma.clip.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: { status: 'failed' } }),
     );
