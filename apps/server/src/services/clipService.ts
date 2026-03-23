@@ -81,14 +81,12 @@ function runFfmpeg(args: string[]): Promise<void> {
 
 export async function processClip({
   clipId,
-  startTime,
-  endTime: _endTime,
+  seekOffsetSeconds,
   durationSeconds,
   playlistUrl,
 }: {
   clipId: string;
-  startTime: string;
-  endTime: string;
+  seekOffsetSeconds: number;
   durationSeconds: number;
   playlistUrl: string;
 }): Promise<void> {
@@ -122,7 +120,7 @@ export async function processClip({
       // Generate video clip
       await runFfmpeg([
         '-ss',
-        startTime,
+        String(seekOffsetSeconds),
         '-i',
         playlistUrl,
         '-t',
@@ -135,7 +133,7 @@ export async function processClip({
       // Generate thumbnail
       await runFfmpeg([
         '-ss',
-        startTime,
+        String(seekOffsetSeconds),
         '-i',
         playlistUrl,
         '-vframes',
@@ -364,9 +362,11 @@ export async function createClip(params: {
     },
   });
 
+  const seekOffsetSeconds = Math.max(0, (start.getTime() - range.earliest.getTime()) / 1000);
+
   // Spawn async processing (fire-and-forget)
   setImmediate(() => {
-    processClip({ clipId: id, startTime, endTime, durationSeconds, playlistUrl }).catch(
+    processClip({ clipId: id, seekOffsetSeconds, durationSeconds, playlistUrl }).catch(
       /* c8 ignore next 3 -- processClip only rejects in catastrophic failure; happy-path coverage via unit tests */
       (err) => {
         logger.error({ err, clipId: id }, 'clip: processClip rejected unexpectedly');

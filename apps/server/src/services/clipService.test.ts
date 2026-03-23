@@ -349,8 +349,7 @@ describe('createClip', () => {
 describe('processClip', () => {
   const clipParams = {
     clipId: 'TESTULID0000000000000001',
-    startTime: '2026-03-22T10:00:01.000Z',
-    endTime: '2026-03-22T10:00:07.000Z',
+    seekOffsetSeconds: 1,
     durationSeconds: 6,
     playlistUrl: 'http://127.0.0.1:8090/cam/video1_stream.m3u8',
   };

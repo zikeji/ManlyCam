@@ -47,8 +47,8 @@ export function handleClipStatusChanged(payload: ClipStatusChangedPayload): void
   if (toastId === undefined) return;
   pendingClips.delete(payload.clipId);
   if (payload.status === 'ready') {
-    toast.success('Clip ready!', { id: toastId });
+    toast.success('Clip ready!', { id: toastId, duration: 4000 });
   } else {
-    toast.error('Clip processing failed', { id: toastId });
+    toast.error('Clip processing failed', { id: toastId, duration: 8000 });
   }
 }
