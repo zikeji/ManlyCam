@@ -14,7 +14,7 @@ import type { Role, ClipChatMessage, ClipStatusChangedPayload } from '@manlycam/
 
 const RATE_LIMIT_COUNT = 5;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
-const MAX_DURATION_S = 15 * 60;
+const MAX_DURATION_S = 2 * 60;
 const MAX_NAME_LEN = 200;
 const MAX_DESC_LEN = 500;
 
@@ -316,7 +316,7 @@ export async function createClip(params: {
 
   const durationSeconds = Math.round((end.getTime() - start.getTime()) / 1000);
   if (durationSeconds > MAX_DURATION_S) {
-    throw new AppError('Clip duration must not exceed 15 minutes', 'VALIDATION_ERROR', 422);
+    throw new AppError('Clip duration must not exceed 2 minutes', 'VALIDATION_ERROR', 422);
   }
   if (name.length > MAX_NAME_LEN) {
     throw new AppError(`name must not exceed ${MAX_NAME_LEN} characters`, 'VALIDATION_ERROR', 422);

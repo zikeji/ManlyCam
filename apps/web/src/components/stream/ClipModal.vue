@@ -109,7 +109,7 @@ const canSubmit = computed(() => {
     !nameError.value &&
     !descError.value &&
     durationSeconds.value > 0 &&
-    durationSeconds.value <= 900 &&
+    durationSeconds.value <= 120 &&
     !isSubmitting.value
   );
 });

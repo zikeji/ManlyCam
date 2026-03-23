@@ -251,12 +251,12 @@ describe('createClip', () => {
     ).rejects.toMatchObject({ statusCode: 422 });
   });
 
-  it('throws 422 when duration > 15 minutes', async () => {
+  it('throws 422 when duration > 2 minutes', async () => {
     await expect(
       createClip({
         ...validParams,
         startTime: '2026-03-22T10:00:01.000Z',
-        endTime: '2026-03-22T10:16:01.000Z',
+        endTime: '2026-03-22T10:02:02.000Z',
       }),
     ).rejects.toMatchObject({ statusCode: 422 });
   });

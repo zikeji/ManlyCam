@@ -148,9 +148,9 @@ describe('CameraControls.vue', () => {
   // --- Staged changes & Apply button ---
 
   it('renders Apply button when staged value differs from current setting', () => {
-    // rpiCameraFps default is 30; staging 60 is a real change
+    // rpiCameraFPS default is 30; staging 60 is a real change
     vi.mocked(useCameraControlsMock).mockReturnValue(
-      defaultControls({ stagedValues: ref({ rpiCameraFps: 60 }), settings: ref({}) }),
+      defaultControls({ stagedValues: ref({ rpiCameraFPS: 60 }), settings: ref({}) }),
     );
     wrapper = mount(CameraControls);
     const buttons = wrapper.findAll('button');
@@ -167,9 +167,9 @@ describe('CameraControls.vue', () => {
   });
 
   it('does not render Apply button when staged value matches effective stored+default value', () => {
-    // rpiCameraFps default is 30; staging 30 when settings is empty is no change
+    // rpiCameraFPS default is 30; staging 30 when settings is empty is no change
     vi.mocked(useCameraControlsMock).mockReturnValue(
-      defaultControls({ stagedValues: ref({ rpiCameraFps: 30 }), settings: ref({}) }),
+      defaultControls({ stagedValues: ref({ rpiCameraFPS: 30 }), settings: ref({}) }),
     );
     wrapper = mount(CameraControls);
     const buttons = wrapper.findAll('button');
@@ -179,7 +179,7 @@ describe('CameraControls.vue', () => {
 
   it('renders Reset button when staged changes exist', () => {
     vi.mocked(useCameraControlsMock).mockReturnValue(
-      defaultControls({ stagedValues: ref({ rpiCameraFps: 60 }), settings: ref({}) }),
+      defaultControls({ stagedValues: ref({ rpiCameraFPS: 60 }), settings: ref({}) }),
     );
     wrapper = mount(CameraControls);
     const resetButton = wrapper.find('button[title="Reset Changes"]');
@@ -188,7 +188,7 @@ describe('CameraControls.vue', () => {
 
   it('opens apply confirmation dialog when Apply button is clicked', async () => {
     vi.mocked(useCameraControlsMock).mockReturnValue(
-      defaultControls({ stagedValues: ref({ rpiCameraFps: 60 }), settings: ref({}) }),
+      defaultControls({ stagedValues: ref({ rpiCameraFPS: 60 }), settings: ref({}) }),
     );
     wrapper = mount(CameraControls, { attachTo: document.body });
 
@@ -207,7 +207,7 @@ describe('CameraControls.vue', () => {
   it('Confirm action calls applyStaged and shows success toast', async () => {
     const applyStaged = vi.fn().mockResolvedValue(undefined);
     vi.mocked(useCameraControlsMock).mockReturnValue(
-      defaultControls({ stagedValues: ref({ rpiCameraFps: 60 }), settings: ref({}), applyStaged }),
+      defaultControls({ stagedValues: ref({ rpiCameraFPS: 60 }), settings: ref({}), applyStaged }),
     );
     wrapper = mount(CameraControls, { attachTo: document.body });
 
@@ -234,7 +234,7 @@ describe('CameraControls.vue', () => {
     const discardStagedValues = vi.fn();
     vi.mocked(useCameraControlsMock).mockReturnValue(
       defaultControls({
-        stagedValues: ref({ rpiCameraFps: 60 }),
+        stagedValues: ref({ rpiCameraFPS: 60 }),
         settings: ref({}),
         discardStagedValues,
       }),
@@ -260,7 +260,7 @@ describe('CameraControls.vue', () => {
 
   it('Reset button opens reset confirmation dialog', async () => {
     vi.mocked(useCameraControlsMock).mockReturnValue(
-      defaultControls({ stagedValues: ref({ rpiCameraFps: 60 }), settings: ref({}) }),
+      defaultControls({ stagedValues: ref({ rpiCameraFPS: 60 }), settings: ref({}) }),
     );
     wrapper = mount(CameraControls, { attachTo: document.body });
 
@@ -276,7 +276,7 @@ describe('CameraControls.vue', () => {
     const discardStagedValues = vi.fn();
     vi.mocked(useCameraControlsMock).mockReturnValue(
       defaultControls({
-        stagedValues: ref({ rpiCameraFps: 60 }),
+        stagedValues: ref({ rpiCameraFPS: 60 }),
         settings: ref({}),
         discardStagedValues,
       }),
@@ -302,7 +302,7 @@ describe('CameraControls.vue', () => {
     const discardStagedValues = vi.fn();
     vi.mocked(useCameraControlsMock).mockReturnValue(
       defaultControls({
-        stagedValues: ref({ rpiCameraFps: 60 }),
+        stagedValues: ref({ rpiCameraFPS: 60 }),
         settings: ref({}),
         discardStagedValues,
       }),
@@ -383,11 +383,11 @@ describe('CameraControls.vue', () => {
     vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls({ stageValue }));
     wrapper = mount(CameraControls);
 
-    const fpsInput = wrapper.find('#rpiCameraFps');
+    const fpsInput = wrapper.find('#rpiCameraFPS');
     if (fpsInput.exists()) {
       await fpsInput.setValue(60);
       await nextTick();
-      expect(stageValue).toHaveBeenCalledWith('rpiCameraFps', 60);
+      expect(stageValue).toHaveBeenCalledWith('rpiCameraFPS', 60);
     }
   });
 
@@ -502,7 +502,7 @@ describe('CameraControls.vue', () => {
   it('handleConfirm shows error toast if applyStaged throws', async () => {
     const applyStaged = vi.fn().mockRejectedValue(new Error('Test error'));
     vi.mocked(useCameraControlsMock).mockReturnValue(
-      defaultControls({ stagedValues: ref({ rpiCameraFps: 60 }), settings: ref({}), applyStaged }),
+      defaultControls({ stagedValues: ref({ rpiCameraFPS: 60 }), settings: ref({}), applyStaged }),
     );
     wrapper = mount(CameraControls, { attachTo: document.body });
 

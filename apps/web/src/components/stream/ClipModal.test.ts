@@ -220,15 +220,15 @@ describe('ClipModal', () => {
       expect(document.body.textContent).toContain('Description must be 500 characters or less');
     });
 
-    it('submit is disabled when duration exceeds 15 minutes', async () => {
-      // 60-minute window so we can exceed 900s
+    it('submit is disabled when duration exceeds 2 minutes', async () => {
+      // 5-minute window so we can exceed 120s
       const wideRange = {
         earliest: '2026-01-01T00:00:00.000Z',
-        latest: '2026-01-01T01:00:00.000Z',
+        latest: '2026-01-01T00:05:00.000Z',
       };
       await openModal(wideRange);
 
-      // Move start to 0 → full 3600s duration
+      // Move start to 0 → full 300s duration
       const sliders = document.body.querySelectorAll('input[type="range"]');
       const startSlider = sliders[0] as HTMLInputElement;
       startSlider.value = '0';

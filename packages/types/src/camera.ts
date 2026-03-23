@@ -19,7 +19,7 @@ export const CAMERA_CONTROLS_ALLOWLIST = [
   'rpiCameraFlickerPeriod',
   'rpiCameraTextOverlayEnable',
   'rpiCameraTextOverlay',
-  'rpiCameraFps',
+  'rpiCameraFPS',
   'rpiCameraBitrate',
   'rpiCameraIdrPeriod',
   'rpiCameraWidth',
@@ -296,7 +296,7 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     ],
   },
   {
-    key: 'rpiCameraFps',
+    key: 'rpiCameraFPS',
     label: 'FPS',
     section: 'Encoding',
     type: 'number',
