@@ -10,6 +10,7 @@ vi.mock('../env.js', () => ({
     FRP_API_PORT: '7400',
     MTX_API_URL: 'http://127.0.0.1:9997',
     MTX_WEBRTC_URL: 'http://127.0.0.1:8888',
+    MTX_HLS_URL: 'http://127.0.0.1:8090',
   },
 }));
 vi.mock('../lib/stream-config.js', () => ({
@@ -22,6 +23,7 @@ vi.mock('../lib/stream-config.js', () => ({
     }),
     set: vi.fn().mockResolvedValue(undefined),
     setWithClient: vi.fn().mockResolvedValue(undefined),
+    getOrNull: vi.fn().mockResolvedValue(null),
   },
 }));
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid') }));
@@ -533,5 +535,78 @@ describe('StreamService camera reapply', () => {
       'stream: reapplyCameraSettings rejected unexpectedly',
     );
     vi.unstubAllGlobals();
+  });
+});
+
+describe('StreamService cacheHlsPlaylistName', () => {
+  let service: StreamService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new StreamService();
+  });
+
+  afterEach(() => {
+    service.stop();
+  });
+
+  it('fetches index.m3u8 and caches playlist name on success', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        text: async () => '#EXTM3U\nvideo1_stream.m3u8\n',
+      }),
+    );
+    await service.cacheHlsPlaylistName();
+    expect(global.fetch).toHaveBeenCalledWith('http://127.0.0.1:8090/cam/index.m3u8');
+    expect(vi.mocked(streamConfig.set)).toHaveBeenCalledWith(
+      'hls_stream_playlist',
+      'video1_stream.m3u8',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('logs warning when index.m3u8 returns non-ok status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+    const warnSpy = vi.spyOn(logger, 'warn');
+    await service.cacheHlsPlaylistName();
+    expect(warnSpy).toHaveBeenCalledWith(
+      { status: 503 },
+      'stream: failed to fetch HLS master playlist',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('logs warning when playlist filename not found in index.m3u8', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, text: async () => '#EXTM3U\n# comment only\n' }),
+    );
+    const warnSpy = vi.spyOn(logger, 'warn');
+    await service.cacheHlsPlaylistName();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ text: expect.any(String) }),
+      'stream: could not parse stream playlist filename from master playlist',
+    );
+    vi.unstubAllGlobals();
+  });
+
+  it('setAdminToggle live → calls cacheHlsPlaylistName fire-and-forget', async () => {
+    const cacheSpy = vi.spyOn(service, 'cacheHlsPlaylistName').mockResolvedValue(undefined);
+    await service.setAdminToggle('live', 'actor-1');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(cacheSpy).toHaveBeenCalled();
+  });
+
+  it('setAdminToggle live → logs warning if cacheHlsPlaylistName rejects', async () => {
+    vi.spyOn(service, 'cacheHlsPlaylistName').mockRejectedValue(new Error('HLS unavailable'));
+    const warnSpy = vi.spyOn(logger, 'warn');
+    await service.setAdminToggle('live', 'actor-1');
+    await new Promise((r) => setTimeout(r, 0));
+    expect(warnSpy).toHaveBeenCalledWith(
+      { err: expect.any(Error) },
+      'stream: failed to cache HLS playlist name on live toggle (will retry on first clip)',
+    );
   });
 });

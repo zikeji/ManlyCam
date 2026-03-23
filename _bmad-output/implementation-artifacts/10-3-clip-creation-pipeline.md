@@ -1,6 +1,6 @@
 # Story 10.3: Clip Creation Pipeline
 
-Status: ready-for-dev
+Status: ready-for-review
 
 ## Story
 
@@ -46,100 +46,100 @@ So that I can capture memorable moments with an optional name, description, chat
 
 ### Server
 
-- [ ] Task 1: Add new env vars to `env.ts` (AC: #3, #5)
-  - [ ] Add `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL` (all `z.string().min(1)`)
-  - [ ] Add `MTX_HLS_URL` (`z.string().url().default('http://127.0.0.1:8090')`)
+- [x] Task 1: Add new env vars to `env.ts` (AC: #3, #5)
+  - [x] Add `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL` (all `z.string().min(1)`)
+  - [x] Add `MTX_HLS_URL` (`z.string().url().default('http://127.0.0.1:8090')`)
 
-- [ ] Task 2: Create S3 client singleton `apps/server/src/lib/s3-client.ts` (AC: #5)
-  - [ ] Import from `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`
-  - [ ] Export single `s3Client` instance configured from env vars
-  - [ ] Export helper functions: `uploadToS3`, `presignGetObject`, `putObjectAcl`, `deleteS3Objects`, `abortMultipartUpload`
-  - [ ] Add `validateS3BucketAcl()` function that checks bucket supports per-object ACLs at startup (use HeadBucket + GetBucketAcl)
+- [x] Task 2: Create S3 client singleton `apps/server/src/lib/s3-client.ts` (AC: #5)
+  - [x] Import from `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`
+  - [x] Export single `s3Client` instance configured from env vars
+  - [x] Export helper functions: `uploadToS3`, `presignGetObject`, `putObjectAcl`, `deleteS3Objects`, `abortMultipartUpload`
+  - [x] Add `validateS3BucketAcl()` function that checks bucket supports per-object ACLs at startup (use HeadBucket + GetBucketAcl)
 
-- [ ] Task 3: Create Prisma migration for `clips` table (AC: #4)
-  - [ ] Add `Clip` model with all columns per Story 10-2 spec (including `shareToChat` boolean, default `false`)
-  - [ ] Add `clips Clip[]` relation to `User` model
-  - [ ] Add `clipId` and `messageType` columns to `Message` model
-  - [ ] Add `clip Clip?` relation to `Message` model
-  - [ ] Run `pnpm prisma migrate dev`
+- [x] Task 3: Create Prisma migration for `clips` table (AC: #4)
+  - [x] Add `Clip` model with all columns per Story 10-2 spec (including `shareToChat` boolean, default `false`)
+  - [x] Add `clips Clip[]` relation to `User` model
+  - [x] Add `clipId` and `messageType` columns to `Message` model
+  - [x] Add `clip Clip?` relation to `Message` model
+  - [x] Run `pnpm prisma migrate dev`
 
-- [ ] Task 4: Update `packages/types/src/ws.ts` (AC: #7, #8, #9)
-  - [ ] Add `clip:status-changed` WsMessage type (discriminated on `status`)
-  - [ ] Add `clip:visibility-changed` WsMessage type
-  - [ ] Split `ChatMessage` into `TextChatMessage | ClipChatMessage` discriminated union
-  - [ ] Retain `ChatMessage` as type alias for backward compat
-  - [ ] Build types package: `pnpm --filter @manlycam/types build`
+- [x] Task 4: Update `packages/types/src/ws.ts` (AC: #7, #8, #9)
+  - [x] Add `clip:status-changed` WsMessage type (discriminated on `status`)
+  - [x] Add `clip:visibility-changed` WsMessage type
+  - [x] Split `ChatMessage` into `TextChatMessage | ClipChatMessage` discriminated union
+  - [x] Retain `ChatMessage` as type alias for backward compat
+  - [x] Build types package: `pnpm --filter @manlycam/types build`
 
-- [ ] Task 5: Write `stream_started_at` on stream online transition (AC: #3)
-  - [ ] In `streamService.setAdminToggle()`, when `toggle === 'live'`, write `stream_started_at` ISO8601 UTC to `stream_config` via `streamConfig.setWithClient(tx, 'stream_started_at', new Date().toISOString())`
+- [x] Task 5: Write `stream_started_at` on stream online transition (AC: #3)
+  - [x] In `streamService.setAdminToggle()`, when `toggle === 'live'`, write `stream_started_at` ISO8601 UTC to `stream_config` via `streamConfig.setWithClient(tx, 'stream_started_at', new Date().toISOString())`
 
-- [ ] Task 6: Flush HLS path on stream offline (AC: dependency from 10-2)
-  - [ ] In `streamService.setAdminToggle()`, when `toggle === 'offline'`, call mediamtx HTTP API to flush/remove HLS path (fire-and-forget, logged on error, non-fatal)
+- [x] Task 6: Flush HLS path on stream offline (AC: dependency from 10-2)
+  - [x] In `streamService.setAdminToggle()`, when `toggle === 'offline'`, call mediamtx HTTP API to flush/remove HLS path (fire-and-forget, logged on error, non-fatal)
 
-- [ ] Task 7: Update `chatService.ts` for clip-aware messages (AC: #7)
-  - [ ] Update `MessageRow` type with `clipId?`, `messageType`, `clip?` fields
-  - [ ] Update `getHistory()` query with `include: { clip: { select: {...} } }`
-  - [ ] Update `toApiChatMessage()` to produce `ClipChatMessage` when `messageType === 'clip'`
-  - [ ] Tombstone logic: set `tombstone: true` when `clipId IS NULL`, clip visibility is `private`, or clip `deletedAt IS NOT NULL`
+- [x] Task 7: Update `chatService.ts` for clip-aware messages (AC: #7)
+  - [x] Update `MessageRow` type with `clipId?`, `messageType`, `clip?` fields
+  - [x] Update `getHistory()` query with `include: { clip: { select: {...} } }`
+  - [x] Update `toApiChatMessage()` to produce `ClipChatMessage` when `messageType === 'clip'`
+  - [x] Tombstone logic: set `tombstone: true` when `clipId IS NULL`, clip visibility is `private`, or clip `deletedAt IS NOT NULL`
 
-- [ ] Task 8: Create clip service `apps/server/src/services/clipService.ts` (AC: #3, #4, #5, #7, #8, #9, #11)
-  - [ ] `createClip()` -- validate, create pending record, spawn async processing
-  - [ ] `processClip()` -- ffmpeg execution, S3 upload, status update, WS broadcast
-  - [ ] `getClip()` -- access control with 404/401 logic
-  - [ ] `getClipDownloadUrl()` -- presign + 302 redirect logic
-  - [ ] Rate limit check using `ROLE_RANK` from `roleUtils.ts`
-  - [ ] M3u8 parser utility for segment range validation
+- [x] Task 8: Create clip service `apps/server/src/services/clipService.ts` (AC: #3, #4, #5, #7, #8, #9, #11)
+  - [x] `createClip()` -- validate, create pending record, spawn async processing
+  - [x] `processClip()` -- ffmpeg execution, S3 upload, status update, WS broadcast
+  - [x] `getClip()` -- access control with 404/401 logic
+  - [x] `getClipDownloadUrl()` -- presign + 302 redirect logic
+  - [x] Rate limit check using `ROLE_RANK` from `roleUtils.ts`
+  - [x] M3u8 parser utility for segment range validation
 
-- [ ] Task 9: Create clip routes `apps/server/src/routes/clips.ts` (AC: #3, #12, #13)
-  - [ ] `POST /api/clips` -- Zod body validation, auth check, rate limit, create clip
-  - [ ] `GET /api/clips/:id` -- access control, return clip record
-  - [ ] `GET /api/clips/:id/download` -- presign + 302 redirect
-  - [ ] Register routes in `app.ts`
+- [x] Task 9: Create clip routes `apps/server/src/routes/clips.ts` (AC: #3, #12, #13)
+  - [x] `POST /api/clips` -- Zod body validation, auth check, rate limit, create clip
+  - [x] `GET /api/clips/:id` -- access control, return clip record
+  - [x] `GET /api/clips/:id/download` -- presign + 302 redirect
+  - [x] Register routes in `app.ts`
 
-- [ ] Task 10: Install `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` (AC: #5)
+- [x] Task 10: Install `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` (AC: #5)
 
 ### Frontend
 
-- [ ] Task 11: Create clip composable `apps/web/src/composables/useClipCreate.ts` (AC: #2, #7, #11)
-  - [ ] `fetchPlaylist()` -- fetch and parse stream playlist from `{MTX_HLS_URL}/cam/{streamPlaylistName}` (via HTTP from mediamtx HLS endpoint; stream playlist name is provided by server from cached `index.m3u8` lookup)
-  - [ ] Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
-  - [ ] `submitClip()` -- call `POST /api/clips` via `apiFetch`
-  - [ ] Track pending clip IDs for toast state
-  - [ ] Handle `clip:status-changed` WsMessage for toast updates
+- [x] Task 11: Create clip composable `apps/web/src/composables/useClipCreate.ts` (AC: #2, #7, #11)
+  - [x] `fetchPlaylist()` -- fetch and parse stream playlist from `{MTX_HLS_URL}/cam/{streamPlaylistName}` (via HTTP from mediamtx HLS endpoint; stream playlist name is provided by server from cached `index.m3u8` lookup)
+  - [x] Parse segment timestamps from the HLS playlist (with `useAbsoluteTimestamp: true`, these correspond to original frame timestamps)
+  - [x] `submitClip()` -- call `POST /api/clips` via `apiFetch`
+  - [x] Track pending clip IDs for toast state
+  - [x] Handle `clip:status-changed` WsMessage for toast updates
 
-- [ ] Task 12: Create `ClipModal.vue` component (AC: #2, #7)
-  - [ ] HLS scrubber with timeline visualization from parsed playlist
-  - [ ] Preset buttons (30s, 1min, 2min) selecting tail of buffer
-  - [ ] Drag handles for manual range adjustment
-  - [ ] Name input (max 200 chars), description textarea (max 500 chars)
-  - [ ] "Share to chat when ready" checkbox
-  - [ ] Submit button with loading state
-  - [ ] Use Dialog component from `@/components/ui/dialog`
+- [x] Task 12: Create `ClipModal.vue` component (AC: #2, #7)
+  - [x] HLS scrubber with timeline visualization from parsed playlist
+  - [x] Preset buttons (30s, 1min, 2min) selecting tail of buffer
+  - [x] Drag handles for manual range adjustment
+  - [x] Name input (max 200 chars), description textarea (max 500 chars)
+  - [x] "Share to chat when ready" checkbox
+  - [x] Submit button with loading state
+  - [x] Use Dialog component from `@/components/ui/dialog`
 
-- [ ] Task 13: Add clip button to `BroadcastConsole.vue` (AC: #1)
-  - [ ] Add `Videotape` icon button to right of snapshot button
-  - [ ] Tooltip "Clip Stream"
-  - [ ] Visible to all authenticated users
-  - [ ] Opens ClipModal on click
+- [x] Task 13: Add clip button to `BroadcastConsole.vue` (AC: #1)
+  - [x] Add `Videotape` icon button to right of snapshot button
+  - [x] Tooltip "Clip Stream"
+  - [x] Visible to all authenticated users
+  - [x] Opens ClipModal on click
 
-- [ ] Task 14: Add processing toast handler (AC: #10)
-  - [ ] Listen for `clip:status-changed` in WS message handler
-  - [ ] Show persistent Sonner toast during processing
-  - [ ] Update toast on ready/failed
+- [x] Task 14: Add processing toast handler (AC: #10)
+  - [x] Listen for `clip:status-changed` in WS message handler
+  - [x] Show persistent Sonner toast during processing
+  - [x] Update toast on ready/failed
 
 ### Tests
 
-- [ ] Task 15: Server tests
-  - [ ] `clipService.test.ts` -- createClip, processClip, getClip, download, rate limit, m3u8 parsing
-  - [ ] `clips.test.ts` (route tests) -- POST validation, GET access control, download redirect
-  - [ ] `s3-client.test.ts` -- upload, presign, ACL, delete
-  - [ ] Update `streamService.test.ts` -- stream_started_at write, HLS flush
-  - [ ] Update `chatService.test.ts` -- clip message mapping, tombstone logic
+- [x] Task 15: Server tests
+  - [x] `clipService.test.ts` -- createClip, processClip, getClip, download, rate limit, m3u8 parsing
+  - [x] `clips.test.ts` (route tests) -- POST validation, GET access control, download redirect
+  - [x] `s3-client.test.ts` -- upload, presign, ACL, delete
+  - [x] Update `streamService.test.ts` -- stream_started_at write, HLS flush
+  - [x] Update `chatService.test.ts` -- clip message mapping, tombstone logic
 
-- [ ] Task 16: Web tests
-  - [ ] `useClipCreate.test.ts` -- playlist parsing, submit, WS handling
-  - [ ] `ClipModal.test.ts` -- UI rendering, range selection, form validation, submission
-  - [ ] `BroadcastConsole.test.ts` -- clip button visibility, click handler
+- [x] Task 16: Web tests
+  - [x] `useClipCreate.test.ts` -- playlist parsing, submit, WS handling
+  - [x] `ClipModal.test.ts` -- UI rendering, range selection, form validation, submission
+  - [x] `BroadcastConsole.test.ts` -- clip button visibility, click handler
 
 ## Dev Notes
 
@@ -258,8 +258,58 @@ Story 10-2 delivers the infrastructure foundation. If 10-2 is not yet merged, th
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
+
+None — all issues resolved inline.
 
 ### Completion Notes List
 
+- **HLS two-level playlist hierarchy**: mediamtx `index.m3u8` → stream playlist (e.g., `video1_stream.m3u8`). Server fetches master playlist once on live toggle and caches the stream playlist name in `stream_config` under key `stream_playlist_name`. All subsequent clip operations use the cached name.
+
+- **`getSegmentRange` endpoint**: Added `GET /api/clips/segment-range` (auth required) that reads the cached stream playlist name, fetches the stream playlist from mediamtx, parses `#EXTINF` durations to derive earliest/latest timestamps, and returns `{ earliest, latest }` as ISO strings. Frontend uses this instead of direct mediamtx access (which is localhost-only).
+
+- **Rate limit check**: Uses `ROLE_RANK[role] < ROLE_RANK['Moderator']` — applies to `ViewerCompany` and `ViewerGuest`; `Moderator`/`Admin` are exempt.
+
+- **Function ordering in `clipService.ts`**: `processClip` is defined before `createClip` (which calls it via `setImmediate`) to satisfy ESLint's `no-use-before-define` rule. User explicitly requested reorder over eslint-disable comment.
+
+- **`pendingClips` Map**: Module-level `Map<clipId, toastId>` in `useClipCreate.ts` for tracking in-progress clip toasts across component mount/unmount cycles.
+
+- **Clip button visibility**: Visible to all authenticated users (`v-if="user"`) — not gated on role.
+
+- **Share-to-chat UI**: Implemented as a shadcn `Switch` component (not a traditional checkbox as ACs mention "checkbox").
+
+- **Smoke test required**: Zikeji must manually smoke-test the clip button, modal opening, preset selection, range sliders, form submission flow, and toast notifications before marking done.
+
 ### File List
+
+**Server:**
+- `apps/server/src/env.ts` (added S3_*, MTX_HLS_URL env vars)
+- `apps/server/src/lib/s3-client.ts` (NEW — S3 singleton + helpers)
+- `apps/server/src/lib/s3-client.test.ts` (NEW)
+- `apps/server/prisma/schema.prisma` (added Clip model, Message changes)
+- `apps/server/prisma/migrations/20260322_add_clips/migration.sql` (NEW)
+- `apps/server/src/lib/stream-config.ts` (extended with setWithClient)
+- `apps/server/src/services/streamService.ts` (writes stream_started_at, fetches index.m3u8, flushes HLS)
+- `apps/server/src/services/streamService.test.ts` (extended)
+- `apps/server/src/services/chatService.ts` (clip-aware messages, tombstone logic)
+- `apps/server/src/services/chatService.test.ts` (extended)
+- `apps/server/src/services/clipService.ts` (NEW — createClip, processClip, getClip, getClipDownloadUrl, getSegmentRange)
+- `apps/server/src/services/clipService.test.ts` (NEW)
+- `apps/server/src/routes/clips.ts` (NEW — POST, GET, download, segment-range routes)
+- `apps/server/src/routes/clips.test.ts` (NEW)
+- `apps/server/src/app.ts` (registered clips router)
+
+**Shared types:**
+- `packages/types/src/ws.ts` (added clip:status-changed, clip:visibility-changed, ClipChatMessage)
+
+**Frontend:**
+- `apps/web/src/composables/useClipCreate.ts` (NEW)
+- `apps/web/src/composables/useClipCreate.test.ts` (NEW)
+- `apps/web/src/composables/useWebSocket.ts` (added clip:status-changed handler)
+- `apps/web/src/composables/useWebSocket.test.ts` (added clip:status-changed test)
+- `apps/web/src/components/stream/ClipModal.vue` (NEW)
+- `apps/web/src/components/stream/ClipModal.test.ts` (NEW)
+- `apps/web/src/components/stream/BroadcastConsole.vue` (added clip button + ClipModal)
+- `apps/web/src/components/stream/BroadcastConsole.test.ts` (added clip button tests + ClipModal mock)

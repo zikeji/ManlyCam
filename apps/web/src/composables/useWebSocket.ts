@@ -26,6 +26,7 @@ import { refreshCommands } from './useCommands';
 import { useAuth } from './useAuth';
 import { useBrowserNotifications } from './useBrowserNotifications';
 import { useNotificationPreferences } from './useNotificationPreferences';
+import { handleClipStatusChanged } from './useClipCreate';
 import type { UserPresence, WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
@@ -153,6 +154,9 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'reaction:remove') {
         handleReactionRemove(msg.payload, user.value?.id);
+      }
+      if (msg.type === 'clip:status-changed') {
+        handleClipStatusChanged(msg.payload);
       }
     } catch {
       // Ignore malformed messages

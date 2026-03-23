@@ -94,6 +94,12 @@ vi.mock('./useReactions', () => ({
   handleReactionRemove: mockHandleReactionRemove,
 }));
 
+// --- useClipCreate mock ---
+const mockHandleClipStatusChanged = vi.hoisted(() => vi.fn());
+vi.mock('./useClipCreate', () => ({
+  handleClipStatusChanged: mockHandleClipStatusChanged,
+}));
+
 // --- useUserCache mock ---
 const mockLookupUser = vi.hoisted(() =>
   vi.fn<(id: string) => { displayName: string } | undefined>().mockReturnValue(undefined),
@@ -496,6 +502,23 @@ describe('useWebSocket', () => {
         new MessageEvent('message', { data: JSON.stringify({ type: 'chat:ephemeral', payload }) }),
       );
       expect(mockHandleEphemeral).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches clip:status-changed payload to handleClipStatusChanged()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = {
+        clipId: 'clip-001',
+        status: 'ready',
+        durationSeconds: 30,
+        thumbnailKey: null,
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'clip:status-changed', payload }),
+        }),
+      );
+      expect(mockHandleClipStatusChanged).toHaveBeenCalledWith(payload);
     });
   });
 

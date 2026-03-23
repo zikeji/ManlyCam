@@ -5,6 +5,7 @@ import {
   Video,
   VideoOff,
   Camera,
+  Videotape,
   ArrowLeftFromLine,
   ArrowRightFromLine,
   SquarePen,
@@ -22,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import StreamStatusBadge from './StreamStatusBadge.vue';
 import BatteryIndicator from './BatteryIndicator.vue';
+import ClipModal from './ClipModal.vue';
 import { viewers } from '@/composables/usePresence';
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue';
 import OfflineMessageDialog from './OfflineMessageDialog.vue';
@@ -79,6 +81,7 @@ let pulseTimer: number | null = null;
 const isProfileOpen = ref(false);
 const preferencesOpen = ref(false);
 const offlineMessageOpen = ref(false);
+const clipModalOpen = ref(false);
 
 const handleOpenPreferences = () => {
   isProfileOpen.value = false;
@@ -268,6 +271,20 @@ const streamToggleLabel = computed(() => {
       >
         <Camera class="w-5 h-5" />
       </Button>
+
+      <!-- 10-3: clip -->
+      <Button
+        v-if="user"
+        variant="ghost"
+        size="icon"
+        class="w-11 h-11 rounded"
+        title="Clip Stream"
+        @click="clipModalOpen = true"
+      >
+        <Videotape class="w-5 h-5" />
+      </Button>
+
+      <ClipModal v-model:open="clipModalOpen" />
 
       <Popover v-model:open="isProfileOpen">
         <PopoverTrigger as-child>

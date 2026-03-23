@@ -23,6 +23,16 @@ vi.mock('@/components/preferences/PreferencesDialog.vue', () => ({
   },
 }));
 
+// Mock ClipModal to avoid pulling in its composable dependencies
+vi.mock('./ClipModal.vue', () => ({
+  default: {
+    name: 'ClipModal',
+    template: '<div data-testid="clip-modal"></div>',
+    props: ['open'],
+    emits: ['update:open'],
+  },
+}));
+
 // Mock OfflineMessageDialog
 vi.mock('./OfflineMessageDialog.vue', () => ({
   default: {
@@ -437,5 +447,22 @@ describe('BroadcastConsole', () => {
     wrapper = mountConsole({ isAdmin: true, streamState: 'live' });
     await flushPromises();
     expect(wrapper.find('.animate-spin').exists()).toBe(true);
+  });
+
+  // 10-3: clip button
+  describe('clip button', () => {
+    it('renders clip button when user is authenticated', () => {
+      wrapper = mountConsole();
+      const clipBtn = wrapper.findAll('button').find((b) => b.html().includes('lucide-videotape'));
+      expect(clipBtn?.exists()).toBe(true);
+    });
+
+    it('opens ClipModal when clip button is clicked', async () => {
+      wrapper = mountConsole();
+      const clipBtn = wrapper.findAll('button').find((b) => b.html().includes('lucide-videotape'));
+      await clipBtn?.trigger('click');
+      const modal = wrapper.findComponent({ name: 'ClipModal' });
+      expect(modal.props('open')).toBe(true);
+    });
   });
 });

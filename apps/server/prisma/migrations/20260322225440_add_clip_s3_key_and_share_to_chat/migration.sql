@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "clips" ADD COLUMN     "s3_key" TEXT,
+ADD COLUMN     "share_to_chat" BOOLEAN NOT NULL DEFAULT false,
+ALTER COLUMN "name" SET DATA TYPE VARCHAR(200);
