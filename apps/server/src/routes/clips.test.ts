@@ -40,7 +40,12 @@ vi.mock('../services/clipService.js', () => ({
 }));
 
 import { getSessionUser } from '../services/authService.js';
-import { createClip, getClip, getClipDownloadUrl, getSegmentRange } from '../services/clipService.js';
+import {
+  createClip,
+  getClip,
+  getClipDownloadUrl,
+  getSegmentRange,
+} from '../services/clipService.js';
 import { AppError } from '../lib/errors.js';
 import { createApp } from '../app.js';
 
@@ -309,7 +314,7 @@ describe('GET /api/clips/segment-range', () => {
       headers: { cookie: 'session_id=valid' },
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as { earliest: string; latest: string };
+    const body = (await res.json()) as { earliest: string; latest: string };
     expect(body.earliest).toBe('2026-03-22T10:00:00.000Z');
     expect(body.latest).toBe('2026-03-22T10:05:00.000Z');
   });

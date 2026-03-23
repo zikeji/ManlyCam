@@ -21,6 +21,7 @@ const emit = defineEmits<{ 'update:open': [value: boolean] }>();
 const { isSubmitting, fetchSegmentRange, submitClip } = useClipCreate();
 
 const segmentRange = ref<SegmentRange | null>(null);
+const rangeFetchedAt = ref<number | null>(null);
 const rangeError = ref('');
 const startOffsetMs = ref(0);
 const endOffsetMs = ref(0);
@@ -29,24 +30,37 @@ const description = ref('');
 const shareToChat = ref(false);
 const submitError = ref('');
 
+const RANGE_STALE_THRESHOLD_MS = 30000;
+
 // Total available window in ms
 const windowMs = computed(() => {
   if (!segmentRange.value) return 0;
-  return new Date(segmentRange.value.latest).getTime() - new Date(segmentRange.value.earliest).getTime();
+  return (
+    new Date(segmentRange.value.latest).getTime() - new Date(segmentRange.value.earliest).getTime()
+  );
 });
 
 const startTime = computed(() => {
   if (!segmentRange.value) return '';
-  return new Date(new Date(segmentRange.value.earliest).getTime() + startOffsetMs.value).toISOString();
+  return new Date(
+    new Date(segmentRange.value.earliest).getTime() + startOffsetMs.value,
+  ).toISOString();
 });
 
 const endTime = computed(() => {
   if (!segmentRange.value) return '';
-  return new Date(new Date(segmentRange.value.earliest).getTime() + endOffsetMs.value).toISOString();
+  return new Date(
+    new Date(segmentRange.value.earliest).getTime() + endOffsetMs.value,
+  ).toISOString();
 });
 
 const durationSeconds = computed(() => {
   return Math.round((endOffsetMs.value - startOffsetMs.value) / 1000);
+});
+
+const isRangeStale = computed(() => {
+  if (!rangeFetchedAt.value) return false;
+  return Date.now() - rangeFetchedAt.value > RANGE_STALE_THRESHOLD_MS;
 });
 
 function formatDuration(ms: number): string {
@@ -68,7 +82,10 @@ function clampRange(): void {
   /* c8 ignore next -- sliders only render when segmentRange is set; this guard is defensive */
   if (!segmentRange.value) return;
   startOffsetMs.value = Math.max(0, Math.min(startOffsetMs.value, endOffsetMs.value - 1000));
-  endOffsetMs.value = Math.min(windowMs.value, Math.max(endOffsetMs.value, startOffsetMs.value + 1000));
+  endOffsetMs.value = Math.min(
+    windowMs.value,
+    Math.max(endOffsetMs.value, startOffsetMs.value + 1000),
+  );
 }
 
 watch(
@@ -83,6 +100,7 @@ watch(
     segmentRange.value = null;
     try {
       segmentRange.value = await fetchSegmentRange();
+      rangeFetchedAt.value = Date.now();
       // Default: last 30s
       endOffsetMs.value = windowMs.value;
       startOffsetMs.value = Math.max(0, windowMs.value - 30_000);
@@ -140,7 +158,9 @@ async function handleSubmit(): Promise<void> {
           <Videotape class="w-5 h-5" />
           Create Clip
         </DialogTitle>
-        <DialogDescription class="sr-only">Select a range from the live stream buffer to create a clip.</DialogDescription>
+        <DialogDescription class="sr-only"
+          >Select a range from the live stream buffer to create a clip.</DialogDescription
+        >
       </DialogHeader>
 
       <div class="space-y-4 py-2">
@@ -158,6 +178,11 @@ async function handleSubmit(): Promise<void> {
             </div>
           </div>
 
+          <!-- Range staleness warning -->
+          <p v-if="isRangeStale" class="text-xs text-amber-600" role="status">
+            Stream range may be stale. Consider closing and reopening to refresh.
+          </p>
+
           <!-- Range sliders -->
           <div class="space-y-2">
             <p class="text-sm font-medium text-muted-foreground">
@@ -173,9 +198,17 @@ async function handleSubmit(): Promise<void> {
                   :max="windowMs"
                   :step="1000"
                   :value="startOffsetMs"
-                  @input="startOffsetMs = Math.min(Number(($event.target as HTMLInputElement).value), endOffsetMs - 1000); clampRange()"
+                  @input="
+                    startOffsetMs = Math.min(
+                      Number(($event.target as HTMLInputElement).value),
+                      endOffsetMs - 1000,
+                    );
+                    clampRange();
+                  "
                 />
-                <span class="text-xs text-muted-foreground w-16">{{ formatDuration(startOffsetMs) }}</span>
+                <span class="text-xs text-muted-foreground w-16">{{
+                  formatDuration(startOffsetMs)
+                }}</span>
               </div>
               <div class="flex items-center gap-3">
                 <span class="text-xs text-muted-foreground w-10 text-right">End</span>
@@ -186,16 +219,26 @@ async function handleSubmit(): Promise<void> {
                   :max="windowMs"
                   :step="1000"
                   :value="endOffsetMs"
-                  @input="endOffsetMs = Math.max(Number(($event.target as HTMLInputElement).value), startOffsetMs + 1000); clampRange()"
+                  @input="
+                    endOffsetMs = Math.max(
+                      Number(($event.target as HTMLInputElement).value),
+                      startOffsetMs + 1000,
+                    );
+                    clampRange();
+                  "
                 />
-                <span class="text-xs text-muted-foreground w-16">{{ formatDuration(endOffsetMs) }}</span>
+                <span class="text-xs text-muted-foreground w-16">{{
+                  formatDuration(endOffsetMs)
+                }}</span>
               </div>
             </div>
           </div>
 
           <!-- Name -->
           <div class="space-y-1">
-            <label class="text-sm font-medium" for="clip-name">Name <span class="text-destructive">*</span></label>
+            <label class="text-sm font-medium" for="clip-name"
+              >Name <span class="text-destructive">*</span></label
+            >
             <input
               id="clip-name"
               v-model="name"

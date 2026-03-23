@@ -133,7 +133,10 @@ describe('useClipCreate', () => {
       await submitClip({ ...baseParams, name: 'Failed Clip' });
 
       handleClipStatusChanged({ clipId: 'clip-h2', status: 'failed' });
-      expect(mockToastError).toHaveBeenCalledWith('Clip processing failed', { id: toastId, duration: 8000 });
+      expect(mockToastError).toHaveBeenCalledWith('Clip processing failed', {
+        id: toastId,
+        duration: 8000,
+      });
     });
 
     it('does nothing for an unknown clipId', () => {

@@ -1,7 +1,12 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { AppError } from '../lib/errors.js';
-import { createClip, getClip, getClipDownloadUrl, getSegmentRange } from '../services/clipService.js';
+import {
+  createClip,
+  getClip,
+  getClipDownloadUrl,
+  getSegmentRange,
+} from '../services/clipService.js';
 import type { AppEnv } from '../lib/types.js';
 import type { Role } from '@manlycam/types';
 

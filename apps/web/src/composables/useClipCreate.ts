@@ -8,7 +8,27 @@ export interface SegmentRange {
   latest: string;
 }
 
-const pendingClips = new Map<string, string | number>();
+interface PendingClipEntry {
+  toastId: string | number;
+  createdAt: number;
+}
+
+const pendingClips = new Map<string, PendingClipEntry>();
+const PENDING_CLIP_TIMEOUT_MS = 5 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 60000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [clipId, entry] of pendingClips.entries()) {
+    if (now - entry.createdAt > PENDING_CLIP_TIMEOUT_MS) {
+      toast.info('Clip status unknown - check My Clips page', {
+        id: entry.toastId,
+        duration: 4000,
+      });
+      pendingClips.delete(clipId);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
 
 export function useClipCreate() {
   const isSubmitting = ref(false);
@@ -32,7 +52,7 @@ export function useClipCreate() {
         body: JSON.stringify(params),
       });
       const toastId = toast.loading(`Creating clip "${params.name}"…`, { duration: Infinity });
-      pendingClips.set(result.id, toastId);
+      pendingClips.set(result.id, { toastId, createdAt: Date.now() });
       return result;
     } finally {
       isSubmitting.value = false;
@@ -43,12 +63,12 @@ export function useClipCreate() {
 }
 
 export function handleClipStatusChanged(payload: ClipStatusChangedPayload): void {
-  const toastId = pendingClips.get(payload.clipId);
-  if (toastId === undefined) return;
+  const entry = pendingClips.get(payload.clipId);
+  if (entry === undefined) return;
   pendingClips.delete(payload.clipId);
   if (payload.status === 'ready') {
-    toast.success('Clip ready!', { id: toastId, duration: 4000 });
+    toast.success('Clip ready!', { id: entry.toastId, duration: 4000 });
   } else {
-    toast.error('Clip processing failed', { id: toastId, duration: 8000 });
+    toast.error('Clip processing failed', { id: entry.toastId, duration: 8000 });
   }
 }

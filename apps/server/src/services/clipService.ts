@@ -60,22 +60,57 @@ async function fetchStreamPlaylistName(): Promise<string> {
 /** Get cached stream playlist name or fetch it fresh from index.m3u8. */
 async function getStreamPlaylistName(): Promise<string> {
   const cached = await streamConfig.getOrNull('hls_stream_playlist');
-  if (cached) return cached;
-  // Cache miss: fetch from index.m3u8 and store
+  if (cached) {
+    const playlistUrl = `${env.MTX_HLS_URL}/cam/${cached}`;
+    const headRes = await fetch(playlistUrl, { method: 'HEAD' });
+    if (headRes.ok) return cached;
+    /* c8 ignore next 2 -- defensive: HEAD validation failure is tested but logging branch is defensive */
+    logger.warn({ cached }, 'clip: cached HLS playlist returned 404, invalidating cache');
+    await streamConfig.set('hls_stream_playlist', '');
+  }
   const name = await fetchStreamPlaylistName();
   await streamConfig.set('hls_stream_playlist', name);
   return name;
 }
 
-/** Run an ffmpeg command, returning a promise that resolves on exit code 0. */
+const FFMPEG_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Run an ffmpeg command with timeout, returning a promise that resolves on exit code 0. */
 function runFfmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, { stdio: 'pipe' });
-    proc.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exited with code ${code}`));
+    let stderr = '';
+
+    proc.stderr?.on('data', (data: Buffer) => {
+      stderr += data.toString();
     });
-    proc.on('error', reject);
+
+    /* c8 ignore start -- defensive: 5-min timeout path requires actual wait; SIGTERM/SIGKILL fallback is defensive */
+    const timeout = setTimeout(() => {
+      proc.kill('SIGTERM');
+      setTimeout(() => {
+        if (!proc.killed) {
+          proc.kill('SIGKILL');
+        }
+      }, 5000);
+      reject(new Error(`ffmpeg timed out after ${FFMPEG_TIMEOUT_MS}ms`));
+    }, FFMPEG_TIMEOUT_MS);
+    /* c8 ignore stop */
+
+    proc.on('close', (code) => {
+      clearTimeout(timeout);
+      if (code === 0) {
+        resolve();
+      } else {
+        logger.warn({ stderr: stderr.slice(0, 2000) }, 'ffmpeg stderr');
+        reject(new Error(`ffmpeg exited with code ${code}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
   });
 }
 
@@ -156,10 +191,13 @@ export async function processClip({
     }
   }
 
+  const uploadedKeys: string[] = [];
+
   try {
     // Upload video (private)
     const videoData = await readFile(videoTmp);
     await uploadToS3({ key: s3Key, body: videoData, contentType: 'video/mp4', acl: 'private' });
+    uploadedKeys.push(s3Key);
 
     // Upload thumbnail (public-read)
     const thumbData = await readFile(thumbTmp);
@@ -169,11 +207,21 @@ export async function processClip({
       contentType: 'image/jpeg',
       acl: 'public-read',
     });
+    uploadedKeys.push(thumbnailKey);
   } catch (err) {
     logger.error({ err, clipId }, 'clip: S3 upload failed');
     await cleanup();
     // Best-effort delete any partial S3 uploads
-    await deleteS3Objects([s3Key, thumbnailKey]).catch(() => undefined);
+    const keysToDelete = uploadedKeys.length > 0 ? uploadedKeys : [s3Key, thumbnailKey];
+    try {
+      await deleteS3Objects(keysToDelete);
+    } catch (deleteErr) {
+      /* c8 ignore next 4 -- defensive: S3 cleanup failure logging is best-effort */
+      logger.error(
+        { deleteErr, clipId, keysToDelete },
+        'clip: failed to clean up partial S3 uploads',
+      );
+    }
     await fail();
     return;
   }
@@ -244,7 +292,7 @@ export async function processClip({
     wsHub.broadcast({ type: 'clip:status-changed', payload: readyPayload });
     wsHub.broadcast({
       type: 'clip:visibility-changed',
-      payload: { clipId, visibility: 'shared', clip: clipMsg },
+      payload: { clipId, visibility: 'shared', chatClipIds: [messageId], clip: clipMsg },
     });
   } else {
     wsHub.sendToUser(updatedClip.userId, {

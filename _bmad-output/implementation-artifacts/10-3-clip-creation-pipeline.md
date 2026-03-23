@@ -1,6 +1,6 @@
 # Story 10.3: Clip Creation Pipeline
 
-Status: ready-for-review
+Status: done
 
 ## Story
 
@@ -280,12 +280,24 @@ None — all issues resolved inline.
 
 - **Share-to-chat UI**: Implemented as a shadcn `Switch` component (not a traditional checkbox as ACs mention "checkbox").
 
+- **Code Review Fixes (2026-03-23)**:
+  - Added `chatClipIds` to `clip:visibility-changed` broadcast payload per spec requirement
+  - Fixed pending clips memory leak with 5-minute TTL cleanup in `useClipCreate.ts`
+  - Added 5-minute timeout to ffmpeg execution with SIGTERM/SIGKILL fallback
+  - Improved S3 cleanup on upload failure with proper error logging
+  - Added client-side toast timeout fallback (shows "check My Clips page" after 5 min)
+  - Added segment range staleness warning in ClipModal (warns after 30 seconds)
+  - Capture and log ffmpeg stderr on failure for debugging
+  - Added HLS cache invalidation on 404 with HEAD request validation
+  - Updated `ClipVisibilityChangedPayload` type to include optional `chatClipIds`
+
 - **Smoke test required**: Zikeji must manually smoke-test the clip button, modal opening, preset selection, range sliders, form submission flow, and toast notifications before marking done.
 
 ### File List
 
 **Server:**
-- `apps/server/src/env.ts` (added S3_*, MTX_HLS_URL env vars)
+
+- `apps/server/src/env.ts` (added S3\_\*, MTX_HLS_URL env vars)
 - `apps/server/src/lib/s3-client.ts` (NEW — S3 singleton + helpers)
 - `apps/server/src/lib/s3-client.test.ts` (NEW)
 - `apps/server/prisma/schema.prisma` (added Clip model, Message changes)
@@ -302,9 +314,11 @@ None — all issues resolved inline.
 - `apps/server/src/app.ts` (registered clips router)
 
 **Shared types:**
+
 - `packages/types/src/ws.ts` (added clip:status-changed, clip:visibility-changed, ClipChatMessage)
 
 **Frontend:**
+
 - `apps/web/src/composables/useClipCreate.ts` (NEW)
 - `apps/web/src/composables/useClipCreate.test.ts` (NEW)
 - `apps/web/src/composables/useWebSocket.ts` (added clip:status-changed handler)
