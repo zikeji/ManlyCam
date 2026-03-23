@@ -435,6 +435,7 @@ Users can clip segments from the rolling server-side HLS buffer, manage clips th
 - 10-1: Dev Environment Documentation _(must be first; unblocks all implementation)_
 - 10-2: Clipping Infrastructure (HLS buffer, shared volume, ffmpeg, S3 client, Prisma Clip model)
 - 10-3: Clip Creation Pipeline (endpoint, ffmpeg, S3 upload, rate limiting, Sonner, GET+download endpoints) _(depends on 10-2)_
+- 10-3b: Clip Editor UI (stream-integrated timeline scrubber, HLS player swap, drag handles, min/max duration config, HLS proxy route) _(supersedes 10-3 AC #2; depends on 10-3)_
 - 10-4: My Clips Page (clip management, visibility + ACL, audit logging, shared clips toggle, deletion, download) _(depends on 10-2)_
 - 10-5: Chat Clip Integration (clip message type, Watch modal, tombstone, live visibility updates, download) _(depends on 10-3)_
 - 10-6: Public Clip Pages (unauthenticated route, OG meta injection, clipper attribution, stream-status CTA, download) _(depends on 10-2, 10-3)_

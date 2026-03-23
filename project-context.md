@@ -161,7 +161,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 - **Never inline role comparisons** — use `canModerateOver()` and `ROLE_RANK` from `roleUtils.ts`.
 - **Never inline user tag logic** — use `computeUserTag` from `apps/server/src/lib/user-tag.ts`.
 - **Never use `@hono/node-server/ws`** — it does not exist. Use `@hono/node-ws`.
-- **Never use HLS or introduce a new stream format** — the stream pipeline is WebRTC WHEP via mediamtx. Do not change it.
+- **Never use HLS or introduce a new stream format for the live stream** — the live stream pipeline is WebRTC WHEP via mediamtx. Do not change it. Exception: `hls.js` is used in `ClipEditor.vue` solely to play the mediamtx HLS rolling buffer during clip creation mode. This is intentional and confined to that component.
 - **Never upgrade Tailwind past v3** — pinned to `3.4.19`.
 - **Never set story status to `done`** without explicit permission from Zikeji.
 - **Never leave new uncovered lines without `/* c8 ignore next */`** (or `/* c8 ignore start */` / `/* c8 ignore stop */` for blocks) and a brief explanation. V8 provider ignores `istanbul` comments — always use `c8` syntax.

@@ -30,6 +30,7 @@ _This document builds collaboratively through step-by-step discovery. Sections a
 > | frp stream tunnel | MPEG-TS TCP, `local_port = 5000` | **RTSP TCP, `local_port = 8554`** | [3-2b](../implementation-artifacts/3-2b-mediamtx-rtsp-architecture-pivot.md) |
 > | frp API tunnel | Pi agent HTTP (`local_port = 8080`) | **mediamtx HTTP API (`local_port = 9997`)** | [3-6 notes](../implementation-artifacts/3-6-camera-controls-architecture-notes.md) |
 > | Pi reachability detection | ffmpeg process events | **mediamtx API polling** (`GET /v3/paths/get/cam`, `ready: true`) | [3-2c](../implementation-artifacts/3-2c-webrtc-via-mediamtx.md) |
+| Clip editor stream | N/A (new feature) | `GET /api/stream/hls/:path` Hono proxy → `${MTX_HLS_URL}/cam/:path`; `hls.js` in `ClipEditor.vue` plays HLS rolling buffer for clip preview; WHEP live stream CSS-hidden (not unmounted) during clip mode | [10-3b](../implementation-artifacts/10-3b-clip-editor-ui.md) |
 >
 > Stale references to `rpicam-vid`, `ffmpeg`, `HLS`, `hls.js`, `v4l2-ctl`, `output_port`, `codec`, and `HLS_SEGMENT_PATH` throughout the sections below reflect the original design and have been superseded.
 
