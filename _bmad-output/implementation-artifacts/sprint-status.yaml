@@ -144,5 +144,5 @@ development_status:
   epic-10-retrospective: optional
 
   # Post-MVP / Phase 2 (Deferred)
-  pm-1-admin-audit-log-viewer: backlog
+  pm-1-admin-audit-log-viewer: done # Implemented as Story 9-3
   pm-2-resizable-sidebars-drag-gutter: done # Implemented as Story 7-5
