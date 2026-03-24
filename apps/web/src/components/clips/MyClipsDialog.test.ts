@@ -89,12 +89,9 @@ vi.mock('@/components/ui/alert-dialog', () => ({
   AlertDialogDescription: { template: '<div><slot /></div>' },
   AlertDialogFooter: { template: '<div><slot /></div>' },
   AlertDialogCancel: {
+    props: ['disabled'],
     template:
-      '<button data-testid="delete-cancel-button" @click="$emit(\'click\')"><slot /></button>',
-  },
-  AlertDialogAction: {
-    template:
-      '<button data-testid="delete-confirm-button" @click="$emit(\'click\')"><slot /></button>',
+      '<button data-testid="delete-cancel-button" :disabled="disabled" @click="$emit(\'click\')"><slot /></button>',
   },
 }));
 vi.mock('@/components/ui/dropdown-menu', () => ({

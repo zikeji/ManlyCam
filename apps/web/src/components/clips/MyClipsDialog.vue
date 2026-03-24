@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { Loader2 } from 'lucide-vue-next';
 import { Role, ROLE_RANK } from '@manlycam/types';
 import { useAuth } from '@/composables/useAuth';
 import { useClips } from '@/composables/useClips';
@@ -23,7 +24,6 @@ import {
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -58,6 +58,7 @@ const showAll = ref(false);
 const editingClip = ref<ClipListItem | null>(null);
 const deletingClipId = ref<string | null>(null);
 const deleteDialogOpen = ref(false);
+const isDeleting = ref(false);
 const watchingClipUrl = ref<string | null>(null);
 const watchingClipName = ref<string>('');
 
@@ -111,16 +112,17 @@ async function onDismiss(clipId: string) {
 }
 
 async function onConfirmDelete() {
-  const clipId = deletingClipId.value;
-  deleteDialogOpen.value = false;
-  /* c8 ignore next -- guard cannot be reached; AlertDialogAction only fires when dialog is open */
-  if (!clipId) return;
+  /* c8 ignore next -- guard cannot be reached; button only shown when dialog is open */
+  if (!deletingClipId.value) return;
+  isDeleting.value = true;
   try {
-    await deleteClip(clipId);
+    await deleteClip(deletingClipId.value);
+    deleteDialogOpen.value = false;
+    deletingClipId.value = null;
   } catch (err: unknown) {
     toast.error(err instanceof Error ? err.message : 'Failed to delete clip');
   } finally {
-    deletingClipId.value = null;
+    isDeleting.value = false;
   }
 }
 
@@ -438,14 +440,18 @@ watch(
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
-        <AlertDialogCancel data-testid="delete-cancel-button">Cancel</AlertDialogCancel>
-        <AlertDialogAction
+        <AlertDialogCancel data-testid="delete-cancel-button" :disabled="isDeleting">
+          Cancel
+        </AlertDialogCancel>
+        <Button
           data-testid="delete-confirm-button"
-          class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          variant="destructive"
+          :disabled="isDeleting"
           @click="onConfirmDelete"
         >
-          Delete
-        </AlertDialogAction>
+          <Loader2 v-if="isDeleting" class="mr-2 h-4 w-4 animate-spin" />
+          {{ isDeleting ? 'Deleting…' : 'Delete' }}
+        </Button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
