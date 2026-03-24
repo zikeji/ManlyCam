@@ -220,14 +220,21 @@ None — no debug sessions required.
 5. **c8 ignore annotations**: Added on defensive/unreachable branches: `visibilityLabel` fallback, `onSaveEdit` null guard, `err instanceof Error` ternary else.
 6. **useWebSocket integration**: `handleClipStatusUpdate` wired alongside the existing `handleClipStatusChanged` (from useClipCreate); `handleClipVisibilityChanged` added for new WS message type.
 7. **Coverage**: All new lines covered or annotated with `/* c8 ignore next */`. Final: lines 98.34%, branches 93.92%, functions 87.62%, statements 98.34% (all above thresholds).
+8. **B2 ACL architectural correction**: Story 10-4 implementation revealed that Backblaze B2 does NOT support per-object ACLs (`PutObjectAcl`). All ACL code removed: `putObjectAcl`, `s3PublicUrl`, `S3_PUBLIC_BASE_URL` env var, and the ACL transition block in `updateClip`. Thumbnails are now proxied via `GET /api/clips/:clipId/thumbnail` (backend fetches from private bucket via `GetObjectCommand`, returns with `Cache-Control: public, max-age=86400` for reverse proxy caching). `thumbnailUrl` is always the stable path `/api/clips/{clipId}/thumbnail`. Video downloads continue using presigned URLs. epics.md and all story files (10-2 through 10-7) updated to reflect this approach.
 
 ### File List
 
 **Server:**
-- `apps/server/src/services/clipService.ts` (new)
-- `apps/server/src/services/clipService.test.ts` (new)
-- `apps/server/src/routes/clips.ts` (new)
-- `apps/server/src/routes/clips.test.ts` (new)
+- `apps/server/src/services/clipService.ts` (new; modified — removed ACL calls, thumbnailUrl → proxy path)
+- `apps/server/src/services/clipService.test.ts` (new; modified — updated for ACL removal)
+- `apps/server/src/routes/clips.ts` (new; modified — added thumbnail proxy route)
+- `apps/server/src/routes/clips.test.ts` (new; modified — added thumbnail proxy route tests)
+- `apps/server/src/lib/s3-client.ts` (modified — added getS3Object; removed putObjectAcl, s3PublicUrl)
+- `apps/server/src/lib/s3-client.test.ts` (modified — updated for ACL removal; added getS3Object tests)
+- `apps/server/src/services/chatService.ts` (modified — clipThumbnailUrl → proxy path)
+- `apps/server/src/services/chatService.test.ts` (modified — updated thumbnailUrl assertion)
+- `apps/server/src/env.ts` (modified — removed S3_PUBLIC_BASE_URL)
+- `apps/server/.env.example` (modified — removed S3_PUBLIC_BASE_URL)
 - `apps/server/src/app.ts` (modified — registered clips router)
 
 **Web:**
