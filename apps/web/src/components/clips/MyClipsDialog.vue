@@ -263,17 +263,28 @@ watch(
                 </Badge>
               </div>
 
-              <!-- Pending overlay -->
+              <!-- Status overlays -->
               <div
                 v-if="clip.status === 'pending'"
                 class="absolute inset-0 flex items-center justify-center bg-black/60"
                 data-testid="pending-overlay"
               >
                 <div class="h-8 w-8 animate-spin rounded-full border-4 border-white border-t-transparent" />
-              </div>
-
-              <!-- Play overlay (ready clips only) -->
-              <button
+              </div><div
+                v-else-if="clip.status === 'failed'"
+                class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-destructive/70"
+                data-testid="failed-overlay"
+              >
+                <p class="text-sm font-semibold text-white" data-testid="failed-message">Failed</p>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  data-testid="dismiss-button"
+                  @click="onDismiss(clip.id)"
+                >
+                  Dismiss
+                </Button>
+              </div><button
                 v-else-if="clip.status === 'ready'"
                 class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/40 focus-visible:bg-black/40 focus-visible:outline-none"
                 data-testid="play-overlay"
@@ -301,22 +312,8 @@ watch(
                   </p>
                 </div>
 
-                <!-- Failed state -->
-                <div v-if="clip.status === 'failed'" class="shrink-0">
-                  <p class="text-xs text-destructive" data-testid="failed-message">Failed</p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    class="mt-1"
-                    data-testid="dismiss-button"
-                    @click="onDismiss(clip.id)"
-                  >
-                    Dismiss
-                  </Button>
-                </div>
-
                 <!-- Ready state actions menu -->
-                <div v-else-if="clip.status === 'ready'" class="shrink-0">
+                <div v-if="clip.status === 'ready'" class="shrink-0">
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
                       <Button
