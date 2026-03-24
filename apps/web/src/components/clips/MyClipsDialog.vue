@@ -160,7 +160,7 @@ watch(
       <DialogHeader class="px-6 py-4 border-b border-border shrink-0">
         <div class="flex items-center justify-between">
           <DialogTitle>My Clips</DialogTitle>
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-4 pr-8">
             <label class="flex items-center gap-2 text-sm">
               <Switch
                 :model-value="includeShared"
