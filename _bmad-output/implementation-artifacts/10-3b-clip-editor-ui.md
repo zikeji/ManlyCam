@@ -1,6 +1,6 @@
 # Story 10.3b: Clip Editor UI — Stream-Integrated Timeline Scrubber
 
-Status: ready-for-review
+Status: done
 
 ## Story
 
@@ -360,6 +360,24 @@ The following deviations from AC#1-3 were made during implementation based on UX
 - `apps/web/src/components/stream/StreamPlayer.test.ts` (modify)
 - `apps/web/src/views/WatchView.vue` (modify)
 - `apps/web/src/views/WatchView.test.ts` (modify)
+- `apps/web/src/components/stream/AtmosphericVoid.vue` (modify — dual-mode rendering: srcObject for WebRTC, canvas drawImage loop for HLS)
+- `apps/web/src/components/stream/AtmosphericVoid.test.ts` (modify — add HLS/canvas path tests)
 - `apps/web/src/App.vue` (modify — toast auto-dismiss timeout)
 - `apps/web/src/components/ui/sonner/Sonner.vue` (modify — remove close button CSS overrides)
 - `apps/web/vite.config.ts` (modify — lower branches threshold from 94% to 93% to match pre-existing baseline)
+
+## Post-Implementation Code Review
+
+### Code Review Findings (2026-03-23)
+
+**Fixed during review:**
+
+1. **Clip zone/playhead slide animation on open** — `pxTransition` CSS transition was applied during initial scrubber positioning, causing the clip zone and playhead to visibly slide from center to their correct positions. Fixed by adding `suppressTransition` ref (suppressed during init, re-enabled after two rAF frames) and removing transition from the playhead entirely (it should always track position instantly).
+
+2. **AtmosphericVoid blur showed WHEP instead of HLS during clip editing** — The blur background continued showing the live WHEP stream when the clip editor was open. `captureStream()` on MSE-backed video is unreliable, so AtmosphericVoid was rewritten with dual rendering: `<video>` with srcObject cloning for WebRTC, `<canvas>` with a 10fps drawImage loop (64x36 resolution) for HLS/MSE. WatchView switches the source ref based on `clipEditorOpen`. Initial canvas implementation had `src.paused` guard that prevented drawing when HLS video was paused (clip editor starts paused) — removed since paused video still has a valid frame to draw.
+
+3. **Timeline tick marks** — Added ruler-style tick marks to the scrubber track: minor ticks every 10s (half-height, `white/10`) and major ticks every 30s (full-height, `white/20`).
+
+4. **Clip selection shrinking at buffer start** — When the selection was near the oldest end of the rolling buffer, old segment purging would clamp `selectionStartMs` forward each poll without adjusting `selectionEndMs`, progressively shrinking the selection to zero then snapping to 30s at the live edge. Fixed by detecting when the selection start was at the previous buffer boundary (`prevEarliest`) and shifting the entire selection forward to preserve duration. Live-edge pinning remains exclusive to auto-advance mode ("Live" button).
+
+5. **Auto-advance duration shrink** — The auto-advance branch had a compounding shrink bug where clamping `selectionStartMs` to `earliestMs` silently reduced `selDur`, which was used on the next poll to set an even smaller duration. Fixed by computing `targetDur = min(selDur, bufferMs)` upfront.
