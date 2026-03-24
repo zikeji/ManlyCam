@@ -120,7 +120,7 @@ export function useClips() {
 
   const shareClipToChat = async (clipId: string) => {
     await apiFetch<void>(`/api/clips/${clipId}/share`, { method: 'POST' });
-    toast.success('Clip shared to chat');
+    toast.success('Clip shared to chat', { duration: 3000 });
   };
 
   const copyClipLink = async (clipId: string, visibility: string) => {

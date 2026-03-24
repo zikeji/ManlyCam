@@ -19,6 +19,12 @@ export const s3Client = new S3Client({
   forcePathStyle: env.S3_FORCE_PATH_STYLE,
 });
 
+export function s3PublicUrl(key: string): string {
+  return env.S3_FORCE_PATH_STYLE
+    ? `${env.S3_PUBLIC_BASE_URL}/${env.S3_BUCKET}/${key}`
+    : `${env.S3_PUBLIC_BASE_URL}/${key}`;
+}
+
 export async function uploadToS3({
   key,
   body,

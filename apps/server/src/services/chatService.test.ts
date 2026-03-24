@@ -31,6 +31,10 @@ vi.mock('../env.js', () => ({
   env: { S3_PUBLIC_BASE_URL: 'http://localhost:9000' },
 }));
 
+vi.mock('../lib/s3-client.js', () => ({
+  s3PublicUrl: vi.fn().mockImplementation((key: string) => `http://localhost:9000/${key}`),
+}));
+
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
 import { executeCommand } from './slashCommands.js';

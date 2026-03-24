@@ -66,10 +66,10 @@ vi.mock('@/components/ui/button', () => ({ Button: { template: '<button><slot />
 vi.mock('@/components/ui/badge', () => ({ Badge: { template: '<span><slot /></span>' } }));
 vi.mock('@/components/ui/switch', () => ({
   Switch: {
-    props: ['checked'],
-    emits: ['update:checked'],
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
     template:
-      '<input type="checkbox" :checked="checked" @change="$emit(\'update:checked\', $event.target.checked)" />',
+      '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
   },
 }));
 vi.mock('@/components/ui/dialog', () => ({

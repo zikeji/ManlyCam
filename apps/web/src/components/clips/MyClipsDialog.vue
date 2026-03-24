@@ -148,17 +148,17 @@ watch(
           <div class="flex items-center gap-4">
             <label class="flex items-center gap-2 text-sm">
               <Switch
-                :checked="includeShared"
+                :model-value="includeShared"
                 data-testid="include-shared-toggle"
-                @update:checked="onToggleShared"
+                @update:model-value="onToggleShared"
               />
               Show shared
             </label>
             <label v-if="isAdmin" class="flex items-center gap-2 text-sm">
               <Switch
-                :checked="showAll"
+                :model-value="showAll"
                 data-testid="show-all-toggle"
-                @update:checked="onToggleAll"
+                @update:model-value="onToggleAll"
               />
               Show all
             </label>

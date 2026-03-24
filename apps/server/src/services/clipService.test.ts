@@ -46,6 +46,9 @@ vi.mock('../lib/s3-client.js', () => ({
   presignGetObject: vi.fn().mockResolvedValue('https://presigned.example.com/video'),
   deleteS3Objects: vi.fn().mockResolvedValue(undefined),
   putObjectAcl: vi.fn().mockResolvedValue(undefined),
+  s3PublicUrl: vi
+    .fn()
+    .mockImplementation((key: string) => `https://cdn.example.com/test-bucket/${key}`),
 }));
 vi.mock('../lib/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -680,7 +683,9 @@ describe('getClip', () => {
       requestingUserRole: 'Viewer',
     });
     expect(result).toMatchObject({ id: 'clip-001', name: 'My Clip' });
-    expect(result.thumbnailUrl).toBe('https://cdn.example.com/clips/clip-001-thumb.jpg');
+    expect(result.thumbnailUrl).toBe(
+      'https://cdn.example.com/test-bucket/clips/clip-001-thumb.jpg',
+    );
   });
 
   it('returns clip for Admin', async () => {
@@ -933,7 +938,9 @@ describe('listClips', () => {
       isAdmin: false,
     });
     expect(result.clips).toHaveLength(1);
-    expect(result.clips[0].thumbnailUrl).toBe('https://cdn.example.com/clips/clip-001-thumb.jpg');
+    expect(result.clips[0].thumbnailUrl).toBe(
+      'https://cdn.example.com/test-bucket/clips/clip-001-thumb.jpg',
+    );
     expect(result.total).toBe(1);
   });
 
@@ -1652,7 +1659,7 @@ describe('shareClipToChat', () => {
     expect(wsHub.broadcast).toHaveBeenCalledWith({
       type: 'chat:message',
       payload: expect.objectContaining({
-        clipThumbnailUrl: 'https://cdn.example.com/clips/clip-001-thumb.jpg',
+        clipThumbnailUrl: 'https://cdn.example.com/test-bucket/clips/clip-001-thumb.jpg',
       }),
     });
   });

@@ -8,6 +8,7 @@ vi.mock('../env.js', () => ({
     S3_SECRET_KEY: 'secret',
     S3_FORCE_PATH_STYLE: true,
     S3_BUCKET: 'test-bucket',
+    S3_PUBLIC_BASE_URL: 'https://cdn.example.com',
   },
 }));
 
@@ -40,8 +41,10 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: vi.fn().mockResolvedValue('https://presigned.example.com/key'),
 }));
 
+import { env } from '../env.js';
 import {
   s3Client,
+  s3PublicUrl,
   uploadToS3,
   presignGetObject,
   putObjectAcl,
@@ -201,5 +204,19 @@ describe('abortMultipartUpload', () => {
         UploadId: 'upload-001',
       }),
     );
+  });
+});
+
+describe('s3PublicUrl', () => {
+  it('includes bucket in path when S3_FORCE_PATH_STYLE is true', () => {
+    expect(s3PublicUrl('clips/abc-thumb.jpg')).toBe(
+      'https://cdn.example.com/test-bucket/clips/abc-thumb.jpg',
+    );
+  });
+
+  it('omits bucket when S3_FORCE_PATH_STYLE is false', () => {
+    (env as unknown as Record<string, unknown>).S3_FORCE_PATH_STYLE = false;
+    expect(s3PublicUrl('clips/abc-thumb.jpg')).toBe('https://cdn.example.com/clips/abc-thumb.jpg');
+    (env as unknown as Record<string, unknown>).S3_FORCE_PATH_STYLE = true;
   });
 });

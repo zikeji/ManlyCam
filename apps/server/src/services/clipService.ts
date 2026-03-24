@@ -6,7 +6,13 @@ import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { streamConfig } from '../lib/stream-config.js';
 import { wsHub } from './wsHub.js';
-import { uploadToS3, presignGetObject, deleteS3Objects, putObjectAcl } from '../lib/s3-client.js';
+import {
+  uploadToS3,
+  presignGetObject,
+  deleteS3Objects,
+  putObjectAcl,
+  s3PublicUrl,
+} from '../lib/s3-client.js';
 import { AppError } from '../lib/errors.js';
 import { computeUserTag } from '../lib/user-tag.js';
 import { canModerateOver } from '../lib/roleUtils.js';
@@ -294,7 +300,7 @@ export async function processClip({
       clipId,
       clipName: updatedClip.name,
       clipDurationSeconds: durationSeconds,
-      clipThumbnailUrl: `${env.S3_PUBLIC_BASE_URL}/${thumbnailKey}`,
+      clipThumbnailUrl: s3PublicUrl(thumbnailKey),
       editHistory: null,
       updatedAt: null,
       deletedAt: null,
@@ -537,7 +543,7 @@ export async function getClip(params: {
     status: clip.status,
     visibility: clip.visibility,
     thumbnailKey: clip.thumbnailKey,
-    thumbnailUrl: clip.thumbnailKey ? `${env.S3_PUBLIC_BASE_URL}/${clip.thumbnailKey}` : null,
+    thumbnailUrl: clip.thumbnailKey ? s3PublicUrl(clip.thumbnailKey) : null,
     durationSeconds: clip.durationSeconds,
     shareToChat: clip.shareToChat,
     showClipper: clip.showClipper,
@@ -623,7 +629,7 @@ export async function listClips(params: {
     description: clip.description,
     status: clip.status,
     visibility: clip.visibility,
-    thumbnailUrl: clip.thumbnailKey ? `${env.S3_PUBLIC_BASE_URL}/${clip.thumbnailKey}` : null,
+    thumbnailUrl: clip.thumbnailKey ? s3PublicUrl(clip.thumbnailKey) : null,
     durationSeconds: clip.durationSeconds,
     showClipper: clip.showClipper,
     showClipperAvatar: clip.showClipperAvatar,
@@ -855,9 +861,7 @@ export async function updateClip(params: {
         clipId,
         clipName: updated.name,
         clipDurationSeconds: updated.durationSeconds,
-        ...(updated.thumbnailKey
-          ? { clipThumbnailUrl: `${env.S3_PUBLIC_BASE_URL}/${updated.thumbnailKey}` }
-          : {}),
+        ...(updated.thumbnailKey ? { clipThumbnailUrl: s3PublicUrl(updated.thumbnailKey) } : {}),
         ...(updated.clipperAvatarUrl ? { clipperAvatarUrl: updated.clipperAvatarUrl } : {}),
         editHistory: null,
         updatedAt: null,
@@ -880,7 +884,7 @@ export async function updateClip(params: {
     status: updated.status,
     visibility: updated.visibility,
     thumbnailKey: updated.thumbnailKey,
-    thumbnailUrl: updated.thumbnailKey ? `${env.S3_PUBLIC_BASE_URL}/${updated.thumbnailKey}` : null,
+    thumbnailUrl: updated.thumbnailKey ? s3PublicUrl(updated.thumbnailKey) : null,
     durationSeconds: updated.durationSeconds,
     showClipper: updated.showClipper,
     showClipperAvatar: updated.showClipperAvatar,
@@ -944,9 +948,7 @@ export async function shareClipToChat(params: {
     clipId,
     clipName: clip.name,
     clipDurationSeconds: clip.durationSeconds,
-    ...(clip.thumbnailKey
-      ? { clipThumbnailUrl: `${env.S3_PUBLIC_BASE_URL}/${clip.thumbnailKey}` }
-      : {}),
+    ...(clip.thumbnailKey ? { clipThumbnailUrl: s3PublicUrl(clip.thumbnailKey) } : {}),
     editHistory: null,
     updatedAt: null,
     deletedAt: null,
