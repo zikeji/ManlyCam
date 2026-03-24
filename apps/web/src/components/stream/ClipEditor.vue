@@ -175,6 +175,26 @@ const playheadPx = computed(() => {
 const selectionLeftPx = computed(() => msToPixel(selectionStartMs.value));
 const selectionRightPx = computed(() => msToPixel(selectionEndMs.value));
 
+// --- Timeline tick marks (every 10s, emphasized every 30s) ---
+const TICK_INTERVAL_MS = 10_000;
+const MAJOR_TICK_MS = 30_000;
+
+const timelineTicks = computed(() => {
+  const rangeMs = latestMs.value - earliestMs.value;
+  if (rangeMs <= 0 || trackWidth.value <= 0) return [];
+
+  const ticks: { px: number; major: boolean }[] = [];
+  // Snap to first 10s boundary after earliest
+  const firstTick = Math.ceil(earliestMs.value / TICK_INTERVAL_MS) * TICK_INTERVAL_MS;
+  for (let ms = firstTick; ms < latestMs.value; ms += TICK_INTERVAL_MS) {
+    ticks.push({
+      px: msToPixel(ms),
+      major: ms % MAJOR_TICK_MS === 0,
+    });
+  }
+  return ticks;
+});
+
 // Smooth CSS transition for boundary polling updates; disabled during interaction
 // and during initial positioning to prevent jarring slide-in on open
 const pxTransition = computed(() =>
@@ -728,6 +748,15 @@ onUnmounted(() => {
           :aria-label="`Clip selection: ${formatDuration(selectionDurationMs)}`"
           @pointerdown="onTrackPointerDown"
         >
+          <!-- Timeline tick marks -->
+          <div
+            v-for="(tick, i) in timelineTicks"
+            :key="i"
+            class="absolute top-0 pointer-events-none"
+            :class="tick.major ? 'h-full bg-white/20' : 'h-1/2 bg-white/10'"
+            :style="{ left: `${tick.px}px`, width: '1px' }"
+          />
+
           <!-- Selected region -->
           <div
             class="absolute top-0 bottom-0 bg-primary/30 cursor-move"
