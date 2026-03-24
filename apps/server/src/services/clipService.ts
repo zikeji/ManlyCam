@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createReadStream } from 'node:fs';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { env } from '../env.js';
 import { prisma } from '../db/client.js';
@@ -33,7 +34,15 @@ export function parseHlsSegmentRange(m3u8Text: string): { earliest: Date; latest
 
   if (dateTimeMatches.length === 0) return null;
 
-  const timestamps = dateTimeMatches.map((m) => new Date(m[1]));
+  const timestamps = dateTimeMatches
+    .map((m) => {
+      const d = new Date(m[1]);
+      if (isNaN(d.getTime())) return null;
+      return d;
+    })
+    .filter((d): d is Date => d !== null);
+
+  if (timestamps.length === 0) return null;
   const earliest = timestamps[0];
 
   // Latest = last segment start time + its duration
@@ -48,7 +57,7 @@ export function parseHlsSegmentRange(m3u8Text: string): { earliest: Date; latest
 /** Rewrite relative segment URLs in an m3u8 playlist to absolute URLs. */
 export function resolvePlaylistUrls(m3u8Text: string, playlistUrl: string): string {
   const baseUrl = playlistUrl.substring(0, playlistUrl.lastIndexOf('/') + 1);
-  return m3u8Text.replace(/^([^#\s][^\s]*\.ts)$/gm, (seg) =>
+  return m3u8Text.replace(/^(?!#)([^\s]+)$/gm, (seg) =>
     seg.startsWith('http') ? seg : `${baseUrl}${seg}`,
   );
 }
@@ -93,12 +102,16 @@ function runFfmpeg(args: string[]): Promise<void> {
     });
 
     /* c8 ignore start -- defensive: 5-min timeout path requires actual wait; SIGTERM/SIGKILL fallback is defensive */
+    let terminated = false;
+    proc.on('close', () => {
+      terminated = true;
+    });
+
     const timeout = setTimeout(() => {
+      if (terminated) return;
       proc.kill('SIGTERM');
       setTimeout(() => {
-        if (!proc.killed) {
-          proc.kill('SIGKILL');
-        }
+        if (!terminated) proc.kill('SIGKILL');
       }, 5000);
       reject(new Error(`ffmpeg timed out after ${FFMPEG_TIMEOUT_MS}ms`));
     }, FFMPEG_TIMEOUT_MS);
@@ -141,8 +154,10 @@ export async function processClip({
   const thumbnailKey = `clips/${clipId}-thumb.jpg`;
 
   const clip = await prisma.clip.findUnique({ where: { id: clipId } });
-  /* c8 ignore next -- defensive: clip was just created, can only be null in catastrophic race */
-  if (!clip) return;
+  if (!clip) {
+    await unlink(playlistSnapshot).catch(() => undefined);
+    return;
+  }
 
   async function cleanup() {
     await Promise.allSettled([
@@ -212,12 +227,10 @@ export async function processClip({
   const uploadedKeys: string[] = [];
 
   try {
-    // Upload video (private)
-    const videoData = await readFile(videoTmp);
-    await uploadToS3({ key: s3Key, body: videoData, contentType: 'video/mp4', acl: 'private' });
+    const videoStream = createReadStream(videoTmp);
+    await uploadToS3({ key: s3Key, body: videoStream, contentType: 'video/mp4', acl: 'private' });
     uploadedKeys.push(s3Key);
 
-    // Upload thumbnail (public-read)
     const thumbData = await readFile(thumbTmp);
     await uploadToS3({
       key: thumbnailKey,
@@ -556,7 +569,8 @@ export async function getClipDownloadUrl(params: {
     isOwner ||
     isAdmin ||
     (isModerator && clip.visibility !== 'private') ||
-    clip.visibility === 'public';
+    clip.visibility === 'public' ||
+    clip.visibility === 'shared';
   if (!hasAccess) throw new AppError('Not found', 'NOT_FOUND', 404);
 
   if (clip.status !== 'ready') throw new AppError('Clip not ready', 'CLIP_NOT_READY', 409);

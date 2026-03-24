@@ -7,6 +7,7 @@ export function useHlsPlayer() {
   let hls: Hls | null = null;
 
   const isReady = ref(false);
+  const isPlaying = ref(false);
   const error = ref<string | null>(null);
   const currentTime = ref(0);
   const duration = ref(0);
@@ -14,22 +15,29 @@ export function useHlsPlayer() {
 
   let videoEl: HTMLVideoElement | null = null;
   let timeUpdateHandler: (() => void) | null = null;
+  let playingHandler: (() => void) | null = null;
+  let pauseHandler: (() => void) | null = null;
 
   function destroy(): void {
-    if (timeUpdateHandler && videoEl) {
-      videoEl.removeEventListener('timeupdate', timeUpdateHandler);
-      timeUpdateHandler = null;
+    if (videoEl) {
+      if (timeUpdateHandler) videoEl.removeEventListener('timeupdate', timeUpdateHandler);
+      if (playingHandler) videoEl.removeEventListener('playing', playingHandler);
+      if (pauseHandler) videoEl.removeEventListener('pause', pauseHandler);
     }
     if (hls) {
       hls.destroy();
       hls = null;
     }
     isReady.value = false;
+    isPlaying.value = false;
     error.value = null;
     currentTime.value = 0;
     duration.value = 0;
     programDateTimeMs.value = 0;
     videoEl = null;
+    timeUpdateHandler = null;
+    playingHandler = null;
+    pauseHandler = null;
   }
 
   function initHls(video: HTMLVideoElement): void {
@@ -87,7 +95,15 @@ export function useHlsPlayer() {
         currentTime.value = video.currentTime;
         duration.value = video.duration;
       };
+      playingHandler = () => {
+        isPlaying.value = true;
+      };
+      pauseHandler = () => {
+        isPlaying.value = false;
+      };
       video.addEventListener('timeupdate', timeUpdateHandler);
+      video.addEventListener('playing', playingHandler);
+      video.addEventListener('pause', pauseHandler);
     } catch {
       error.value = 'Your browser does not support this feature';
     }
@@ -113,6 +129,7 @@ export function useHlsPlayer() {
 
   return {
     isReady,
+    isPlaying,
     error,
     currentTime,
     duration,

@@ -93,6 +93,16 @@ describe('POST /api/clips', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 when JSON body is null', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: 'null',
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('returns 422 when startTime missing', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
     const res = await createApp().app.request('/api/clips', {

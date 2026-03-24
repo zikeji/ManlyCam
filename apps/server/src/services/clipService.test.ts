@@ -53,6 +53,7 @@ vi.mock('../lib/user-tag.js', () => ({
   computeUserTag: vi.fn().mockReturnValue(null),
 }));
 vi.mock('node:child_process', () => ({ spawn: vi.fn() }));
+vi.mock('node:fs', () => ({ createReadStream: vi.fn(() => ({ pipe: vi.fn() })) }));
 vi.mock('node:fs/promises', () => ({
   readFile: vi.fn().mockResolvedValue(Buffer.from('data')),
   unlink: vi.fn().mockResolvedValue(undefined),
@@ -64,6 +65,7 @@ import { streamConfig } from '../lib/stream-config.js';
 import { uploadToS3, presignGetObject, deleteS3Objects } from '../lib/s3-client.js';
 import { wsHub } from '../services/wsHub.js';
 import { spawn } from 'node:child_process';
+import { unlink } from 'node:fs/promises';
 import {
   parseHlsSegmentRange,
   resolvePlaylistUrls,
@@ -131,6 +133,11 @@ describe('parseHlsSegmentRange', () => {
     const result = parseHlsSegmentRange(m3u8);
     expect(result!.latest.getTime() - result!.earliest.getTime()).toBe(10000);
   });
+
+  it('returns null when all DATE-TIME values are invalid', () => {
+    const m3u8 = `#EXTM3U\n#EXT-X-PROGRAM-DATE-TIME:invalid-date\n#EXTINF:6.000,\nseg.ts`;
+    expect(parseHlsSegmentRange(m3u8)).toBeNull();
+  });
 });
 
 describe('resolvePlaylistUrls', () => {
@@ -153,6 +160,13 @@ describe('resolvePlaylistUrls', () => {
     const result = resolvePlaylistUrls(m3u8, 'http://host/path/stream.m3u8');
     expect(result).toContain('#EXTM3U');
     expect(result).toContain('#EXT-X-TARGETDURATION:6');
+  });
+
+  it('rewrites non-TS segment URLs to absolute', () => {
+    const m3u8 = '#EXTM3U\n#EXTINF:6.000,\nseg0.m4s\n#EXTINF:6.000,\nseg1.m4s\n';
+    const result = resolvePlaylistUrls(m3u8, 'http://127.0.0.1:8090/cam/video1_stream.m3u8');
+    expect(result).toContain('http://127.0.0.1:8090/cam/seg0.m4s');
+    expect(result).toContain('http://127.0.0.1:8090/cam/seg1.m4s');
   });
 });
 
@@ -615,6 +629,13 @@ describe('processClip', () => {
       expect.objectContaining({ data: { status: 'failed' } }),
     );
   });
+
+  it('cleans up playlist snapshot and returns early when clip not found', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(null);
+    await processClip(clipParams);
+    expect(unlink).toHaveBeenCalledWith(clipParams.playlistSnapshot);
+    expect(prisma.clip.update).not.toHaveBeenCalled();
+  });
 });
 
 describe('getClip', () => {
@@ -839,6 +860,16 @@ describe('getClipDownloadUrl', () => {
 
   it('allows anyone to download public clip', async () => {
     vi.mocked(prisma.clip.findUnique).mockResolvedValue({ ...clip, visibility: 'public' } as never);
+    const url = await getClipDownloadUrl({
+      clipId: 'clip-001',
+      requestingUserId: 'viewer-1',
+      requestingUserRole: 'Viewer',
+    });
+    expect(url).toBe('https://presigned.example.com/video');
+  });
+
+  it('allows Viewer to download shared clip', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({ ...clip, visibility: 'shared' } as never);
     const url = await getClipDownloadUrl({
       clipId: 'clip-001',
       requestingUserId: 'viewer-1',

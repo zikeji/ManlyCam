@@ -738,6 +738,12 @@ describe('GET /api/stream/hls/*', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 for malformed URI encoding', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/stream/hls/%FF', authHeaders);
+    expect(res.status).toBe(400);
+  });
+
   it('returns 502 when mediamtx HLS is unreachable', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));

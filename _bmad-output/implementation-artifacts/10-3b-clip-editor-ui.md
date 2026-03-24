@@ -320,6 +320,18 @@ Claude Opus 4.6
 - Server lint auto-fixed prettier formatting in clipService.ts (pre-existing, not from this story's changes)
 - `useHlsPlayer.ts`: moved `destroy()` above `initHls()` to satisfy `no-use-before-define` lint rule
 
+### Intentional Deviations from Original Spec
+
+The following deviations from AC#1-3 were made during implementation based on UX considerations and observed behavior:
+
+1. **Layout pattern (AC#3 deviation)** — The original spec required an absolute-positioned overlay containing HLS video, scrubber, and controls as a unit. The implementation instead uses a flex-col layout where the video area shrinks and controls slide up from the bottom. HLS video was moved out of `ClipEditor.vue` and placed directly in `StreamPlayer.vue`. This provides a more natural slide-up animation and better touch/click targets on mobile viewports.
+
+2. **Clip button disable behavior (AC#1 deviation)** — The original spec stated "The button stays disabled until HLS is ready OR the request fails." The implementation keeps the button disabled for the entire duration the clip editor is open. This forces users to explicitly click "Cancel" to close the editor, preventing accidental double-opens and providing clearer UX state management.
+
+3. **WHEP video visibility (AC#2 deviation)** — The original spec required applying `visibility: hidden` to the WHEP video when HLS is ready. This was not implemented because it caused a jarring black flash during the transition. The WHEP video remains visible behind the HLS video, which is acceptable since the HLS video with `object-contain` fills the same area.
+
+4. **HLS cleanup on close (AC#1 deviation)** — The original spec required calling `hls.destroy()` when the user cancels. The implementation only pauses HLS playback (`hlsPause()`) because `ClipEditor` is kept-alive via `v-show` (lazy-mount pattern). The HLS instance persists for faster re-opening and is only destroyed on component unmount. This provides snappier subsequent opens at the cost of background resource usage while the editor is closed but the component remains mounted.
+
 ### File List
 
 **Server:**

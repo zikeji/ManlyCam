@@ -209,18 +209,22 @@ streamRouter.get('/api/stream/hls/*', requireAuth, async (c) => {
   const hlsPrefix = '/api/stream/hls/';
   /* c8 ignore next 3 -- else branch unreachable: route only matches this prefix */
   const rawPath = c.req.path.startsWith(hlsPrefix) ? c.req.path.slice(hlsPrefix.length) : '';
-  const wildcardPath = decodeURIComponent(rawPath);
+  let wildcardPath: string;
+  try {
+    wildcardPath = decodeURIComponent(rawPath);
+  } catch {
+    throw new AppError('Invalid path encoding', 'VALIDATION_ERROR', 400);
+  }
   if (wildcardPath.includes('..') || !/^[\w./-]*$/.test(wildcardPath)) {
     throw new AppError('Invalid path', 'VALIDATION_ERROR', 400);
   }
   try {
     const upstreamUrl = `${env.MTX_HLS_URL}/cam/${wildcardPath}`;
     const res = await fetch(upstreamUrl);
-    const body = await res.arrayBuffer();
     const contentType = res.headers.get('content-type');
     const headers: Record<string, string> = {};
     if (contentType) headers['content-type'] = contentType;
-    return new Response(body, { status: res.status, headers });
+    return new Response(res.body, { status: res.status, headers });
   } catch {
     throw new AppError('HLS upstream unreachable', 'UPSTREAM_ERROR', 502);
   }

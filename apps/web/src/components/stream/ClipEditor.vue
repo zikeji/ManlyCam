@@ -61,7 +61,9 @@ let playbackRaf: number | null = null;
 const minDurationMs = computed(() => props.segmentRange.minDurationSeconds * 1000);
 const maxDurationMs = computed(() => props.segmentRange.maxDurationSeconds * 1000);
 
-const selectionDurationMs = computed(() => selectionEndMs.value - selectionStartMs.value);
+const selectionDurationMs = computed(() =>
+  Math.max(0, selectionEndMs.value - selectionStartMs.value),
+);
 const canSubmit = computed(() => {
   return (
     hlsReady.value &&
@@ -412,14 +414,20 @@ function onHandleKeydown(handle: 'left' | 'right', e: KeyboardEvent): void {
         selectionStartMs.value = newMs;
       }
     } else {
-      const newMs = Math.max(selectionStartMs.value + minDurationMs.value, selectionEndMs.value - step);
+      const newMs = Math.max(
+        selectionStartMs.value + minDurationMs.value,
+        selectionEndMs.value - step,
+      );
       selectionEndMs.value = newMs;
     }
   } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
     e.preventDefault();
     autoAdvance.value = false;
     if (handle === 'left') {
-      const newMs = Math.min(selectionEndMs.value - minDurationMs.value, selectionStartMs.value + step);
+      const newMs = Math.min(
+        selectionEndMs.value - minDurationMs.value,
+        selectionStartMs.value + step,
+      );
       selectionStartMs.value = newMs;
     } else {
       const newMs = Math.min(latestMs.value, selectionEndMs.value + step);
@@ -463,10 +471,7 @@ function startPolling(): void {
       // Always update timeline boundaries so the track stays in sync
       // with the rolling HLS buffer (old segments get deleted by mediamtx)
       latestMs.value = newLatest;
-      earliestMs.value = Math.max(
-        new Date(range.streamStartedAt).getTime(),
-        newEarliest,
-      );
+      earliestMs.value = Math.max(new Date(range.streamStartedAt).getTime(), newEarliest);
 
       if (autoAdvance.value) {
         // Auto-advance: pin selection end to the live edge
@@ -482,6 +487,21 @@ function startPolling(): void {
         }
         if (selectionStartMs.value < earliestMs.value) {
           selectionStartMs.value = earliestMs.value;
+        }
+
+        // After clamping, check if selection is still valid
+        if (selectionStartMs.value >= selectionEndMs.value) {
+          // Reset to last N seconds of available buffer (use current preset or default 30s)
+          const defaultDurationMs = 30_000;
+          const maxAllowedDurationMs = props.segmentRange.maxDurationSeconds * 1000;
+          const durationMs = Math.min(
+            defaultDurationMs,
+            maxAllowedDurationMs,
+            newLatest - earliestMs.value,
+          );
+
+          selectionEndMs.value = newLatest;
+          selectionStartMs.value = Math.max(earliestMs.value, selectionEndMs.value - durationMs);
         }
       }
     } catch {
@@ -721,7 +741,9 @@ onUnmounted(() => {
             @pointerdown="onLeftHandlePointerDown"
             @keydown="onHandleKeydown('left', $event)"
           >
-            <div class="w-1 h-5 rounded-full bg-primary group-focus-visible:ring-2 group-focus-visible:ring-ring" />
+            <div
+              class="w-1 h-5 rounded-full bg-primary group-focus-visible:ring-2 group-focus-visible:ring-ring"
+            />
           </div>
 
           <!-- Right handle -->
@@ -738,7 +760,9 @@ onUnmounted(() => {
             @pointerdown="onRightHandlePointerDown"
             @keydown="onHandleKeydown('right', $event)"
           >
-            <div class="w-1 h-5 rounded-full bg-primary group-focus-visible:ring-2 group-focus-visible:ring-ring" />
+            <div
+              class="w-1 h-5 rounded-full bg-primary group-focus-visible:ring-2 group-focus-visible:ring-ring"
+            />
           </div>
 
           <!-- Playhead -->
@@ -766,7 +790,9 @@ onUnmounted(() => {
     </div>
 
     <!-- Form -->
-    <div class="px-3 py-2 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))] space-y-2">
+    <div
+      class="px-3 py-2 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))] space-y-2"
+    >
       <!-- Name -->
       <div class="space-y-0.5">
         <label class="text-xs font-medium" for="clip-editor-name">
@@ -809,11 +835,7 @@ onUnmounted(() => {
       <!-- Actions -->
       <div class="flex items-center justify-end gap-2 pt-1">
         <Button variant="ghost" size="sm" @click="handleCancel">Cancel</Button>
-        <Button
-          size="sm"
-          :disabled="!canSubmit"
-          @click="handleSubmit"
-        >
+        <Button size="sm" :disabled="!canSubmit" @click="handleSubmit">
           <Videotape v-if="!isSubmitting" class="w-4 h-4 mr-1" />
           <Loader2 v-else class="w-4 h-4 mr-1 animate-spin" />
           {{ submitLabel }}

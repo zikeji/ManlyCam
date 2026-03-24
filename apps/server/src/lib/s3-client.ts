@@ -26,7 +26,7 @@ export async function uploadToS3({
   acl,
 }: {
   key: string;
-  body: Buffer;
+  body: Buffer | import('node:stream').Readable;
   contentType: string;
   acl?: 'private' | 'public-read';
 }): Promise<void> {

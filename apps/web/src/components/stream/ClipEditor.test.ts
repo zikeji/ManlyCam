@@ -360,5 +360,46 @@ describe('ClipEditor', () => {
     });
   });
 
+  describe('polling and selection clamping', () => {
+    it('resets selection when stream advances past paused selection', async () => {
+      mockFetchSegmentRange.mockResolvedValue({
+        earliest: '2026-03-22T10:00:00.000Z',
+        latest: '2026-03-22T10:05:00.000Z',
+        minDurationSeconds: 10,
+        maxDurationSeconds: 120,
+        streamStartedAt: '2026-03-22T09:55:00.000Z',
+      });
+
+      mountEditor();
+      await nextTick();
+      await flushPromises();
+
+      const btn30s = wrapper!.findAll('button').find((b) => b.text() === '30s');
+      await btn30s?.trigger('click');
+      await nextTick();
+
+      mockFetchSegmentRange.mockResolvedValue({
+        earliest: '2026-03-22T10:06:00.000Z',
+        latest: '2026-03-22T10:11:00.000Z',
+        minDurationSeconds: 10,
+        maxDurationSeconds: 120,
+        streamStartedAt: '2026-03-22T09:55:00.000Z',
+      });
+
+      vi.advanceTimersByTime(5000);
+      await flushPromises();
+      await nextTick();
+
+      const startHandle = wrapper!.find('[aria-label="Selection start handle"]');
+      const endHandle = wrapper!.find('[aria-label="Selection end handle"]');
+
+      const startMs = Number(startHandle.attributes('aria-valuenow'));
+      const endMs = Number(endHandle.attributes('aria-valuenow'));
+
+      expect(endMs - startMs).toBe(30000);
+      expect(endMs).toBe(new Date('2026-03-22T10:11:00.000Z').getTime());
+    });
+  });
+
   // isStreamTooNew is tested in useClipCreate.test.ts
 });

@@ -25,6 +25,9 @@ export function createClipsRouter() {
     } catch {
       throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
     }
+    if (!body || typeof body !== 'object') {
+      throw new AppError('Request body must be a JSON object', 'VALIDATION_ERROR', 400);
+    }
 
     const { startTime, endTime, name, description, shareToChat } = body;
 
