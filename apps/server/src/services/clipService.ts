@@ -663,16 +663,16 @@ export async function deleteClip(params: {
   }
 
   // status: 'ready' — soft delete + S3 cleanup + broadcast
-  const chatClipIds = (
-    await prisma.message.findMany({
-      where: { clipId },
-      select: { id: true },
-      take: 100,
-    })
-  ).map((m) => m.id);
-
-  await prisma.$transaction(async (tx) => {
+  const chatClipIds = await prisma.$transaction(async (tx) => {
+    const ids = (
+      await tx.message.findMany({
+        where: { clipId },
+        select: { id: true },
+        take: 100,
+      })
+    ).map((m) => m.id);
     await tx.clip.update({ where: { id: clipId }, data: { deletedAt: new Date() } });
+    return ids;
   });
 
   if (!isOwner) {

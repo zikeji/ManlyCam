@@ -1,6 +1,6 @@
 # Story 10.4: My Clips Dialog
 
-Status: ready-for-review
+Status: done
 
 ## Story
 
@@ -225,6 +225,7 @@ None — no debug sessions required.
 ### File List
 
 **Server:**
+
 - `apps/server/src/services/clipService.ts` (new; modified — removed ACL calls, thumbnailUrl → proxy path)
 - `apps/server/src/services/clipService.test.ts` (new; modified — updated for ACL removal)
 - `apps/server/src/routes/clips.ts` (new; modified — added thumbnail proxy route)
@@ -238,6 +239,7 @@ None — no debug sessions required.
 - `apps/server/src/app.ts` (modified — registered clips router)
 
 **Web:**
+
 - `apps/web/src/composables/useClips.ts` (new)
 - `apps/web/src/composables/useClips.test.ts` (new)
 - `apps/web/src/composables/useWebSocket.ts` (modified — wired clip WS handlers)
