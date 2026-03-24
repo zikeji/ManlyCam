@@ -10,7 +10,7 @@ So that I can deploy the full clipping feature without guessing at configuration
 
 ## Acceptance Criteria
 
-1. **B2 bucket setup section** documents: creating a private B2 bucket, creating an application key scoped to the bucket with read/write permissions, configuring per-object ACLs (B2 supports `s3:PutObjectAcl` -- operator must enable it on the bucket policy), and which env vars map to B2 settings (`S3_ENDPOINT` = `https://s3.{region}.backblazeb2.com`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL` = `https://f{n}.backblazeb2.com/file` -- operator must supply the correct CDN hostname from B2 dashboard).
+1. **B2 bucket setup section** documents: creating a private B2 bucket, creating an application key scoped to the bucket with read/write permissions, and which env vars map to B2 settings (`S3_ENDPOINT` = `https://s3.{region}.backblazeb2.com`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`); notes that B2 does NOT support per-object ACLs (`PutObjectAcl` is not available) — the bucket stays fully private; thumbnails are proxied through the backend at `/api/clips/:clipId/thumbnail` rather than served directly from B2.
 
 2. **mediamtx HLS configuration section** documents: enabling HLS output, setting `useAbsoluteTimestamp: true` on the path for accurate timestamp synchronization, and the rolling buffer formula: `hlsSegmentCount = desired_buffer_minutes x 60 / hlsSegmentDuration`; example: 15 min buffer with 2s segments = 450 segments; disk space guidance: approximately `bitrate_mbps x buffer_minutes x 7.5` MB (e.g., 2 Mbps x 15 min = 225 MB); recommendation to back the HLS path with sufficient disk space.
 
@@ -20,7 +20,7 @@ So that I can deploy the full clipping feature without guessing at configuration
 
 5. **B2 egress cost notice**: documentation notes that B2 egress costs apply to clip playback from public clip pages and presigned download URLs; operators should review B2 pricing before enabling public clips at scale.
 
-6. **Thumbnail public-read notice**: documentation notes that all clip thumbnails are uploaded as `public-read` and served at `{S3_PUBLIC_BASE_URL}/{thumbnailKey}` regardless of clip visibility -- no ACL management is performed on thumbnail objects; thumbnails of deleted or private clips remain accessible via their S3 URL if an attacker has the key (ULID keys are not guessable without prior access to the URL).
+6. **Thumbnail proxy notice**: documentation notes that clip thumbnails are served through the backend proxy endpoint `/api/clips/:clipId/thumbnail` (responds with `Cache-Control: public, max-age=86400`); access control is enforced by the proxy — thumbnails of private or deleted clips are not served to unauthorised callers; operators may configure Traefik or Caddy to cache this endpoint for up to 24 h to reduce origin load.
 
 7. **Soft-delete and S3 orphan notice**: documentation notes that `DELETE /api/clips/:id` soft-deletes the clip record and then attempts best-effort S3 deletion; if S3 deletion fails, S3 objects are orphaned until manual cleanup; operators can identify orphaned objects by querying `SELECT id, s3_key, thumbnail_key FROM clips WHERE deleted_at IS NOT NULL` and cross-referencing with S3 bucket contents.
 
@@ -31,10 +31,11 @@ So that I can deploy the full clipping feature without guessing at configuration
 ## Tasks / Subtasks
 
 - [ ] Task 1: Add Backblaze B2 setup section to `docs/deploy/README.md` (AC: #1, #5)
-  - [ ] 1.1 Document bucket creation (private, per-object ACL enabled)
+  - [ ] 1.1 Document bucket creation (private bucket; note B2 does NOT support per-object ACLs)
   - [ ] 1.2 Document application key creation (scoped to bucket, read/write)
-  - [ ] 1.3 Map B2 dashboard values to env vars (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL`)
+  - [ ] 1.3 Map B2 dashboard values to env vars (`S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`)
   - [ ] 1.4 Add B2 egress cost warning for public clips at scale
+  - [ ] 1.5 Document thumbnail proxy approach: thumbnails served via `/api/clips/:clipId/thumbnail`, not directly from B2
 - [ ] Task 2: Add mediamtx HLS configuration section to `docs/deploy/README.md` (AC: #2)
   - [ ] 2.1 Document enabling HLS output in `mediamtx-server.yml`
   - [ ] 2.2 Document `useAbsoluteTimestamp: true` on the path for accurate timestamp synchronization
@@ -50,10 +51,10 @@ So that I can deploy the full clipping feature without guessing at configuration
   - [ ] 4.2 Document shared HLS segment directory setup (mediamtx writable, Hono readable)
   - [ ] 4.3 Document systemd service ordering (mediamtx before server)
 - [ ] Task 5: Add clipping security/operations notices (AC: #6, #7)
-  - [ ] 5.1 Document thumbnail public-read behavior and privacy implications
+  - [ ] 5.1 Document thumbnail proxy behavior (`/api/clips/:clipId/thumbnail`, `Cache-Control: public, max-age=86400`) and proxy-level caching guidance (Traefik/Caddy examples for 24 h cache)
   - [ ] 5.2 Document soft-delete behavior and S3 orphan cleanup query
 - [ ] Task 6: Update env var documentation (AC: #8)
-  - [ ] 6.1 Add all new clipping env vars to the "Required variables" table in `docs/deploy/README.md`
+  - [ ] 6.1 Add all new clipping env vars to the "Required variables" table in `docs/deploy/README.md` (note: `S3_PUBLIC_BASE_URL` is NOT present — thumbnails use the proxy, not a public base URL)
   - [ ] 6.2 Add all new clipping env vars to `apps/server/.env.example` with comments
   - [ ] 6.3 Verify all documented env var names match `apps/server/src/env.ts` exactly
 - [ ] Task 7: Update `mediamtx-server.yml` with HLS output config (AC: #2)
@@ -86,14 +87,15 @@ This is a **documentation-only story** -- no application code changes. All modif
 
 These env vars will be added to `apps/server/src/env.ts` by Story 10-2. This story documents them for operators:
 
-| Variable             | Description                    | Example (Production)                               |
-| -------------------- | ------------------------------ | -------------------------------------------------- |
-| `S3_ENDPOINT`        | S3-compatible endpoint URL     | `https://s3.us-west-004.backblazeb2.com`           |
-| `S3_BUCKET`          | Bucket name                    | `manlycam-clips`                                   |
-| `S3_ACCESS_KEY`      | B2 application key ID          | _(from B2 dashboard)_                              |
-| `S3_SECRET_KEY`      | B2 application key secret      | _(from B2 dashboard)_                              |
-| `S3_REGION`          | B2 region                      | `us-west-004`                                      |
-| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails | `https://f004.backblazeb2.com/file/manlycam-clips` |
+| Variable        | Description                | Example (Production)                     |
+| --------------- | -------------------------- | ---------------------------------------- |
+| `S3_ENDPOINT`   | S3-compatible endpoint URL | `https://s3.us-west-004.backblazeb2.com` |
+| `S3_BUCKET`     | Bucket name                | `manlycam-clips`                         |
+| `S3_ACCESS_KEY` | B2 application key ID      | _(from B2 dashboard)_                    |
+| `S3_SECRET_KEY` | B2 application key secret  | _(from B2 dashboard)_                    |
+| `S3_REGION`     | B2 region                  | `us-west-004`                            |
+
+Note: `S3_PUBLIC_BASE_URL` is NOT required. Thumbnails are proxied through the backend at `/api/clips/:clipId/thumbnail` with `Cache-Control: public, max-age=86400` — they are never served directly from B2.
 
 ### mediamtx HLS Configuration
 
@@ -120,15 +122,15 @@ hls_segments (named volume)
   server container:   /hls (read-only)  -- ffmpeg reads segments for clip extraction
 ```
 
-### B2 Per-Object ACL Requirement
+### B2 Architecture Note
 
-B2 buckets default to "owner-enforced" ACL mode. The clipping feature requires per-object ACL support because:
+B2 does NOT support per-object ACLs (`PutObjectAcl` is not available). The clipping feature is designed to work with a fully private B2 bucket:
 
-- Video clips are uploaded with **private** ACL (served via presigned URLs)
-- Thumbnails are uploaded with **`public-read`** ACL (served directly via `S3_PUBLIC_BASE_URL`)
-- Visibility changes toggle ACL between private and public-read on the video object
+- Video clips are uploaded with private ACL (served via presigned URLs from `GET /api/clips/:id/download`)
+- Thumbnails are also stored privately and served through the backend proxy at `/api/clips/:clipId/thumbnail` (with `Cache-Control: public, max-age=86400`)
+- No `PutObjectAcl` calls are made — the bucket stays private at all times
 
-If the bucket uses owner-enforced mode, `PutObjectAcl` calls will fail with `AccessControlListNotSupported`. This must be set at bucket creation time in the B2 dashboard.
+Operators may configure their reverse proxy (Traefik or Caddy) to cache the thumbnail endpoint for up to 24 h to reduce origin load, since the `Cache-Control` header already signals this is safe to cache.
 
 ### Existing Deployment Doc Structure
 

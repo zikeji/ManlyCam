@@ -10,7 +10,7 @@ So that I can edit clip details, control visibility, share to chat, download, an
 
 ## Acceptance Criteria
 
-1. **GET /api/clips** returns paginated clips. Zero-indexed `page` param (`skip = page * limit`), default limit 20, newest-first. `deletedAt: null` filter on ALL query variants. By default: own clips only. `?includeShared=true`: adds non-private (`shared`/`public`) non-deleted clips from other users. Admin `?all=true`: all non-deleted clips regardless of owner/visibility. Non-Admin `?all=true` silently ignored. Each item includes `thumbnailUrl` as `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`, name, description, status, visibility, duration, clipper info, creation date.
+1. **GET /api/clips** returns paginated clips. Zero-indexed `page` param (`skip = page * limit`), default limit 20, newest-first. `deletedAt: null` filter on ALL query variants. By default: own clips only. `?includeShared=true`: adds non-private (`shared`/`public`) non-deleted clips from other users. Admin `?all=true`: all non-deleted clips regardless of owner/visibility. Non-Admin `?all=true` silently ignored. Each item includes `thumbnailUrl` as the proxy path `/api/clips/{clipId}/thumbnail`, name, description, status, visibility, duration, clipper info, creation date.
 
 2. **My Clips dialog** is accessible via the profile popover in BroadcastConsole (above Preferences). It renders own clips as cards: thumbnail, name, duration badge, visibility badge, status indicator, creation date. Pending clips show processing spinner. Failed clips show error state with Dismiss button. Ready clips show Edit, Share to Chat, Copy Link, Download, and Delete actions.
 
@@ -22,15 +22,15 @@ So that I can edit clip details, control visibility, share to chat, download, an
 
 6. **Edit clip** (owner only for name/description/visibility). Visibility options: `private` (always), `shared` (always), `public` (Moderator/Admin only).
 
-7. **Public visibility PATCH** triggers attribution controls: "Show clipper" toggle; when enabled: "Show clipper avatar" toggle + "Clipper name" field (pre-filled with owner's display name). Server stores on clip record. `showClipperAvatar: true` snapshots owner's current `avatarUrl` into `clipperAvatarUrl` (null guard: if `avatarUrl` null, store `showClipperAvatar: false`). Re-enable re-snapshots. Server calls `PutObjectAcl(public-read)` on video S3 object (try/catch, non-fatal). Thumbnail already public-read.
+7. **Public visibility PATCH** triggers attribution controls: "Show clipper" toggle; when enabled: "Show clipper avatar" toggle + "Clipper name" field (pre-filled with owner's display name). Server stores on clip record. `showClipperAvatar: true` snapshots owner's current `avatarUrl` into `clipperAvatarUrl` (null guard: if `avatarUrl` null, store `showClipperAvatar: false`). Re-enable re-snapshots. Thumbnail is served via the proxy endpoint `/api/clips/{clipId}/thumbnail` regardless of visibility.
 
-8. **Visibility downgrade** (public -> shared/private): server calls `PutObjectAcl(private)` on video S3 object. Thumbnail stays public-read.
+8. **Visibility downgrade** (public -> shared/private): no S3 ACL change needed (bucket stays private). Thumbnail remains served via proxy at all visibility levels.
 
 9. **PATCH /api/clips/:id** accepts partial body `{ name?, description?, visibility?, showClipper?, showClipperAvatar?, clipperName? }`. Check order: (1) 401; (2) fetch clip with `include: { user: { select: { avatarUrl: true } } }`; (3) not found/soft-deleted -> 404; (4) not owner AND `canModerateOver` fails -> 404; (5) Viewer/ViewerGuest setting `visibility: 'public'` -> 422. Returns 200 with full updated clip. `last_edited_at` updated only when name or description changes (not status/visibility/attribution).
 
 10. **Moderator/Admin edit non-owned clip** writes separate audit log rows per changed category: `clip:edited` (name/desc), `clip:visibility-changed`, `clip:attribution-changed`. Audit only when `actorId !== clip.userId`.
 
-11. **Visibility change with chat references** broadcasts `clip:visibility-changed` WsMessage with `{ clipId, visibility, chatClipIds }`. When `visibility` is `shared`/`public`, includes full clip card data for tombstone restoration. `clipThumbnailUrl` = `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`. Omit null `clipperAvatarUrl`. Broadcast only after DB commit.
+11. **Visibility change with chat references** broadcasts `clip:visibility-changed` WsMessage with `{ clipId, visibility, chatClipIds }`. When `visibility` is `shared`/`public`, includes full clip card data for tombstone restoration. `clipThumbnailUrl` = the proxy path `/api/clips/{clipId}/thumbnail`. Omit null `clipperAvatarUrl`. Broadcast only after DB commit.
 
 12. **Share to Chat** on ready clip: if `visibility: 'private'`, update to `shared` + create Message in `prisma.$transaction()`. Broadcast `chat:message` with clip card payload. Also broadcast `clip:visibility-changed` when visibility changed. No uniqueness constraint -- same clip can be shared multiple times. Server checks muted status -> 403 if muted.
 
@@ -51,7 +51,7 @@ So that I can edit clip details, control visibility, share to chat, download, an
 ### Server
 
 - [x] **Task 1: Clip service** (`apps/server/src/services/clipService.ts`) (AC: #1, #4, #5, #9, #10, #12)
-  - [x] 1.1 `listClips({ userId, page, limit, includeShared, all, isAdmin })` -- paginated query with `deletedAt: null` filter; compute `thumbnailUrl` from `S3_PUBLIC_BASE_URL`
+  - [x] 1.1 `listClips({ userId, page, limit, includeShared, all, isAdmin })` -- paginated query with `deletedAt: null` filter; compute `thumbnailUrl` as proxy path `/api/clips/{clipId}/thumbnail`
   - [x] 1.2 `deleteClip({ clipId, actor })` -- check order per AC #4; `prisma.$transaction()` for soft-delete; S3 cleanup (best-effort); `clip:visibility-changed` broadcast after commit
   - [x] 1.3 `updateClip({ clipId, actor, data })` -- partial update per AC #9 check order; `showClipperAvatar` null guard; S3 ACL transitions; audit logging per AC #10; `clip:visibility-changed` broadcast per AC #11
   - [x] 1.4 `shareClipToChat({ clipId, actor })` -- muted check; private->shared transition + Message insert in `prisma.$transaction()`; broadcast `chat:message` + `clip:visibility-changed`
@@ -108,7 +108,7 @@ Story 10-2 (Clipping Infrastructure) MUST be completed first. It provides:
 - `clip:status-changed` and `clip:visibility-changed` WsMessage types in `packages/types/src/ws.ts`
 - `ClipChatMessage` type with tombstone support
 - S3 client singleton at `apps/server/src/lib/s3-client.ts`
-- S3 env vars in `apps/server/src/env.ts` (S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY, S3_REGION, S3_PUBLIC_BASE_URL, MTX_HLS_URL)
+- S3 env vars in `apps/server/src/env.ts` (S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY, S3_REGION, MTX_HLS_URL)
 
 Story 10-3 (Clip Creation Pipeline) provides:
 
@@ -130,9 +130,8 @@ Story 10-3 (Clip Creation Pipeline) provides:
 - Use ULID singleton from `apps/server/src/lib/ulid.ts` for new message IDs
 - Use `AppError` from `apps/server/src/lib/errors.ts`
 - Audit logging: use existing `auditLogService.ts` pattern -- `action`, `actorId`, `targetId`, `metadata`
-- S3 ACL operations: import S3 client from `apps/server/src/lib/s3-client.ts`, use `PutObjectAclCommand` from `@aws-sdk/client-s3`
 - S3 presigned URLs: use `@aws-sdk/s3-request-presigner` (already in deps from 10-3)
-- `thumbnailUrl` is ALWAYS `{env.S3_PUBLIC_BASE_URL}/{thumbnailKey}` -- never presign thumbnails
+- `thumbnailUrl` is ALWAYS the proxy path `/api/clips/{clipId}/thumbnail` — `PutObjectAcl` is NOT used (B2 does not support it; bucket stays private)
 - WS broadcasts via `wsHub.broadcast()` or `wsHub.sendToUser()` from `apps/server/src/services/wsHub.ts`
 
 **Web patterns:**
@@ -155,11 +154,11 @@ Story 10-3 (Clip Creation Pipeline) provides:
 - Muted user Share to Chat -> 403 (server authoritative; UI hides button)
 - Admin `?all=true` silently ignored for non-Admin (no error)
 
-**S3 ACL Transition Rules:**
+**S3 Notes:**
 
-- Public: `PutObjectAcl(public-read)` on VIDEO only; thumbnail already public-read from upload
-- Private/Shared: `PutObjectAcl(private)` on VIDEO only; thumbnail stays public-read forever
-- ACL failures: logged but non-fatal (try/catch, do not fail the visibility transition)
+- `PutObjectAcl` is NOT used — B2 does not support per-object ACLs; the bucket remains private at all times
+- Thumbnails are served via the proxy endpoint `GET /api/clips/{clipId}/thumbnail` (with `Cache-Control: public, max-age=86400`); access control is enforced by the proxy
+- Video downloads continue to use presigned URLs via `GET /api/clips/:id/download`
 
 **Soft-Delete Rules:**
 

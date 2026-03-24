@@ -12,7 +12,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 
 1. **Given** the server-side mediamtx config is updated **When** mediamtx is running and the Pi RTSP stream is connected **Then** HLS segments are written to the configured segment path with original frame timestamps preserved (via `useAbsoluteTimestamp: true` on the path); the rolling buffer retains content according to `hlsSegmentCount * hlsSegmentDuration`; the WHEP live viewer endpoint is unaffected
 2. **Given** the `docker-compose.yml` is updated **When** `docker compose up` is run **Then** a `hls_segments` named volume exists; the mediamtx container mounts it read-write at the segment output path; the server container mounts it read-only at the same path
-3. **Given** `apps/server/src/env.ts` is updated **When** the server starts **Then** it validates `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL`, `S3_FORCE_PATH_STYLE` (boolean, default `true`), and `MTX_HLS_URL` (string, URL, default `http://127.0.0.1:8090`) via Zod; missing vars produce a descriptive startup error
+3. **Given** `apps/server/src/env.ts` is updated **When** the server starts **Then** it validates `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_FORCE_PATH_STYLE` (boolean, default `true`), and `MTX_HLS_URL` (string, URL, default `http://127.0.0.1:8090`) via Zod; missing vars produce a descriptive startup error
 4. **Given** an S3 client singleton is created at `apps/server/src/lib/s3-client.ts` **When** other modules import it **Then** it exports a single `S3Client` instance configured from env vars; no other file constructs an `S3Client` directly
 5. **Given** the Prisma schema is updated **When** `pnpm prisma migrate dev` is run **Then** a `clips` table is created with: `id CHAR(26)` PK, `user_id CHAR(26)` FK->users, `name VARCHAR(100) NOT NULL`, `description VARCHAR(500)`, `status TEXT NOT NULL DEFAULT 'pending'`, `visibility TEXT NOT NULL DEFAULT 'private'`, `thumbnail_key TEXT`, `duration_seconds INTEGER`, `show_clipper BOOLEAN NOT NULL DEFAULT false`, `show_clipper_avatar BOOLEAN NOT NULL DEFAULT false`, `clipper_name VARCHAR(50)`, `clipper_avatar_url TEXT`, `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`, `updated_at TIMESTAMPTZ` (@updatedAt), `last_edited_at TIMESTAMPTZ`, `deleted_at TIMESTAMPTZ`; `@@index([userId])`; `clips Clip[]` added to User model; S3 object keys follow pattern `clips/{clipId}/video.mp4` and `clips/{clipId}/thumbnail.jpg` (no separate `s3_key` column needed)
 6. **Given** the Prisma schema is updated **When** the `messages` table migration runs **Then** two new columns are added: `clip_id CHAR(26)` (nullable FK->clips, `onDelete: SetNull`) and `message_type TEXT NOT NULL DEFAULT 'text'`; an index is added on `clip_id`
@@ -31,7 +31,6 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
   - [x] Add `S3_ACCESS_KEY` (string, min 1)
   - [x] Add `S3_SECRET_KEY` (string, min 1)
   - [x] Add `S3_REGION` (string, min 1)
-  - [x] Add `S3_PUBLIC_BASE_URL` (string, min 1)
   - [x] Add `S3_FORCE_PATH_STYLE` (boolean, default `true`)
   - [x] Add `MTX_HLS_URL` (string, URL, default `http://127.0.0.1:8090`)
   - [x] Update `.env.example` with the new vars
@@ -95,7 +94,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
   - [x] Update `getHistory()` query to include `clip` relation with `select`
   - [x] Update `toApiChatMessage()` to produce `TextChatMessage` or `ClipChatMessage` based on `messageType`
   - [x] Implement tombstone logic: `clipId IS NULL` (cascade-nulled), clip visibility `private`, or clip `deletedAt IS NOT NULL` -> `tombstone: true`
-  - [x] `clipThumbnailUrl` = `{S3_PUBLIC_BASE_URL}/{thumbnailKey}` (import from env)
+  - [x] `clipThumbnailUrl` = proxy path `/api/clips/{clipId}/thumbnail`
   - [x] Omit `clipperAvatarUrl` field when null (do not serialize `null`)
   - [x] Write comprehensive tests for text messages, clip messages, and tombstone cases
 
@@ -112,7 +111,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 
 - Use `forcePathStyle: env.S3_FORCE_PATH_STYLE` in the S3Client config — `true` for RustFS/MinIO path-style access (`http://host:port/bucket/key`), `false` for AWS virtual-hosted-style (`http://bucket.host/key`)
 - The presigner (`@aws-sdk/s3-request-presigner`) is needed for Story 10-3 download URLs but should be installed now to avoid a dep-add story later
-- S3 bucket should support `PutObjectAcl` for object-level ACL operations (used by clip visibility toggle). RustFS supports this at the object level.
+- The bucket stays private — thumbnails are proxied through `GET /api/clips/{clipId}/thumbnail` (with `Cache-Control: public, max-age=86400`), not served directly from S3. `PutObjectAcl` is NOT used.
 - S3 object keys follow pattern `clips/{clipId}/video.mp4` and `clips/{clipId}/thumbnail.jpg` — derive from clipId, no separate key storage needed
 
 **Prisma Migration Notes**
@@ -145,7 +144,7 @@ So that subsequent stories have a stable foundation of HLS buffer, S3 client, Cl
 **chatService.ts Changes**
 
 - The `include: { clip: { select: { ... } } }` in `getHistory()` uses Prisma camelCase field names, not DB column names
-- `clipThumbnailUrl` is `{S3_PUBLIC_BASE_URL}/{thumbnailKey}` when `thumbnailKey` exists — omit the field entirely when null; UI shows generic clip placeholder
+- `clipThumbnailUrl` is the proxy path `/api/clips/{clipId}/thumbnail` when `thumbnailKey` exists — omit the field entirely when null; UI shows generic clip placeholder
 - Omit `clipperAvatarUrl` from payload when null — the TypeScript type is `clipperAvatarUrl?: string`, not `string | null`
 - Tombstone conditions: `clipId IS NULL` (cascade-nulled), OR clip `visibility === 'private'`, OR clip `deletedAt IS NOT NULL`
 - Message rows for deleted/private clips remain intact with their original `deletedAt: null` — the existing `where: { deletedAt: null }` filter on messages continues to work correctly

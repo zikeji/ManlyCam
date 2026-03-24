@@ -20,7 +20,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 5. **Clip record creation** -- Valid requests create a `pending` clip record with server-generated ULID. Returns `{ id, status: 'pending' }` immediately. `shareToChat` is persisted to the `shareToChat` boolean column on the clip record (defaults to `false`).
 
-6. **ffmpeg processing** -- Async processing calls ffmpeg: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (duration = `Math.ceil((new Date(endTime) - new Date(startTime)) / 1000)` -- do NOT use `-to`; `{streamPlaylistName}` is the cached stream playlist filename extracted from `index.m3u8` at stream start, e.g., `video1_stream.m3u8`). Thumbnail: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`. Video uploaded to S3 with **private** ACL. Thumbnail uploaded with **`public-read`** ACL. Clip record updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, `durationSeconds`. Temp files deleted after upload or on error. Non-zero ffmpeg exit or short output: retry once silently, then set `status: 'failed'` on second failure. On any failure, abort and clean up any pending/partial S3 multipart uploads.
+6. **ffmpeg processing** -- Async processing calls ffmpeg: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (duration = `Math.ceil((new Date(endTime) - new Date(startTime)) / 1000)` -- do NOT use `-to`; `{streamPlaylistName}` is the cached stream playlist filename extracted from `index.m3u8` at stream start, e.g., `video1_stream.m3u8`). Thumbnail: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`. Video and thumbnail both uploaded to S3 (private bucket — no ACLs). Clip record updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, `durationSeconds`. Temp files deleted after upload or on error. Non-zero ffmpeg exit or short output: retry once silently, then set `status: 'failed'` on second failure. On any failure, abort and clean up any pending/partial S3 multipart uploads.
 
 7. **Client timestamp derivation** -- Client derives `startTime`/`endTime` from segment timestamps parsed from the live `.m3u8` playlist (with `useAbsoluteTimestamp: true`, segment timestamps correspond to original frame timestamps). Using `Date.now()` or any wall-clock source is prohibited.
 
@@ -34,7 +34,7 @@ So that I can capture memorable moments with an optional name, description, chat
 
 12. **Rate limiting** -- Users with `ROLE_RANK[user.role] < ROLE_RANK['Moderator']` (Viewer, ViewerGuest) are limited to 5 clips per rolling 60 minutes. Returns 429 with descriptive error. Moderator/Admin exempt.
 
-13. **GET /api/clips/:id** -- Returns clip record with all non-sensitive fields. Access: owner; Admin; Moderator for own or shared/public clips (404 for private clips of others -- not 403); unauthenticated users for public clips only (401 otherwise). Soft-deleted clips return 404 for all. `thumbnailUrl` = `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`.
+13. **GET /api/clips/:id** -- Returns clip record with all non-sensitive fields. Access: owner; Admin; Moderator for own or shared/public clips (404 for private clips of others -- not 403); unauthenticated users for public clips only (401 otherwise). Soft-deleted clips return 404 for all. `thumbnailUrl` = the proxy path `/api/clips/{clipId}/thumbnail`.
 
 14. **GET /api/clips/:id/download** -- 401 if unauthenticated; 404 if not found, soft-deleted, or no access; 409 if status not `ready`. Generates presigned S3 URL (60min expiry) with `ResponseContentDisposition: attachment; filename="{slugified-name}.mp4"`. Returns 302 redirect. Empty slugified name falls back to `{clipId}.mp4`.
 
@@ -47,14 +47,13 @@ So that I can capture memorable moments with an optional name, description, chat
 ### Server
 
 - [x] Task 1: Add new env vars to `env.ts` (AC: #3, #5)
-  - [x] Add `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_PUBLIC_BASE_URL` (all `z.string().min(1)`)
+  - [x] Add `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION` (all `z.string().min(1)`)
   - [x] Add `MTX_HLS_URL` (`z.string().url().default('http://127.0.0.1:8090')`)
 
 - [x] Task 2: Create S3 client singleton `apps/server/src/lib/s3-client.ts` (AC: #5)
   - [x] Import from `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`
   - [x] Export single `s3Client` instance configured from env vars
-  - [x] Export helper functions: `uploadToS3`, `presignGetObject`, `putObjectAcl`, `deleteS3Objects`, `abortMultipartUpload`
-  - [x] Add `validateS3BucketAcl()` function that checks bucket supports per-object ACLs at startup (use HeadBucket + GetBucketAcl)
+  - [x] Export helper functions: `uploadToS3`, `presignGetObject`, `getS3Object`, `deleteS3Objects`, `abortMultipartUpload`
 
 - [x] Task 3: Create Prisma migration for `clips` table (AC: #4)
   - [x] Add `Clip` model with all columns per Story 10-2 spec (including `shareToChat` boolean, default `false`)
@@ -166,11 +165,10 @@ Story 10-2 delivers the infrastructure foundation. If 10-2 is not yet merged, th
 - Temp files named by clip ULID to prevent collision: `/tmp/{clipId}.mp4`, `/tmp/{clipId}-thumb.jpg`
 - No concurrent ffmpeg cap in MVP (known limitation for constrained hosts)
 
-**S3 ACL rules:**
+**S3 upload:**
 
-- Video: uploaded with **private** ACL (default)
-- Thumbnail: uploaded with **`public-read`** ACL -- always accessible via `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`, never presigned
-- S3 provider must support `PutObjectAcl` for clip visibility toggling (RustFS and B2 both support this at the object level)
+- Video: uploaded with **private** ACL (default, bucket is private)
+- Thumbnail: uploaded to S3 (private bucket); served via proxy endpoint `GET /api/clips/{clipId}/thumbnail` which enforces access control; `PutObjectAcl` is NOT used
 
 **shareToChat persistence:**
 
