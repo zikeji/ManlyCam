@@ -5,6 +5,7 @@ import {
   createClip,
   getClip,
   getClipDownloadUrl,
+  getClipStreamUrl,
   getSegmentRange,
   listClips,
   deleteClip,
@@ -192,6 +193,19 @@ export function createClipsRouter() {
     });
 
     return c.redirect(url, 302);
+  });
+
+  clipsRouter.get('/api/clips/:clipId/stream', async (c) => {
+    const clipId = c.req.param('clipId');
+    const user = c.get('user');
+
+    const url = await getClipStreamUrl({
+      clipId,
+      requestingUserId: user?.id,
+      requestingUserRole: user?.role,
+    });
+
+    return c.json({ url });
   });
 
   return clipsRouter;

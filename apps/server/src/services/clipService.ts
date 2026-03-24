@@ -993,11 +993,11 @@ export async function shareClipToChat(params: {
   }
 }
 
-export async function getClipDownloadUrl(params: {
+async function resolveClipForAccess(params: {
   clipId: string;
   requestingUserId?: string;
   requestingUserRole?: string;
-}): Promise<string> {
+}) {
   const { clipId, requestingUserId, requestingUserRole } = params;
 
   if (!requestingUserId) throw new AppError('Unauthorized', 'UNAUTHORIZED', 401);
@@ -1021,12 +1021,29 @@ export async function getClipDownloadUrl(params: {
   if (clip.status !== 'ready') throw new AppError('Clip not ready', 'CLIP_NOT_READY', 409);
   if (!clip.s3Key) throw new AppError('Not found', 'NOT_FOUND', 404);
 
-  const slug = slugify(clip.name);
-  const filename = slug ? `${slug}.mp4` : `${clipId}.mp4`;
+  return clip;
+}
 
+export async function getClipDownloadUrl(params: {
+  clipId: string;
+  requestingUserId?: string;
+  requestingUserRole?: string;
+}): Promise<string> {
+  const clip = await resolveClipForAccess(params);
+  const slug = slugify(clip.name);
+  const filename = slug ? `${slug}.mp4` : `${params.clipId}.mp4`;
   return presignGetObject({
-    key: clip.s3Key,
+    key: clip.s3Key!,
     expiresIn: 3600,
     contentDisposition: `attachment; filename="${filename}"`,
   });
+}
+
+export async function getClipStreamUrl(params: {
+  clipId: string;
+  requestingUserId?: string;
+  requestingUserRole?: string;
+}): Promise<string> {
+  const clip = await resolveClipForAccess(params);
+  return presignGetObject({ key: clip.s3Key!, expiresIn: 3600 });
 }

@@ -16,6 +16,7 @@ const {
   mockShareClipToChat,
   mockCopyClipLink,
   mockDownloadClip,
+  mockGetClipStreamUrl,
   mockUser,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -32,6 +33,7 @@ const {
     mockShareClipToChat: vi.fn().mockResolvedValue(undefined),
     mockCopyClipLink: vi.fn().mockResolvedValue(undefined),
     mockDownloadClip: vi.fn(),
+    mockGetClipStreamUrl: vi.fn().mockResolvedValue('https://presigned.example.com/stream'),
     mockUser: vueModule.ref<{ id: string; role: string; mutedAt: string | null } | null>({
       id: 'user-001',
       role: 'ViewerGuest',
@@ -54,6 +56,7 @@ vi.mock('@/composables/useClips', () => ({
     shareClipToChat: mockShareClipToChat,
     copyClipLink: mockCopyClipLink,
     downloadClip: mockDownloadClip,
+    getClipStreamUrl: mockGetClipStreamUrl,
   }),
 }));
 
@@ -93,6 +96,13 @@ vi.mock('@/components/ui/alert-dialog', () => ({
     template:
       '<button data-testid="delete-confirm-button" @click="$emit(\'click\')"><slot /></button>',
   },
+}));
+vi.mock('@/components/ui/dropdown-menu', () => ({
+  DropdownMenu: { template: '<div><slot /></div>' },
+  DropdownMenuTrigger: { template: '<div><slot /></div>' },
+  DropdownMenuContent: { template: '<div><slot /></div>' },
+  DropdownMenuItem: { template: '<div @click="$emit(\'click\')"><slot /></div>', emits: ['click'] },
+  DropdownMenuSeparator: { template: '<hr />' },
 }));
 vi.mock('@/components/clips/ClipEditForm.vue', () => ({
   default: {
@@ -381,6 +391,28 @@ describe('MyClipsDialog', () => {
     await nextTick();
     await wrapper.find('[data-testid="download-button"]').trigger('click');
     expect(mockDownloadClip).toHaveBeenCalledWith('clip-001');
+  });
+
+  it('opens video player when thumbnail play overlay clicked', async () => {
+    mockGetClipStreamUrl.mockResolvedValue('https://presigned.example.com/stream');
+    mockClips.value = [{ ...baseClip }];
+    wrapper = mountOpen();
+    await nextTick();
+    await wrapper.find('[data-testid="play-overlay"]').trigger('click');
+    await flushPromises();
+    expect(mockGetClipStreamUrl).toHaveBeenCalledWith('clip-001');
+    expect(wrapper.find('[data-testid="clip-video"]').exists()).toBe(true);
+  });
+
+  it('shows error toast when getClipStreamUrl fails', async () => {
+    mockGetClipStreamUrl.mockRejectedValueOnce(new Error('Stream error'));
+    const { toast } = await import('vue-sonner');
+    mockClips.value = [{ ...baseClip }];
+    wrapper = mountOpen();
+    await nextTick();
+    await wrapper.find('[data-testid="play-overlay"]').trigger('click');
+    await flushPromises();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Stream error');
   });
 
   it('opens edit dialog when edit button clicked', async () => {

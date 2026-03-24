@@ -137,6 +137,11 @@ export function useClips() {
     window.location.href = `/api/clips/${clipId}/download`;
   };
 
+  const getClipStreamUrl = async (clipId: string): Promise<string> => {
+    const data = await apiFetch<{ url: string }>(`/api/clips/${clipId}/stream`);
+    return data.url;
+  };
+
   return {
     clips,
     total,
@@ -149,5 +154,6 @@ export function useClips() {
     shareClipToChat,
     copyClipLink,
     downloadClip,
+    getClipStreamUrl,
   };
 }

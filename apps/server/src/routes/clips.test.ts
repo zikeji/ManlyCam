@@ -36,6 +36,7 @@ vi.mock('../services/clipService.js', () => ({
   createClip: vi.fn(),
   getClip: vi.fn(),
   getClipDownloadUrl: vi.fn(),
+  getClipStreamUrl: vi.fn(),
   getSegmentRange: vi.fn(),
   listClips: vi.fn(),
   deleteClip: vi.fn(),
@@ -48,6 +49,7 @@ import {
   createClip,
   getClip,
   getClipDownloadUrl,
+  getClipStreamUrl,
   getSegmentRange,
   listClips,
   deleteClip,
@@ -637,6 +639,40 @@ describe('POST /api/clips/:clipId/share', () => {
     vi.mocked(shareClipToChat).mockRejectedValue(new AppError('Not ready', 'CLIP_NOT_READY', 409));
     const res = await createApp().app.request('/api/clips/clip-001/share', {
       method: 'POST',
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(409);
+  });
+});
+
+describe('GET /api/clips/:clipId/stream', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 200 with url for authenticated owner', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getClipStreamUrl).mockResolvedValue('https://presigned.example.com/stream');
+    const res = await createApp().app.request('/api/clips/clip-001/stream', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ url: 'https://presigned.example.com/stream' });
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    vi.mocked(getClipStreamUrl).mockRejectedValue(new AppError('Unauthorized', 'UNAUTHORIZED', 401));
+    const res = await createApp().app.request('/api/clips/clip-001/stream');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 409 when clip not ready', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getClipStreamUrl).mockRejectedValue(
+      new AppError('Clip not ready', 'CLIP_NOT_READY', 409),
+    );
+    const res = await createApp().app.request('/api/clips/clip-001/stream', {
       headers: { cookie: 'session_id=valid' },
     });
     expect(res.status).toBe(409);

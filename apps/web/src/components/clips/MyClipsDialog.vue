@@ -9,6 +9,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -43,12 +50,15 @@ const {
   shareClipToChat,
   copyClipLink,
   downloadClip,
+  getClipStreamUrl,
 } = useClips();
 
 const includeShared = ref(false);
 const showAll = ref(false);
 const editingClip = ref<ClipListItem | null>(null);
 const deletingClipId = ref<string | null>(null);
+const watchingClipUrl = ref<string | null>(null);
+const watchingClipName = ref<string>('');
 
 const isAdmin = computed(() => user.value && ROLE_RANK[user.value.role] >= ROLE_RANK[Role.Admin]);
 const isMuted = computed(() => !!user.value?.mutedAt);
@@ -124,6 +134,15 @@ async function onCopy(clipId: string, visibility: string) {
     await copyClipLink(clipId, visibility);
   } catch (err: unknown) {
     toast.error(err instanceof Error ? err.message : 'Failed to copy link');
+  }
+}
+
+async function onWatch(clip: ClipListItem) {
+  try {
+    watchingClipName.value = clip.name;
+    watchingClipUrl.value = await getClipStreamUrl(clip.id);
+  } catch (err: unknown) {
+    toast.error(err instanceof Error ? err.message : 'Failed to load clip');
   }
 }
 
@@ -209,7 +228,7 @@ watch(
             :data-testid="`clip-card-${clip.id}`"
           >
             <!-- Thumbnail -->
-            <div class="relative aspect-video bg-muted">
+            <div class="group relative aspect-video bg-muted">
               <img
                 v-if="clip.thumbnailUrl"
                 :src="clip.thumbnailUrl"
@@ -218,6 +237,30 @@ watch(
               />
               <div v-else class="flex h-full items-center justify-center text-muted-foreground">
                 <span class="text-xs">No preview</span>
+              </div>
+
+              <!-- Visibility badge (top-left) -->
+              <div class="absolute left-1 top-1">
+                <Badge
+                  :variant="
+                    clip.visibility === 'private'
+                      ? 'outline'
+                      : clip.visibility === 'public'
+                        ? 'default'
+                        : 'secondary'
+                  "
+                  class="text-xs"
+                  data-testid="visibility-badge"
+                >
+                  {{ visibilityLabel(clip.visibility) }}
+                </Badge>
+              </div>
+
+              <!-- Duration badge (bottom-right) -->
+              <div v-if="clip.durationSeconds != null" class="absolute bottom-1 right-1">
+                <Badge variant="secondary" class="text-xs" data-testid="duration-badge">
+                  {{ formatDuration(clip.durationSeconds) }}
+                </Badge>
               </div>
 
               <!-- Pending overlay -->
@@ -229,96 +272,100 @@ watch(
                 <div class="h-8 w-8 animate-spin rounded-full border-4 border-white border-t-transparent" />
               </div>
 
-              <!-- Duration badge -->
-              <div v-if="clip.durationSeconds != null" class="absolute bottom-1 right-1">
-                <Badge variant="secondary" class="text-xs" data-testid="duration-badge">
-                  {{ formatDuration(clip.durationSeconds) }}
-                </Badge>
-              </div>
+              <!-- Play overlay (ready clips only) -->
+              <button
+                v-else-if="clip.status === 'ready'"
+                class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors hover:bg-black/40 focus-visible:bg-black/40 focus-visible:outline-none"
+                data-testid="play-overlay"
+                @click="onWatch(clip)"
+              >
+                <svg
+                  class="h-12 w-12 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </button>
             </div>
 
             <!-- Card body -->
-            <div class="flex flex-1 flex-col gap-2 p-3">
+            <div class="flex flex-1 flex-col gap-1 p-3">
               <div class="flex items-start justify-between gap-1">
-                <p class="text-sm font-medium leading-tight" data-testid="clip-name">{{ clip.name }}</p>
-                <Badge
-                  :variant="
-                    clip.visibility === 'private'
-                      ? 'outline'
-                      : clip.visibility === 'public'
-                        ? 'default'
-                        : 'secondary'
-                  "
-                  class="shrink-0 text-xs"
-                  data-testid="visibility-badge"
-                >
-                  {{ visibilityLabel(clip.visibility) }}
-                </Badge>
-              </div>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium leading-tight" data-testid="clip-name">
+                    {{ clip.name }}
+                  </p>
+                  <p class="text-xs text-muted-foreground" data-testid="created-at">
+                    {{ new Date(clip.createdAt).toLocaleDateString() }}
+                  </p>
+                </div>
 
-              <p class="text-xs text-muted-foreground" data-testid="created-at">
-                {{ new Date(clip.createdAt).toLocaleDateString() }}
-              </p>
+                <!-- Failed state -->
+                <div v-if="clip.status === 'failed'" class="shrink-0">
+                  <p class="text-xs text-destructive" data-testid="failed-message">Failed</p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    class="mt-1"
+                    data-testid="dismiss-button"
+                    @click="onDismiss(clip.id)"
+                  >
+                    Dismiss
+                  </Button>
+                </div>
 
-              <!-- Failed state -->
-              <div v-if="clip.status === 'failed'" class="mt-auto flex flex-col gap-2">
-                <p class="text-xs text-destructive" data-testid="failed-message">
-                  Clip processing failed.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  class="w-full"
-                  data-testid="dismiss-button"
-                  @click="onDismiss(clip.id)"
-                >
-                  Dismiss
-                </Button>
-              </div>
-
-              <!-- Ready state actions -->
-              <div v-else-if="clip.status === 'ready'" class="mt-auto flex flex-wrap gap-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  data-testid="edit-button"
-                  @click="editingClip = clip"
-                >
-                  Edit
-                </Button>
-                <Button
-                  v-if="!isMuted"
-                  size="sm"
-                  variant="outline"
-                  data-testid="share-button"
-                  @click="onShare(clip.id)"
-                >
-                  Share
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  data-testid="copy-link-button"
-                  @click="onCopy(clip.id, clip.visibility)"
-                >
-                  Copy Link
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  data-testid="download-button"
-                  @click="downloadClip(clip.id)"
-                >
-                  Download
-                </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  data-testid="delete-button"
-                  @click="deletingClipId = clip.id"
-                >
-                  Delete
-                </Button>
+                <!-- Ready state actions menu -->
+                <div v-else-if="clip.status === 'ready'" class="shrink-0">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger as-child>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        class="h-7 w-7 p-0"
+                        data-testid="clip-actions-trigger"
+                      >
+                        <svg viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+                          <circle cx="12" cy="5" r="1.5" />
+                          <circle cx="12" cy="12" r="1.5" />
+                          <circle cx="12" cy="19" r="1.5" />
+                        </svg>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem data-testid="edit-button" @click="editingClip = clip">
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        v-if="!isMuted"
+                        data-testid="share-button"
+                        @click="onShare(clip.id)"
+                      >
+                        Share to Chat
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        data-testid="copy-link-button"
+                        @click="onCopy(clip.id, clip.visibility)"
+                      >
+                        Copy Link
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        data-testid="download-button"
+                        @click="downloadClip(clip.id)"
+                      >
+                        Download
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        class="text-destructive focus:text-destructive"
+                        data-testid="delete-button"
+                        @click="deletingClipId = clip.id"
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </div>
           </div>
@@ -353,6 +400,28 @@ watch(
         @save="onSaveEdit"
         @cancel="editingClip = null"
       />
+    </DialogContent>
+  </Dialog>
+
+  <!-- Video player dialog -->
+  <Dialog
+    :open="watchingClipUrl !== null"
+    @update:open="(v) => { if (!v) { watchingClipUrl = null; watchingClipName = ''; } }"
+  >
+    <DialogContent class="max-w-3xl p-0 overflow-hidden">
+      <DialogHeader class="px-6 pt-5 pb-3">
+        <DialogTitle>{{ watchingClipName }}</DialogTitle>
+      </DialogHeader>
+      <div class="px-6 pb-6">
+        <video
+          v-if="watchingClipUrl"
+          :src="watchingClipUrl"
+          controls
+          autoplay
+          class="w-full rounded"
+          data-testid="clip-video"
+        />
+      </div>
     </DialogContent>
   </Dialog>
 

@@ -209,4 +209,14 @@ describe('useClips', () => {
       vi.unstubAllGlobals();
     });
   });
+
+  describe('getClipStreamUrl', () => {
+    it('returns the url from the stream endpoint', async () => {
+      vi.mocked(apiFetch).mockResolvedValue({ url: 'https://presigned.example.com/stream' });
+      const { getClipStreamUrl } = useClips();
+      const url = await getClipStreamUrl('clip-001');
+      expect(url).toBe('https://presigned.example.com/stream');
+      expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/api/clips/clip-001/stream');
+    });
+  });
 });

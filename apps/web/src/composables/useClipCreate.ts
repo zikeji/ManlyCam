@@ -71,13 +71,22 @@ export function useClipCreate() {
   return { isSubmitting, fetchSegmentRange, submitClip };
 }
 
+const MIN_LOADING_MS = 1000;
+
 export function handleClipStatusChanged(payload: ClipStatusChangedPayload): void {
   const entry = pendingClips.get(payload.clipId);
   if (entry === undefined) return;
   pendingClips.delete(payload.clipId);
-  if (payload.status === 'ready') {
-    toast.success('Clip ready!', { id: entry.toastId, duration: 4000 });
-  } else {
-    toast.error('Clip processing failed', { id: entry.toastId, duration: 8000 });
-  }
+
+  const elapsed = Date.now() - entry.createdAt;
+  const delay = Math.max(0, MIN_LOADING_MS - elapsed);
+
+  setTimeout(() => {
+    toast.dismiss(entry.toastId);
+    if (payload.status === 'ready') {
+      toast.success('Clip ready!', { duration: 4000 });
+    } else {
+      toast.error('Clip processing failed', { duration: 8000 });
+    }
+  }, delay);
 }

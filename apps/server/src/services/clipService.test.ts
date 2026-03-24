@@ -81,6 +81,7 @@ import {
   processClip,
   getClip,
   getClipDownloadUrl,
+  getClipStreamUrl,
   listClips,
   deleteClip,
   updateClip,
@@ -889,6 +890,38 @@ describe('getClipDownloadUrl', () => {
       requestingUserRole: 'Viewer',
     });
     expect(url).toBe('https://presigned.example.com/video');
+  });
+});
+
+describe('getClipStreamUrl', () => {
+  const clip = {
+    id: 'clip-001',
+    userId: 'user-001',
+    name: 'My Test Clip',
+    status: 'ready',
+    visibility: 'private',
+    s3Key: 'clips/clip-001.mp4',
+    deletedAt: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(presignGetObject).mockResolvedValue('https://presigned.example.com/stream');
+  });
+
+  it('returns presigned URL without content-disposition for owner', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(clip as never);
+    const url = await getClipStreamUrl({ clipId: 'clip-001', requestingUserId: 'user-001' });
+    expect(url).toBe('https://presigned.example.com/stream');
+    expect(presignGetObject).toHaveBeenCalledWith(
+      expect.not.objectContaining({ contentDisposition: expect.anything() }),
+    );
+  });
+
+  it('throws 401 when unauthenticated', async () => {
+    await expect(getClipStreamUrl({ clipId: 'clip-001' })).rejects.toMatchObject({
+      statusCode: 401,
+    });
   });
 });
 

@@ -4,10 +4,11 @@ vi.mock('@/lib/api', () => ({
   apiFetch: vi.fn(),
 }));
 
-const { mockToastLoading, mockToastSuccess, mockToastError } = vi.hoisted(() => ({
+const { mockToastLoading, mockToastSuccess, mockToastError, mockToastDismiss } = vi.hoisted(() => ({
   mockToastLoading: vi.fn().mockReturnValue('toast-id-default'),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
+  mockToastDismiss: vi.fn(),
 }));
 
 vi.mock('vue-sonner', () => ({
@@ -15,6 +16,7 @@ vi.mock('vue-sonner', () => ({
     loading: mockToastLoading,
     success: mockToastSuccess,
     error: mockToastError,
+    dismiss: mockToastDismiss,
   }),
 }));
 
@@ -121,7 +123,8 @@ describe('useClipCreate', () => {
   });
 
   describe('handleClipStatusChanged', () => {
-    it('updates the loading toast to success when status is ready', async () => {
+    it('dismisses loading toast and shows success when status is ready', async () => {
+      vi.useFakeTimers();
       const toastId = 'toast-ready-1';
       mockToastLoading.mockReturnValue(toastId);
       vi.mocked(apiFetch).mockResolvedValue({ id: 'clip-h1', status: 'processing' });
@@ -134,10 +137,14 @@ describe('useClipCreate', () => {
         durationSeconds: 30,
         thumbnailKey: null,
       });
-      expect(mockToastSuccess).toHaveBeenCalledWith('Clip ready!', { id: toastId, duration: 4000 });
+      vi.runAllTimers();
+      expect(mockToastDismiss).toHaveBeenCalledWith(toastId);
+      expect(mockToastSuccess).toHaveBeenCalledWith('Clip ready!', { duration: 4000 });
+      vi.useRealTimers();
     });
 
-    it('updates the loading toast to error when status is failed', async () => {
+    it('dismisses loading toast and shows error when status is failed', async () => {
+      vi.useFakeTimers();
       const toastId = 'toast-fail-1';
       mockToastLoading.mockReturnValue(toastId);
       vi.mocked(apiFetch).mockResolvedValue({ id: 'clip-h2', status: 'processing' });
@@ -145,10 +152,10 @@ describe('useClipCreate', () => {
       await submitClip({ ...baseParams, name: 'Failed Clip' });
 
       handleClipStatusChanged({ clipId: 'clip-h2', status: 'failed' });
-      expect(mockToastError).toHaveBeenCalledWith('Clip processing failed', {
-        id: toastId,
-        duration: 8000,
-      });
+      vi.runAllTimers();
+      expect(mockToastDismiss).toHaveBeenCalledWith(toastId);
+      expect(mockToastError).toHaveBeenCalledWith('Clip processing failed', { duration: 8000 });
+      vi.useRealTimers();
     });
 
     it('does nothing for an unknown clipId', () => {
