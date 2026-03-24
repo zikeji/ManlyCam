@@ -24,6 +24,16 @@ vi.mock('@/components/preferences/PreferencesDialog.vue', () => ({
   },
 }));
 
+// Mock MyClipsDialog to avoid pulling in clips deps
+vi.mock('@/components/clips/MyClipsDialog.vue', () => ({
+  default: {
+    name: 'MyClipsDialog',
+    template: '<div data-testid="my-clips-dialog"></div>',
+    props: ['open'],
+    emits: ['update:open'],
+  },
+}));
+
 // Mock useClipCreate composable
 const { mockFetchSegmentRange } = vi.hoisted(() => ({
   mockFetchSegmentRange: vi.fn(),
@@ -290,6 +300,31 @@ describe('BroadcastConsole', () => {
 
     // PreferencesDialog should now be visible (open prop = true)
     const dialog = wrapper.findComponent({ name: 'PreferencesDialog' });
+    expect(dialog.props('open')).toBe(true);
+  });
+
+  // 10-4: My Clips menu item
+  it('renders My Clips button in profile popover', async () => {
+    wrapper = mountConsole();
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+    expect(document.body.innerHTML).toContain('My Clips');
+  });
+
+  it('opens My Clips dialog when My Clips button is clicked', async () => {
+    wrapper = mountConsole();
+    const avatarBtn = wrapper.find('button[aria-label="Account menu"]');
+    await avatarBtn.trigger('click');
+    await flushPromises();
+
+    const myClipsBtn = Array.from(document.querySelectorAll('button')).find(
+      (el) => el.textContent?.trim() === 'My Clips',
+    ) as HTMLButtonElement | undefined;
+    myClipsBtn?.click();
+    await flushPromises();
+
+    const dialog = wrapper.findComponent({ name: 'MyClipsDialog' });
     expect(dialog.props('open')).toBe(true);
   });
 

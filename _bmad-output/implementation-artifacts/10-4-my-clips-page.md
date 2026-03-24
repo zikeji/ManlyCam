@@ -1,18 +1,18 @@
-# Story 10.4: My Clips Page
+# Story 10.4: My Clips Dialog
 
 Status: ready-for-review
 
 ## Story
 
 As an **authenticated user**,
-I want a My Clips page to view and manage my clips,
+I want a My Clips dialog accessible from the profile menu to view and manage my clips,
 So that I can edit clip details, control visibility, share to chat, download, and delete clips.
 
 ## Acceptance Criteria
 
 1. **GET /api/clips** returns paginated clips. Zero-indexed `page` param (`skip = page * limit`), default limit 20, newest-first. `deletedAt: null` filter on ALL query variants. By default: own clips only. `?includeShared=true`: adds non-private (`shared`/`public`) non-deleted clips from other users. Admin `?all=true`: all non-deleted clips regardless of owner/visibility. Non-Admin `?all=true` silently ignored. Each item includes `thumbnailUrl` as `{S3_PUBLIC_BASE_URL}/{thumbnailKey}`, name, description, status, visibility, duration, clipper info, creation date.
 
-2. **My Clips page** renders own clips as cards: thumbnail, name, duration badge, visibility badge, status indicator, creation date. Pending clips show processing spinner. Failed clips show error state with Dismiss button. Ready clips show Edit, Share to Chat, Copy Link, Download, and Delete actions.
+2. **My Clips dialog** is accessible via the profile popover in BroadcastConsole (above Preferences). It renders own clips as cards: thumbnail, name, duration badge, visibility badge, status indicator, creation date. Pending clips show processing spinner. Failed clips show error state with Dismiss button. Ready clips show Edit, Share to Chat, Copy Link, Download, and Delete actions.
 
 3. **Dismiss failed clip** calls `DELETE /api/clips/:id`, which hard-deletes (`prisma.clip.delete()`) the `status: 'failed'` record (no S3 objects exist). No `clip:visibility-changed` broadcast. Card removed from UI. 204 response.
 
@@ -76,7 +76,7 @@ So that I can edit clip details, control visibility, share to chat, download, an
   - [x] 4.4 `downloadClip(clipId)` -- navigate to `/api/clips/:id/download`
   - [x] 4.5 Handle `clip:status-changed` and `clip:visibility-changed` WS messages for real-time updates
 
-- [x] **Task 5: My Clips page** (`apps/web/src/views/MyClipsView.vue`) (AC: #2, #16, #18)
+- [x] **Task 5: My Clips dialog** (`apps/web/src/components/clips/MyClipsDialog.vue`) (AC: #2, #16, #18)
   - [x] 5.1 Card grid layout with thumbnail, name, duration, visibility badge, status
   - [x] 5.2 Pending state (spinner), failed state (error + Dismiss), ready state (action buttons)
   - [x] 5.3 "Show shared clips" toggle, Admin "Show all clips" toggle
@@ -87,13 +87,13 @@ So that I can edit clip details, control visibility, share to chat, download, an
   - [x] 6.2 Visibility selector (private/shared always; public for Mod/Admin only)
   - [x] 6.3 Attribution controls (show when public selected): show clipper toggle, show avatar toggle, clipper name field
 
-- [x] **Task 7: Router update** (`apps/web/src/router/index.ts`) (AC: #2)
-  - [x] 7.1 Add `/clips` route pointing to MyClipsView
-  - [x] 7.2 Auth guard -- redirect unauthenticated to login
+- [x] **Task 7: Profile popover integration** (`apps/web/src/components/BroadcastConsole.vue` or equivalent profile popover component) (AC: #2)
+  - [x] 7.1 Add "My Clips" menu item above Preferences in the profile popover
+  - [x] 7.2 Open `MyClipsDialog` on click (follows same pattern as PreferencesDialog)
 
 - [x] **Task 8: Web tests**
   - [x] 8.1 `useClips.test.ts` -- composable tests for fetch, delete, update, share, WS handlers
-  - [x] 8.2 `MyClipsView.test.ts` -- card rendering, toggle states, pagination, action buttons
+  - [x] 8.2 `MyClipsDialog.test.ts` -- card rendering, toggle states, pagination, action buttons
   - [x] 8.3 `ClipEditForm.test.ts` -- form fields, visibility options by role, attribution controls visibility
 
 ## Dev Notes
@@ -138,13 +138,13 @@ Story 10-3 (Clip Creation Pipeline) provides:
 **Web patterns:**
 
 - Composable: `apps/web/src/composables/useClips.ts` -- stateful logic, API calls, WS message handling
-- View: `apps/web/src/views/MyClipsView.vue` -- page component
+- Dialog: `apps/web/src/components/clips/MyClipsDialog.vue` -- modal/dialog component (NOT a router view; opened from the profile popover above Preferences, following the PreferencesDialog pattern)
 - Component: `apps/web/src/components/clips/ClipEditForm.vue` -- edit form
 - Use `apiFetch` from `apps/web/src/lib/api.ts` with `credentials: 'include'`
 - Use `Role` from `@manlycam/types` for role checks
 - Use Sonner (already available via `apps/web/src/components/ui/sonner/Sonner.vue`) for toast notifications
 - Use existing ShadCN-Vue components: Badge, Button, Dialog, Tooltip, Switch, ScrollArea
-- Router: add `/clips` route in `apps/web/src/router/index.ts`
+- No router change required -- My Clips is a dialog, not a route
 - WS message handling: subscribe to `clip:status-changed` and `clip:visibility-changed` via `useWebSocket` composable
 
 **RBAC Rules (CRITICAL):**
@@ -214,12 +214,13 @@ None — no debug sessions required.
 
 ### Completion Notes List
 
-1. **Role name fix**: All test fixtures used `role: 'Viewer'` which doesn't exist in `ROLE_RANK`. Fixed to `role: 'ViewerGuest'` throughout clipService.test.ts.
-2. **vi.hoisted + require('vue') pattern**: `vi.mock` factories are hoisted before ESM imports resolve. `vi.hoisted(() => { const vueModule = require('vue'); ... })` is the correct pattern when Vue refs are needed in mock factories — used in MyClipsView.test.ts following WatchView.test.ts precedent.
-3. **downloadClip test**: `window.location.href = url` is blocked in jsdom. Fixed by `vi.stubGlobal('location', { href: '' })` before calling the function.
-4. **c8 ignore annotations**: Added on defensive/unreachable branches: `visibilityLabel` fallback, `onSaveEdit` null guard, `err instanceof Error` ternary else.
-5. **useWebSocket integration**: `handleClipStatusUpdate` wired alongside the existing `handleClipStatusChanged` (from useClipCreate); `handleClipVisibilityChanged` added for new WS message type.
-6. **Coverage**: All new lines covered or annotated with `/* c8 ignore next */`. Final: lines 98.34%, branches 93.92%, functions 87.62%, statements 98.34% (all above thresholds).
+1. **Architecture correction — dialog not page**: The original story was drafted as a standalone `/clips` route (`MyClipsView.vue`). During implementation this was corrected to a modal/dialog (`MyClipsDialog.vue`) accessible from the profile popover in BroadcastConsole (above Preferences), following the same pattern as PreferencesDialog. No `/clips` route was added to the router. All task references and file list updated accordingly.
+2. **Role name fix**: All test fixtures used `role: 'Viewer'` which doesn't exist in `ROLE_RANK`. Fixed to `role: 'ViewerGuest'` throughout clipService.test.ts.
+3. **vi.hoisted + require('vue') pattern**: `vi.mock` factories are hoisted before ESM imports resolve. `vi.hoisted(() => { const vueModule = require('vue'); ... })` is the correct pattern when Vue refs are needed in mock factories — used in MyClipsDialog.test.ts following WatchView.test.ts precedent.
+4. **downloadClip test**: `window.location.href = url` is blocked in jsdom. Fixed by `vi.stubGlobal('location', { href: '' })` before calling the function.
+5. **c8 ignore annotations**: Added on defensive/unreachable branches: `visibilityLabel` fallback, `onSaveEdit` null guard, `err instanceof Error` ternary else.
+6. **useWebSocket integration**: `handleClipStatusUpdate` wired alongside the existing `handleClipStatusChanged` (from useClipCreate); `handleClipVisibilityChanged` added for new WS message type.
+7. **Coverage**: All new lines covered or annotated with `/* c8 ignore next */`. Final: lines 98.34%, branches 93.92%, functions 87.62%, statements 98.34% (all above thresholds).
 
 ### File List
 
@@ -234,8 +235,8 @@ None — no debug sessions required.
 - `apps/web/src/composables/useClips.ts` (new)
 - `apps/web/src/composables/useClips.test.ts` (new)
 - `apps/web/src/composables/useWebSocket.ts` (modified — wired clip WS handlers)
-- `apps/web/src/views/MyClipsView.vue` (new)
-- `apps/web/src/views/MyClipsView.test.ts` (new)
+- `apps/web/src/components/clips/MyClipsDialog.vue` (new — dialog opened from profile popover, not a router view)
+- `apps/web/src/components/clips/MyClipsDialog.test.ts` (new)
 - `apps/web/src/components/clips/ClipEditForm.vue` (new)
 - `apps/web/src/components/clips/ClipEditForm.test.ts` (new)
-- `apps/web/src/router/index.ts` (modified — added /clips route + auth guard)
+- `apps/web/src/router/index.ts` (not modified — no /clips route; My Clips is a dialog)

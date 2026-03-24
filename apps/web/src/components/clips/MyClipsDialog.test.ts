@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { nextTick } from 'vue';
-import MyClipsView from './MyClipsView.vue';
+import MyClipsDialog from './MyClipsDialog.vue';
 
 // vi.hoisted runs before any imports; use require() to access Vue synchronously
 const {
@@ -110,8 +110,8 @@ const baseClip = {
 
 let wrapper: ReturnType<typeof mount> | null = null;
 
-function mountView() {
-  return mount(MyClipsView, { attachTo: document.body });
+function mountOpen() {
+  return mount(MyClipsDialog, { props: { open: true }, attachTo: document.body });
 }
 
 afterEach(() => {
@@ -126,29 +126,44 @@ afterEach(() => {
   mockUser.value = { id: 'user-001', role: 'ViewerGuest', mutedAt: null };
 });
 
-describe('MyClipsView', () => {
-  it('calls fetchClips on mount', async () => {
-    wrapper = mountView();
+describe('MyClipsDialog', () => {
+  it('calls fetchClips when dialog opens', async () => {
+    wrapper = mountOpen();
+    await flushPromises();
+    expect(mockFetchClips).toHaveBeenCalledWith({ page: 0, includeShared: false, all: false });
+  });
+
+  it('does not call fetchClips when dialog is closed', async () => {
+    wrapper = mount(MyClipsDialog, { props: { open: false } });
+    await flushPromises();
+    expect(mockFetchClips).not.toHaveBeenCalled();
+  });
+
+  it('resets filters and refetches when dialog reopens', async () => {
+    wrapper = mount(MyClipsDialog, { props: { open: false } });
+    await flushPromises();
+    vi.clearAllMocks();
+    await wrapper.setProps({ open: true });
     await flushPromises();
     expect(mockFetchClips).toHaveBeenCalledWith({ page: 0, includeShared: false, all: false });
   });
 
   it('shows loading spinner when loading and clips empty', async () => {
     mockIsLoading.value = true;
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="loading-spinner"]').exists()).toBe(true);
   });
 
   it('shows empty message when no clips and not loading', async () => {
-    wrapper = mountView();
+    wrapper = mountOpen();
     await flushPromises();
     expect(wrapper.find('[data-testid="empty-message"]').exists()).toBe(true);
   });
 
   it('shows error message when error set', async () => {
     mockError.value = 'Failed to load';
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="error-message"]').text()).toContain('Failed to load');
   });
@@ -156,7 +171,7 @@ describe('MyClipsView', () => {
   it('renders ready clip card', async () => {
     mockClips.value = [{ ...baseClip }];
     mockTotal.value = 1;
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="clip-card-clip-001"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="clip-name"]').text()).toBe('My Clip');
@@ -166,21 +181,21 @@ describe('MyClipsView', () => {
 
   it('formats duration correctly', async () => {
     mockClips.value = [{ ...baseClip, durationSeconds: 90 }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="duration-badge"]').text()).toBe('1:30');
   });
 
   it('shows pending overlay for pending clips', async () => {
     mockClips.value = [{ ...baseClip, status: 'pending', durationSeconds: null }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="pending-overlay"]').exists()).toBe(true);
   });
 
   it('shows dismiss button for failed clips', async () => {
     mockClips.value = [{ ...baseClip, status: 'failed' }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="failed-message"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="dismiss-button"]').exists()).toBe(true);
@@ -188,7 +203,7 @@ describe('MyClipsView', () => {
 
   it('shows action buttons for ready clips', async () => {
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="edit-button"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="share-button"]').exists()).toBe(true);
@@ -200,7 +215,7 @@ describe('MyClipsView', () => {
   it('hides share button when user is muted', async () => {
     mockUser.value = { id: 'user-001', role: 'ViewerGuest', mutedAt: new Date().toISOString() };
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="share-button"]').exists()).toBe(false);
   });
@@ -208,16 +223,25 @@ describe('MyClipsView', () => {
   it('shows load more button when there are more clips', async () => {
     mockClips.value = [{ ...baseClip }];
     mockTotal.value = 5;
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="load-more-button"]').exists()).toBe(true);
+  });
+
+  it('shows Loading text in load-more button while loading', async () => {
+    mockClips.value = [{ ...baseClip }];
+    mockTotal.value = 5;
+    mockIsLoading.value = true;
+    wrapper = mountOpen();
+    await nextTick();
+    expect(wrapper.find('[data-testid="load-more-button"]').text()).toBe('Loading…');
   });
 
   it('calls loadMore with incremented page on load more click', async () => {
     mockClips.value = [{ ...baseClip }];
     mockTotal.value = 5;
     mockCurrentPage.value = 0;
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="load-more-button"]').trigger('click');
     await flushPromises();
@@ -225,31 +249,61 @@ describe('MyClipsView', () => {
   });
 
   it('calls fetchClips with includeShared=true when toggle enabled', async () => {
-    wrapper = mountView();
+    wrapper = mountOpen();
     await flushPromises();
     vi.clearAllMocks();
-    const toggle = wrapper.find('[data-testid="include-shared-toggle"]');
-    await toggle.setValue(true);
+    await wrapper.find('[data-testid="include-shared-toggle"]').setValue(true);
     await flushPromises();
     expect(mockFetchClips).toHaveBeenCalledWith({ page: 0, includeShared: true, all: false });
   });
 
   it('shows admin toggle only for Admin user', async () => {
     mockUser.value = { id: 'user-001', role: 'Admin', mutedAt: null };
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="show-all-toggle"]').exists()).toBe(true);
   });
 
   it('does not show admin toggle for non-Admin user', async () => {
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     expect(wrapper.find('[data-testid="show-all-toggle"]').exists()).toBe(false);
   });
 
+  it('calls fetchClips with all=true when admin show-all toggle enabled', async () => {
+    mockUser.value = { id: 'user-001', role: 'Admin', mutedAt: null };
+    wrapper = mountOpen();
+    await flushPromises();
+    vi.clearAllMocks();
+    await wrapper.find('[data-testid="show-all-toggle"]').setValue(true);
+    await flushPromises();
+    expect(mockFetchClips).toHaveBeenCalledWith({ page: 0, includeShared: false, all: true });
+  });
+
+  it('shows Shared visibility label', async () => {
+    mockClips.value = [{ ...baseClip, visibility: 'shared' }];
+    wrapper = mountOpen();
+    await nextTick();
+    expect(wrapper.find('[data-testid="visibility-badge"]').text()).toBe('Shared');
+  });
+
+  it('shows Public visibility label', async () => {
+    mockClips.value = [{ ...baseClip, visibility: 'public' }];
+    wrapper = mountOpen();
+    await nextTick();
+    expect(wrapper.find('[data-testid="visibility-badge"]').text()).toBe('Public');
+  });
+
+  it('shows no preview placeholder when clip has no thumbnail', async () => {
+    mockClips.value = [{ ...baseClip, thumbnailUrl: null }];
+    wrapper = mountOpen();
+    await nextTick();
+    expect(wrapper.find('[data-testid="clip-card-clip-001"]').text()).toContain('No preview');
+  });
+
   it('calls deleteClip when dismiss button clicked', async () => {
     mockClips.value = [{ ...baseClip, status: 'failed' }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="dismiss-button"]').trigger('click');
     await flushPromises();
@@ -258,7 +312,7 @@ describe('MyClipsView', () => {
 
   it('calls deleteClip when delete button clicked', async () => {
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="delete-button"]').trigger('click');
     await flushPromises();
@@ -267,7 +321,7 @@ describe('MyClipsView', () => {
 
   it('calls shareClipToChat when share button clicked', async () => {
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="share-button"]').trigger('click');
     await flushPromises();
@@ -276,7 +330,7 @@ describe('MyClipsView', () => {
 
   it('calls copyClipLink when copy link button clicked', async () => {
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="copy-link-button"]').trigger('click');
     await flushPromises();
@@ -285,7 +339,7 @@ describe('MyClipsView', () => {
 
   it('calls downloadClip when download button clicked', async () => {
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="download-button"]').trigger('click');
     expect(mockDownloadClip).toHaveBeenCalledWith('clip-001');
@@ -293,16 +347,28 @@ describe('MyClipsView', () => {
 
   it('opens edit dialog when edit button clicked', async () => {
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="edit-button"]').trigger('click');
     await nextTick();
     expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(true);
   });
 
+  it('closes edit dialog when cancel emitted from edit form', async () => {
+    mockClips.value = [{ ...baseClip }];
+    wrapper = mountOpen();
+    await nextTick();
+    await wrapper.find('[data-testid="edit-button"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(true);
+    await wrapper.find('[data-testid="edit-form"] button').trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(false);
+  });
+
   it('calls updateClip and closes dialog on save', async () => {
     mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="edit-button"]').trigger('click');
     await nextTick();
@@ -315,79 +381,11 @@ describe('MyClipsView', () => {
     expect(vm.editingClip).toBeNull();
   });
 
-  it('shows Loading text in load-more button while loading', async () => {
-    mockClips.value = [{ ...baseClip }];
-    mockTotal.value = 5;
-    mockIsLoading.value = true;
-    wrapper = mountView();
-    await nextTick();
-    const btn = wrapper.find('[data-testid="load-more-button"]');
-    expect(btn.text()).toBe('Loading…');
-  });
-
-  it('closes edit dialog when cancel emitted from edit form', async () => {
-    mockClips.value = [{ ...baseClip }];
-    wrapper = mountView();
-    await nextTick();
-    await wrapper.find('[data-testid="edit-button"]').trigger('click');
-    await nextTick();
-    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(true);
-    await wrapper.find('[data-testid="edit-form"] button').trigger('click');
-    await nextTick();
-    expect(wrapper.find('[data-testid="edit-form"]').exists()).toBe(false);
-  });
-
-  it('shows Shared visibility label', async () => {
-    mockClips.value = [{ ...baseClip, visibility: 'shared' }];
-    wrapper = mountView();
-    await nextTick();
-    expect(wrapper.find('[data-testid="visibility-badge"]').text()).toBe('Shared');
-  });
-
-  it('shows Public visibility label', async () => {
-    mockClips.value = [{ ...baseClip, visibility: 'public' }];
-    wrapper = mountView();
-    await nextTick();
-    expect(wrapper.find('[data-testid="visibility-badge"]').text()).toBe('Public');
-  });
-
-  it('calls fetchClips with all=true when admin show-all toggle enabled', async () => {
-    mockUser.value = { id: 'user-001', role: 'Admin', mutedAt: null };
-    wrapper = mountView();
-    await flushPromises();
-    vi.clearAllMocks();
-    const toggle = wrapper.find('[data-testid="show-all-toggle"]');
-    await toggle.setValue(true);
-    await flushPromises();
-    expect(mockFetchClips).toHaveBeenCalledWith({ page: 0, includeShared: false, all: true });
-  });
-
-  it('shows no preview placeholder when clip has no thumbnail', async () => {
-    mockClips.value = [{ ...baseClip, thumbnailUrl: null }];
-    wrapper = mountView();
-    await nextTick();
-    expect(wrapper.find('[data-testid="clip-card-clip-001"]').text()).toContain('No preview');
-  });
-
-  it('shows error toast when updateClip fails', async () => {
-    mockClips.value = [{ ...baseClip }];
-    mockUpdateClip.mockRejectedValueOnce(new Error('Update failed'));
-    const { toast } = await import('vue-sonner');
-    wrapper = mountView();
-    await nextTick();
-    await wrapper.find('[data-testid="edit-button"]').trigger('click');
-    await nextTick();
-    const vm = wrapper.vm as unknown as { onSaveEdit: (data: unknown) => Promise<void> };
-    await vm.onSaveEdit({ name: 'New Name' });
-    await flushPromises();
-    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Update failed');
-  });
-
-  it('shows error toast when deleteClip fails', async () => {
+  it('shows error toast when deleteClip (dismiss) fails', async () => {
     mockClips.value = [{ ...baseClip, status: 'failed' }];
     mockDeleteClip.mockRejectedValueOnce(new Error('Delete failed'));
     const { toast } = await import('vue-sonner');
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="dismiss-button"]').trigger('click');
     await flushPromises();
@@ -398,7 +396,7 @@ describe('MyClipsView', () => {
     mockClips.value = [{ ...baseClip }];
     mockDeleteClip.mockRejectedValueOnce(new Error('Delete failed'));
     const { toast } = await import('vue-sonner');
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="delete-button"]').trigger('click');
     await flushPromises();
@@ -409,7 +407,7 @@ describe('MyClipsView', () => {
     mockClips.value = [{ ...baseClip }];
     mockShareClipToChat.mockRejectedValueOnce(new Error('Share failed'));
     const { toast } = await import('vue-sonner');
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="share-button"]').trigger('click');
     await flushPromises();
@@ -420,10 +418,24 @@ describe('MyClipsView', () => {
     mockClips.value = [{ ...baseClip }];
     mockCopyClipLink.mockRejectedValueOnce(new Error('Copy failed'));
     const { toast } = await import('vue-sonner');
-    wrapper = mountView();
+    wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="copy-link-button"]').trigger('click');
     await flushPromises();
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Copy failed');
+  });
+
+  it('shows error toast when updateClip fails', async () => {
+    mockClips.value = [{ ...baseClip }];
+    mockUpdateClip.mockRejectedValueOnce(new Error('Update failed'));
+    const { toast } = await import('vue-sonner');
+    wrapper = mountOpen();
+    await nextTick();
+    await wrapper.find('[data-testid="edit-button"]').trigger('click');
+    await nextTick();
+    const vm = wrapper.vm as unknown as { onSaveEdit: (data: unknown) => Promise<void> };
+    await vm.onSaveEdit({ name: 'New Name' });
+    await flushPromises();
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Update failed');
   });
 });

@@ -27,6 +27,7 @@ import { toast } from 'vue-sonner';
 import { viewers } from '@/composables/usePresence';
 import PreferencesDialog from '@/components/preferences/PreferencesDialog.vue';
 import OfflineMessageDialog from './OfflineMessageDialog.vue';
+import MyClipsDialog from '@/components/clips/MyClipsDialog.vue';
 
 const props = withDefaults(
   defineProps<{
@@ -84,6 +85,7 @@ let pulseTimer: number | null = null;
 const isProfileOpen = ref(false);
 const preferencesOpen = ref(false);
 const offlineMessageOpen = ref(false);
+const myClipsOpen = ref(false);
 
 const { fetchSegmentRange } = useClipCreate();
 const clipLoading = ref(false);
@@ -128,6 +130,11 @@ watch(
     }
   },
 );
+
+const handleOpenMyClips = () => {
+  isProfileOpen.value = false;
+  myClipsOpen.value = true;
+};
 
 const handleOpenPreferences = () => {
   isProfileOpen.value = false;
@@ -419,6 +426,13 @@ const streamToggleLabel = computed(() => {
 
           <button
             class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
+            data-testid="my-clips-menu-btn"
+            @click="handleOpenMyClips"
+          >
+            My Clips
+          </button>
+          <button
+            class="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent hover:text-accent-foreground"
             @click="handleOpenPreferences"
           >
             Preferences
@@ -460,6 +474,7 @@ const streamToggleLabel = computed(() => {
       </div>
     </div>
   </div>
+  <MyClipsDialog v-model:open="myClipsOpen" />
   <PreferencesDialog v-model:open="preferencesOpen" />
   <OfflineMessageDialog v-model:open="offlineMessageOpen" />
 </template>

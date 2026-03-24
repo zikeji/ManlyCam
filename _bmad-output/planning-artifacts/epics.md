@@ -116,7 +116,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR66: Clip Creation — Any authenticated user (all roles including ViewerGuest) can clip a segment from the server-side HLS rolling buffer; preset duration options (30s, 1min, 2min) preselect a range in the clip scrubber UI which can be manually adjusted; all authenticated users are rate-limited (5 clips/hour) except Moderator and Admin who are exempt
 - FR67: Clip Processing Pipeline — Server-side ffmpeg extracts clips from HLS segments using stream copy (no re-encoding), uploads to configured S3-compatible storage (Backblaze B2 in production, RustFS container in development); clips carry `pending`/`ready`/`failed` status; a persistent Sonner toast tracks processing progress without disrupting stream visibility; a thumbnail is captured and stored for each clip
 - FR68: Clip Visibility Tiers — Three states: `private` (owner + Admin only), `shared` (accessible by all authenticated users via direct link and visible in the shared clips view), `public` (accessible by unauthenticated users via direct link and shareable externally); only Admin or Moderator can set visibility to `public`; a clip made private after being shared in chat tombstones the chat card on the next history load; a clip made shared/public while referenced in chat restores its live preview to all connected clients in real-time
-- FR69: My Clips Page — Authenticated users view and manage their own clips (edit title, description, visibility); a toggle reveals shared clips from all other users; Admin users can additionally toggle to view all clips regardless of visibility; each clip card exposes Copy Link and Share to Chat actions
+- FR69: My Clips Dialog — Authenticated users open a dialog from the profile popover (above Preferences) to view and manage their own clips (edit title, description, visibility); a toggle reveals shared clips from all other users; Admin users can additionally toggle to view all clips regardless of visibility; each clip card exposes Copy Link and Share to Chat actions
 - FR70: Chat Clip Sharing — Clips can be shared to chat at creation time via a "Share to chat when ready" checkbox, or manually from My Clips; shared clips appear as a distinct clip message type in the chat timeline with thumbnail, title, duration, and a Watch action; clicking Watch opens a modal overlay so the stream continues behind it; the browser URL updates to `/clips/[id]` while the modal is open enabling direct-link copying; refreshing while in this state renders the standalone clip page
 - FR71: Chat Clip Tombstone — When a clip referenced in the chat timeline is set to private, subsequent message history loads replace the clip card with a "This clip is private" placeholder of identical dimensions; currently connected viewers are not disrupted but will see the placeholder on their next history fetch; no information about the original clip content is exposed in the placeholder
 - FR72: Public Clip Pages — Public clips are accessible at `/clips/[id]` without authentication; the page renders a video player, title, description, and optional clipper attribution; no stream link, chat, or application navigation is shown to unauthenticated visitors; authenticated users see a stream-status-aware CTA ("Watch Live →" when stream is online, "Go to Stream →" when offline); the Hono backend injects OG meta tags (`og:title`, `og:description`, `og:image`) server-side before serving `index.html` enabling social unfurling without SSR; non-public clips return 403 to unauthenticated requests
@@ -304,7 +304,7 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 | FR66 | Epic 10 | Clip Creation — any authenticated user clips from HLS rolling buffer; presets + adjustable range; rate-limited except Moderator+            |
 | FR67 | Epic 10 | Clip Processing — server-side ffmpeg stream-copy, S3 upload, pending/ready/failed status, Sonner processing toast, thumbnail capture        |
 | FR68 | Epic 10 | Clip Visibility Tiers — private/shared/public; public requires Admin/Moderator; tombstone on private; live restore on shared/public in chat |
-| FR69 | Epic 10 | My Clips Page — manage own clips, edit title/description/visibility, shared clips toggle, admin all-clips view, copy-link + share-to-chat   |
+| FR69 | Epic 10 | My Clips Dialog — manage own clips via profile-menu dialog, edit title/description/visibility, shared clips toggle, admin all-clips view, copy-link + share-to-chat |
 | FR70 | Epic 10 | Chat Clip Sharing — share at creation or from My Clips; clip message type; Watch modal overlay; URL updates to /clips/[id]                  |
 | FR71 | Epic 10 | Chat Clip Tombstone — private clip replaced with placeholder on next history load; active viewers unaffected until reload                   |
 | FR72 | Epic 10 | Public Clip Pages — /clips/[id] unauthenticated; OG meta server-injected; stream-status CTA for auth users; 403 for non-public clips        |
@@ -417,7 +417,7 @@ Quality-of-life improvements across admin tooling, stream UX, and chat customisa
 
 ### Epic 10: Clipping & Clip Sharing
 
-Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips page with three-tier visibility (private, shared, public), share clips into the chat timeline as a rich clip card, view clips in a modal overlay without leaving the stream, and share public clips externally via shareable pages with OG social meta tags. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
+Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips dialog (accessible from the profile popover) with three-tier visibility (private, shared, public), share clips into the chat timeline as a rich clip card, view clips in a modal overlay without leaving the stream, and share public clips externally via shareable pages with OG social meta tags. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
 
 **FRs covered:** FR66, FR67, FR68, FR69, FR70, FR71, FR72, FR73
 
@@ -436,7 +436,7 @@ Users can clip segments from the rolling server-side HLS buffer, manage clips th
 - 10-2: Clipping Infrastructure (HLS buffer, shared volume, ffmpeg, S3 client, Prisma Clip model)
 - 10-3: Clip Creation Pipeline (endpoint, ffmpeg, S3 upload, rate limiting, Sonner, GET+download endpoints) _(depends on 10-2)_
 - 10-3b: Clip Editor UI (stream-integrated timeline scrubber, HLS player swap, drag handles, min/max duration config, HLS proxy route) _(supersedes 10-3 AC #2; depends on 10-3)_
-- 10-4: My Clips Page (clip management, visibility + ACL, audit logging, shared clips toggle, deletion, download) _(depends on 10-2)_
+- 10-4: My Clips Dialog (clip management via profile-menu dialog, visibility + ACL, audit logging, shared clips toggle, deletion, download) _(depends on 10-2)_
 - 10-5: Chat Clip Integration (clip message type, Watch modal, tombstone, live visibility updates, download) _(depends on 10-3)_
 - 10-6: Public Clip Pages (unauthenticated route, OG meta injection, clipper attribution, stream-status CTA, download) _(depends on 10-2, 10-3)_
 - 10-7: Production Deployment Documentation _(closes epic)_
@@ -2047,7 +2047,7 @@ So that I can express my feelings about a message without typing a response.
 
 ## Epic 10: Clipping & Clip Sharing
 
-Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips page with three-tier visibility, share clips to chat, view clips in a modal overlay without leaving the stream, download clips, and share public clips externally via OG-tagged shareable pages. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
+Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips dialog (accessible from the profile popover) with three-tier visibility, share clips to chat, view clips in a modal overlay without leaving the stream, download clips, and share public clips externally via OG-tagged shareable pages. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
 
 ---
 
@@ -2217,10 +2217,10 @@ So that I can capture memorable moments with an optional name, description, chat
 
 ---
 
-### Story 10-4: My Clips Page
+### Story 10-4: My Clips Dialog
 
 As an **authenticated user**,
-I want a My Clips page to view and manage my clips,
+I want a My Clips dialog accessible from the profile menu to view and manage my clips,
 So that I can edit clip details, control visibility, share to chat, download, and delete clips.
 
 **Acceptance Criteria:**
@@ -2229,8 +2229,8 @@ So that I can edit clip details, control visibility, share to chat, download, an
 **When** the request is authenticated
 **Then** it returns a paginated list (page + limit query params; `page` is **zero-indexed** — `page=0` is the first page, `skip = page * limit`; default limit 20, newest-first) of clips the requester can see; `deletedAt: null` is applied to **all variants** of the query — own clips, `?includeShared=true`, and Admin `?all=true` all exclude soft-deleted clips; by default: own clips only; with `?includeShared=true`: includes all non-private (`shared` or `public`) non-deleted clips from other users; Admin with `?all=true`: includes all non-deleted clips regardless of owner or visibility; non-Admin callers passing `?all=true` have it silently ignored (treated as if not passed); passing both `?all=true&includeShared=true` is valid for Admin (`?all=true` is a superset); each item includes `thumbnailUrl` always as `{S3_PUBLIC_BASE_URL}/{thumbnailKey}` (thumbnails are always public-read — no presigning), name, description, status, visibility, duration, clipper info, and creation date; offset-based pagination may return duplicates or skip items if clips are created/deleted between page requests — documented as a known limitation
 
-**Given** an authenticated user visits My Clips
-**When** the page loads
+**Given** an authenticated user opens the My Clips dialog (via the profile popover, above Preferences)
+**When** the dialog loads
 **Then** their own clips are displayed as cards (thumbnail, name, duration badge, visibility badge, status indicator, creation date); pending clips show a processing spinner; failed clips show an error state with a Dismiss button; ready clips show Edit, Share to Chat, Copy Link, Download, and Delete actions
 
 **Given** a user clicks Dismiss on a failed clip
@@ -2273,8 +2273,8 @@ So that I can edit clip details, control visibility, share to chat, download, an
 **When** the action completes
 **Then** if the clip's current `visibility` is `private`, it is first updated to `shared` within the same `prisma.$transaction()` as the Message insert; a `Message` record is created (`messageType: 'clip'`, `clip_id` set, `content` = the clip's **current name at share time**, snapshotted into `content` — if the clip is shared again after a name change, the new message `content` reflects the current name; the `ClipChatMessage` `clipName` field also reflects the current name); a `chat:message` WsMessage is broadcast with clip card payload (`clipThumbnailUrl` = `{S3_PUBLIC_BASE_URL}/{thumbnailKey}` — thumbnails are always public-read, no presigning); a `clip:visibility-changed` WsMessage is also broadcast when visibility changed (see Story 10-3 for the full broadcast spec on the `shareToChat` path); there is no uniqueness constraint preventing the same clip from being shared to chat multiple times; the button remains active; the server verifies the requesting user is not muted and returns 403 if they are (UI hides the button but server validation is authoritative)
 
-**Given** a muted user views My Clips
-**When** the page renders
+**Given** a muted user opens My Clips
+**When** the dialog renders
 **Then** the Share to Chat button is hidden for all clips (muted users cannot post to chat)
 
 **Given** a user clicks Copy Link
@@ -2341,7 +2341,7 @@ So that I can watch, download, and interact with clips without leaving the strea
 **When** the paginated response returns tombstone flags for some of those messages
 **Then** the frontend merges tombstone state into the existing rendered message list (not merely appending new results); any already-rendered message ID in the paginated response that arrives with `tombstone: true` replaces the existing rendered card with the tombstone card
 
-**And** muted users can view clip cards, watch clips, and download clips; they cannot share clips to chat (Share to Chat is absent from their My Clips page per Story 10-4)
+**And** muted users can view clip cards, watch clips, and download clips; they cannot share clips to chat (Share to Chat is absent from their My Clips dialog per Story 10-4)
 
 ---
 
