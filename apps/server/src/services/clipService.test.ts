@@ -23,9 +23,12 @@ vi.mock('../db/client.js', () => ({
       count: vi.fn(),
       create: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
     },
-    message: { create: vi.fn() },
+    message: { create: vi.fn(), findMany: vi.fn() },
+    auditLog: { create: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -42,6 +45,7 @@ vi.mock('../lib/s3-client.js', () => ({
   uploadToS3: vi.fn().mockResolvedValue(undefined),
   presignGetObject: vi.fn().mockResolvedValue('https://presigned.example.com/video'),
   deleteS3Objects: vi.fn().mockResolvedValue(undefined),
+  putObjectAcl: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('../lib/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -62,7 +66,7 @@ vi.mock('node:fs/promises', () => ({
 
 import { prisma } from '../db/client.js';
 import { streamConfig } from '../lib/stream-config.js';
-import { uploadToS3, presignGetObject, deleteS3Objects } from '../lib/s3-client.js';
+import { uploadToS3, presignGetObject, deleteS3Objects, putObjectAcl } from '../lib/s3-client.js';
 import { wsHub } from '../services/wsHub.js';
 import { spawn } from 'node:child_process';
 import { unlink } from 'node:fs/promises';
@@ -74,6 +78,10 @@ import {
   processClip,
   getClip,
   getClipDownloadUrl,
+  listClips,
+  deleteClip,
+  updateClip,
+  shareClipToChat,
 } from './clipService.js';
 
 const M3U8_WITH_TIMESTAMPS = `
@@ -92,7 +100,7 @@ const mockUser = {
   id: 'user-001',
   displayName: 'Test User',
   avatarUrl: null,
-  role: 'Viewer',
+  role: 'ViewerGuest',
   mutedAt: null,
   bannedAt: null,
   userTagText: null,
@@ -876,5 +884,790 @@ describe('getClipDownloadUrl', () => {
       requestingUserRole: 'Viewer',
     });
     expect(url).toBe('https://presigned.example.com/video');
+  });
+});
+
+const baseClipUser = {
+  displayName: 'Test User',
+  avatarUrl: null,
+  role: 'ViewerGuest',
+  userTagText: null,
+  userTagColor: null,
+};
+const baseClip = {
+  id: 'clip-001',
+  userId: 'user-001',
+  name: 'My Clip',
+  description: null,
+  status: 'ready',
+  visibility: 'private',
+  s3Key: 'clips/clip-001.mp4',
+  thumbnailKey: 'clips/clip-001-thumb.jpg',
+  durationSeconds: 10,
+  shareToChat: false,
+  showClipper: false,
+  showClipperAvatar: false,
+  clipperName: null,
+  clipperAvatarUrl: null,
+  createdAt: new Date('2026-03-22T10:00:00.000Z'),
+  updatedAt: null,
+  lastEditedAt: null,
+  deletedAt: null,
+  user: baseClipUser,
+};
+
+describe('listClips', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.clip.findMany).mockResolvedValue([baseClip] as never);
+    vi.mocked(prisma.clip.count).mockResolvedValue(1);
+  });
+
+  it('returns clips with thumbnailUrl computed from S3_PUBLIC_BASE_URL', async () => {
+    const result = await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(result.clips).toHaveLength(1);
+    expect(result.clips[0].thumbnailUrl).toBe('https://cdn.example.com/clips/clip-001-thumb.jpg');
+    expect(result.total).toBe(1);
+  });
+
+  it('returns null thumbnailUrl when thumbnailKey is null', async () => {
+    vi.mocked(prisma.clip.findMany).mockResolvedValue([
+      { ...baseClip, thumbnailKey: null },
+    ] as never);
+    const result = await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(result.clips[0].thumbnailUrl).toBeNull();
+  });
+
+  it('returns lastEditedAt as ISO string when set', async () => {
+    const ts = new Date('2026-03-22T10:01:00.000Z');
+    vi.mocked(prisma.clip.findMany).mockResolvedValue([{ ...baseClip, lastEditedAt: ts }] as never);
+    const result = await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(result.clips[0].lastEditedAt).toBe(ts.toISOString());
+  });
+
+  it('returns updatedAt as ISO string when set', async () => {
+    const ts = new Date('2026-03-22T10:02:00.000Z');
+    vi.mocked(prisma.clip.findMany).mockResolvedValue([{ ...baseClip, updatedAt: ts }] as never);
+    const result = await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(result.clips[0].updatedAt).toBe(ts.toISOString());
+  });
+
+  it('uses page and limit for skip/take', async () => {
+    await listClips({
+      userId: 'user-001',
+      page: 2,
+      limit: 5,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(prisma.clip.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 10, take: 5 }),
+    );
+  });
+
+  it('filters own clips only when includeShared=false and all=false', async () => {
+    await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(prisma.clip.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 'user-001', deletedAt: null }),
+      }),
+    );
+  });
+
+  it('includes OR clause when includeShared=true', async () => {
+    await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: true,
+      all: false,
+      isAdmin: false,
+    });
+    expect(prisma.clip.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ OR: expect.any(Array) }) }),
+    );
+  });
+
+  it('ignores all=true for non-admin', async () => {
+    await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: true,
+      isAdmin: false,
+    });
+    // should use own-clips-only where clause
+    expect(prisma.clip.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: 'user-001' }) }),
+    );
+  });
+
+  it('uses deletedAt:null only when isAdmin and all=true', async () => {
+    await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: true,
+      isAdmin: true,
+    });
+    expect(prisma.clip.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { deletedAt: null } }),
+    );
+  });
+
+  it('orders by createdAt desc', async () => {
+    await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(prisma.clip.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ orderBy: { createdAt: 'desc' } }),
+    );
+  });
+
+  it('includes clipper info from user relation', async () => {
+    const result = await listClips({
+      userId: 'user-001',
+      page: 0,
+      limit: 20,
+      includeShared: false,
+      all: false,
+      isAdmin: false,
+    });
+    expect(result.clips[0].clipperDisplayName).toBe('Test User');
+    expect(result.clips[0].clipperRole).toBe('ViewerGuest');
+  });
+});
+
+describe('deleteClip', () => {
+  const actor = { id: 'user-001', role: 'ViewerGuest' as const };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(baseClip as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn) => fn(prisma as never));
+    vi.mocked(prisma.clip.update).mockResolvedValue(baseClip as never);
+    vi.mocked(prisma.clip.delete).mockResolvedValue(baseClip as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it('throws 404 when clip not found', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(null);
+    await expect(deleteClip({ clipId: 'clip-001', actor })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('throws 404 when clip is soft-deleted', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      deletedAt: new Date(),
+    } as never);
+    await expect(deleteClip({ clipId: 'clip-001', actor })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('throws 404 when not owner and canModerateOver fails', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      user: { ...baseClipUser, role: 'Admin' },
+    } as never);
+    await expect(
+      deleteClip({ clipId: 'clip-001', actor: { id: 'other', role: 'Moderator' } }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 409 when clip is pending', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      status: 'pending',
+    } as never);
+    await expect(deleteClip({ clipId: 'clip-001', actor })).rejects.toMatchObject({
+      statusCode: 409,
+    });
+  });
+
+  it('hard-deletes failed clip with no S3 cleanup and no broadcast', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      status: 'failed',
+      s3Key: null,
+    } as never);
+    await deleteClip({ clipId: 'clip-001', actor });
+    expect(prisma.clip.delete).toHaveBeenCalledWith({ where: { id: 'clip-001' } });
+    expect(deleteS3Objects).not.toHaveBeenCalled();
+    expect(wsHub.broadcast).not.toHaveBeenCalled();
+  });
+
+  it('soft-deletes ready clip in transaction', async () => {
+    await deleteClip({ clipId: 'clip-001', actor });
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ deletedAt: expect.any(Date) }) }),
+    );
+  });
+
+  it('broadcasts clip:visibility-changed with deleted visibility after transaction', async () => {
+    await deleteClip({ clipId: 'clip-001', actor });
+    expect(wsHub.broadcast).toHaveBeenCalledWith({
+      type: 'clip:visibility-changed',
+      payload: expect.objectContaining({ clipId: 'clip-001', visibility: 'deleted' }),
+    });
+  });
+
+  it('queries chatClipIds and includes them in broadcast', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { id: 'msg-001' },
+      { id: 'msg-002' },
+    ] as never);
+    await deleteClip({ clipId: 'clip-001', actor });
+    expect(wsHub.broadcast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payload: expect.objectContaining({ chatClipIds: ['msg-001', 'msg-002'] }),
+      }),
+    );
+  });
+
+  it('deletes S3 objects for ready clip', async () => {
+    await deleteClip({ clipId: 'clip-001', actor });
+    expect(deleteS3Objects).toHaveBeenCalledWith([
+      'clips/clip-001.mp4',
+      'clips/clip-001-thumb.jpg',
+    ]);
+  });
+
+  it('logs S3 delete failure but does not throw', async () => {
+    vi.mocked(deleteS3Objects).mockRejectedValueOnce(new Error('S3 error'));
+    await expect(deleteClip({ clipId: 'clip-001', actor })).resolves.toBeUndefined();
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('writes audit log when actor is not owner (moderator)', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      user: { ...baseClipUser, role: 'ViewerGuest' },
+    } as never);
+    await deleteClip({ clipId: 'clip-001', actor: { id: 'mod-001', role: 'Moderator' } });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: 'clip:deleted', actorId: 'mod-001' }),
+      }),
+    );
+  });
+
+  it('does not write audit log when actor is owner', async () => {
+    await deleteClip({ clipId: 'clip-001', actor });
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('allows Moderator to delete Viewer clip', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      userId: 'viewer-1',
+      user: { ...baseClipUser, role: 'ViewerGuest' },
+    } as never);
+    await expect(
+      deleteClip({ clipId: 'clip-001', actor: { id: 'mod-001', role: 'Moderator' } }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe('updateClip', () => {
+  const actor = { id: 'user-001', role: 'ViewerGuest' as const };
+  const clipWithAvatar = {
+    ...baseClip,
+    user: { ...baseClipUser, avatarUrl: 'https://cdn.example.com/avatar.jpg' },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(baseClip as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({ ...baseClip, ...baseClipUser } as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([] as never);
+    vi.mocked(prisma.auditLog.create).mockResolvedValue({} as never);
+  });
+
+  it('throws 404 when clip not found', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(null);
+    await expect(
+      updateClip({ clipId: 'clip-001', actor, data: { name: 'New' } }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 404 when clip is soft-deleted', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      deletedAt: new Date(),
+    } as never);
+    await expect(updateClip({ clipId: 'clip-001', actor, data: {} })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('throws 404 when not owner and canModerateOver fails', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      user: { ...baseClipUser, role: 'Admin' },
+    } as never);
+    await expect(
+      updateClip({ clipId: 'clip-001', actor: { id: 'other', role: 'Moderator' }, data: {} }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 422 when ViewerGuest tries to set public visibility', async () => {
+    await expect(
+      updateClip({ clipId: 'clip-001', actor, data: { visibility: 'public' } }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it('throws 422 when ViewerCompany tries to set public visibility', async () => {
+    await expect(
+      updateClip({
+        clipId: 'clip-001',
+        actor: { id: 'user-001', role: 'ViewerCompany' },
+        data: { visibility: 'public' },
+      }),
+    ).rejects.toMatchObject({ statusCode: 422 });
+  });
+
+  it('allows Moderator to set public visibility', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'public',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await expect(
+      updateClip({
+        clipId: 'clip-001',
+        actor: { id: 'user-001', role: 'Moderator' },
+        data: { visibility: 'public' },
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('updates name and sets lastEditedAt', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      name: 'New Name',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { name: 'New Name' } });
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ name: 'New Name', lastEditedAt: expect.any(Date) }),
+      }),
+    );
+  });
+
+  it('does not set lastEditedAt when only visibility changes', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
+    const call = vi.mocked(prisma.clip.update).mock.calls[0][0];
+    expect(
+      (call as unknown as { data: Record<string, unknown> }).data.lastEditedAt,
+    ).toBeUndefined();
+  });
+
+  it('stores showClipperAvatar=false when owner has no avatar', async () => {
+    await updateClip({ clipId: 'clip-001', actor, data: { showClipperAvatar: true } });
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ showClipperAvatar: false }) }),
+    );
+  });
+
+  it('snapshots avatarUrl when showClipperAvatar=true and owner has avatar', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(clipWithAvatar as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...clipWithAvatar,
+      showClipperAvatar: true,
+      clipperAvatarUrl: 'https://cdn.example.com/avatar.jpg',
+      user: {
+        ...baseClipUser,
+        avatarUrl: 'https://cdn.example.com/avatar.jpg',
+        userTagText: null,
+        userTagColor: null,
+      },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { showClipperAvatar: true } });
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ clipperAvatarUrl: 'https://cdn.example.com/avatar.jpg' }),
+      }),
+    );
+  });
+
+  it('calls PutObjectAcl(public-read) when visibility changes to public', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+    } as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'public',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({
+      clipId: 'clip-001',
+      actor: { id: 'user-001', role: 'Moderator' },
+      data: { visibility: 'public' },
+    });
+    expect(putObjectAcl).toHaveBeenCalledWith({ key: 'clips/clip-001.mp4', acl: 'public-read' });
+  });
+
+  it('calls PutObjectAcl(private) when downgrading from public', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      visibility: 'public',
+    } as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
+    expect(putObjectAcl).toHaveBeenCalledWith({ key: 'clips/clip-001.mp4', acl: 'private' });
+  });
+
+  it('logs S3 ACL failure but does not throw', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+    } as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'public',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    vi.mocked(putObjectAcl).mockRejectedValueOnce(new Error('ACL error'));
+    await expect(
+      updateClip({
+        clipId: 'clip-001',
+        actor: { id: 'user-001', role: 'Moderator' },
+        data: { visibility: 'public' },
+      }),
+    ).resolves.toBeDefined();
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('broadcasts clip:visibility-changed when visibility changes', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
+    expect(wsHub.broadcast).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'clip:visibility-changed' }),
+    );
+  });
+
+  it('includes clip card data in broadcast when new visibility is shared', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
+    expect(wsHub.broadcast).toHaveBeenCalledWith({
+      type: 'clip:visibility-changed',
+      payload: expect.objectContaining({ clip: expect.objectContaining({ clipId: 'clip-001' }) }),
+    });
+  });
+
+  it('does not broadcast when visibility does not change', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { name: 'New Name' } });
+    expect(wsHub.broadcast).not.toHaveBeenCalled();
+  });
+
+  it('writes audit log for each category when Moderator edits non-owned clip', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      userId: 'other-user',
+      user: { ...baseClipUser, role: 'ViewerGuest' },
+    } as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      userId: 'other-user',
+      name: 'New',
+      visibility: 'shared',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({
+      clipId: 'clip-001',
+      actor: { id: 'mod-001', role: 'Moderator' },
+      data: { name: 'New', visibility: 'shared' },
+    });
+    const calls = vi
+      .mocked(prisma.auditLog.create)
+      .mock.calls.map((c) => (c[0] as unknown as { data: { action: string } }).data.action);
+    expect(calls).toContain('clip:edited');
+    expect(calls).toContain('clip:visibility-changed');
+  });
+
+  it('writes clip:attribution-changed audit log when Moderator edits attribution on non-owned clip', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      userId: 'other-user',
+      user: { ...baseClipUser, role: 'ViewerGuest' },
+    } as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      userId: 'other-user',
+      showClipper: false,
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({
+      clipId: 'clip-001',
+      actor: { id: 'mod-001', role: 'Moderator' },
+      data: { showClipper: false },
+    });
+    const calls = vi
+      .mocked(prisma.auditLog.create)
+      .mock.calls.map((c) => (c[0] as unknown as { data: { action: string } }).data.action);
+    expect(calls).toContain('clip:attribution-changed');
+  });
+
+  it('returns updated clip fields', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      name: 'Updated',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    const result = await updateClip({ clipId: 'clip-001', actor, data: { name: 'Updated' } });
+    expect((result as { name: string }).name).toBe('Updated');
+  });
+
+  it('updates description and clipperName fields', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      description: 'New desc',
+      clipperName: 'Clipper',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({
+      clipId: 'clip-001',
+      actor,
+      data: { description: 'New desc', clipperName: 'Clipper' },
+    });
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ description: 'New desc', clipperName: 'Clipper' }),
+      }),
+    );
+  });
+
+  it('omits clipThumbnailUrl in visibility-changed broadcast when thumbnailKey is null', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+      thumbnailKey: null,
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
+    const call = vi
+      .mocked(wsHub.broadcast)
+      .mock.calls.find((c) => (c[0] as { type: string }).type === 'clip:visibility-changed');
+    expect(
+      (call![0] as unknown as { payload: { clip: Record<string, unknown> } }).payload.clip,
+    ).not.toHaveProperty('clipThumbnailUrl');
+  });
+
+  it('returns null thumbnailUrl and non-null date strings when thumbnailKey is null and timestamps are set', async () => {
+    const ts = new Date('2026-03-22T10:01:00.000Z');
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      thumbnailKey: null,
+      updatedAt: ts,
+      lastEditedAt: ts,
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    const result = await updateClip({ clipId: 'clip-001', actor, data: { name: 'X' } });
+    expect((result as { thumbnailUrl: null }).thumbnailUrl).toBeNull();
+    expect((result as { updatedAt: string }).updatedAt).toBe(ts.toISOString());
+    expect((result as { lastEditedAt: string }).lastEditedAt).toBe(ts.toISOString());
+  });
+
+  it('includes clipperAvatarUrl in visibility-changed broadcast when set', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+      clipperAvatarUrl: 'https://cdn.example.com/av.jpg',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
+    const call = vi
+      .mocked(wsHub.broadcast)
+      .mock.calls.find((c) => (c[0] as { type: string }).type === 'clip:visibility-changed');
+    expect(call).toBeDefined();
+  });
+});
+
+describe('shareClipToChat', () => {
+  const actor = {
+    id: 'user-001',
+    role: 'ViewerGuest' as const,
+    mutedAt: null,
+    displayName: 'Test User',
+    avatarUrl: null,
+    userTagText: null,
+    userTagColor: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(baseClip as never);
+    vi.mocked(prisma.$transaction).mockImplementation(async (fn) => fn(prisma as never));
+    vi.mocked(prisma.message.create).mockResolvedValue({} as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue(baseClip as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
+  });
+
+  it('throws 403 when actor is muted', async () => {
+    await expect(
+      shareClipToChat({ clipId: 'clip-001', actor: { ...actor, mutedAt: new Date() } }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('throws 404 when clip not found', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(null);
+    await expect(shareClipToChat({ clipId: 'clip-001', actor })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('throws 404 when clip is soft-deleted', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      deletedAt: new Date(),
+    } as never);
+    await expect(shareClipToChat({ clipId: 'clip-001', actor })).rejects.toMatchObject({
+      statusCode: 404,
+    });
+  });
+
+  it('throws 409 when clip is not ready', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      status: 'pending',
+    } as never);
+    await expect(shareClipToChat({ clipId: 'clip-001', actor })).rejects.toMatchObject({
+      statusCode: 409,
+    });
+  });
+
+  it('creates message and updates visibility in transaction when clip is private', async () => {
+    await shareClipToChat({ clipId: 'clip-001', actor });
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(prisma.clip.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { visibility: 'shared' } }),
+    );
+    expect(prisma.message.create).toHaveBeenCalled();
+  });
+
+  it('broadcasts chat:message', async () => {
+    await shareClipToChat({ clipId: 'clip-001', actor });
+    expect(wsHub.broadcast).toHaveBeenCalledWith(expect.objectContaining({ type: 'chat:message' }));
+  });
+
+  it('broadcasts clip:visibility-changed when clip was private', async () => {
+    await shareClipToChat({ clipId: 'clip-001', actor });
+    expect(wsHub.broadcast).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'clip:visibility-changed' }),
+    );
+  });
+
+  it('does not broadcast clip:visibility-changed when clip was already shared', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+    } as never);
+    await shareClipToChat({ clipId: 'clip-001', actor });
+    const calls = vi.mocked(wsHub.broadcast).mock.calls.map((c) => (c[0] as { type: string }).type);
+    expect(calls).not.toContain('clip:visibility-changed');
+  });
+
+  it('still creates message for already-shared clip (no uniqueness constraint)', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+    } as never);
+    await shareClipToChat({ clipId: 'clip-001', actor });
+    expect(prisma.message.create).toHaveBeenCalled();
+  });
+
+  it('includes thumbnailUrl in clip message', async () => {
+    await shareClipToChat({ clipId: 'clip-001', actor });
+    expect(wsHub.broadcast).toHaveBeenCalledWith({
+      type: 'chat:message',
+      payload: expect.objectContaining({
+        clipThumbnailUrl: 'https://cdn.example.com/clips/clip-001-thumb.jpg',
+      }),
+    });
+  });
+
+  it('omits clipThumbnailUrl when clip has no thumbnailKey', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      thumbnailKey: null,
+    } as never);
+    await shareClipToChat({ clipId: 'clip-001', actor });
+    const call = vi
+      .mocked(wsHub.broadcast)
+      .mock.calls.find((c) => (c[0] as { type: string }).type === 'chat:message');
+    expect((call![0] as { payload: Record<string, unknown> }).payload).not.toHaveProperty(
+      'clipThumbnailUrl',
+    );
   });
 });

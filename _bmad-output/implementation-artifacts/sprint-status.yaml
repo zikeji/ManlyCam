@@ -138,7 +138,7 @@ development_status:
   10-2-clipping-infrastructure: done # Code review complete 2026-03-22: specs updated to match implementation (S3 keys derived from clipId, MTX_HLS_URL env var). All quality gates passing (538 server tests, 1202 web tests).
   10-3-clip-creation-pipeline: done # Code review complete 2026-03-23. Fixed: chatClipIds in broadcast, pending clips TTL cleanup, ffmpeg 5-min timeout, S3 cleanup logging, HLS cache validation. 628 server tests passing.
   10-3b-clip-editor-ui: done # Code review complete 2026-03-23: 5 findings fixed (animation suppression, AtmosphericVoid dual-mode canvas for HLS, timeline tick marks, buffer-start selection shrink, auto-advance duration shrink). All quality gates passing.
-  10-4-my-clips-page: ready-for-dev
+  10-4-my-clips-page: review
   10-5-chat-clip-integration: ready-for-dev
   10-6-public-clip-pages: ready-for-dev
   10-7-production-deployment-documentation: ready-for-dev

@@ -27,6 +27,7 @@ import { useAuth } from './useAuth';
 import { useBrowserNotifications } from './useBrowserNotifications';
 import { useNotificationPreferences } from './useNotificationPreferences';
 import { handleClipStatusChanged } from './useClipCreate';
+import { handleClipStatusUpdate, handleClipVisibilityChanged } from './useClips';
 import type { UserPresence, WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
@@ -157,6 +158,10 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'clip:status-changed') {
         handleClipStatusChanged(msg.payload);
+        handleClipStatusUpdate(msg.payload);
+      }
+      if (msg.type === 'clip:visibility-changed') {
+        handleClipVisibilityChanged(msg.payload);
       }
     } catch {
       // Ignore malformed messages

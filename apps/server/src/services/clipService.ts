@@ -6,9 +6,10 @@ import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { streamConfig } from '../lib/stream-config.js';
 import { wsHub } from './wsHub.js';
-import { uploadToS3, presignGetObject, deleteS3Objects } from '../lib/s3-client.js';
+import { uploadToS3, presignGetObject, deleteS3Objects, putObjectAcl } from '../lib/s3-client.js';
 import { AppError } from '../lib/errors.js';
 import { computeUserTag } from '../lib/user-tag.js';
+import { canModerateOver } from '../lib/roleUtils.js';
 import { ROLE_RANK } from '@manlycam/types';
 import { logger } from '../lib/logger.js';
 import type { Role, ClipChatMessage, ClipStatusChangedPayload } from '@manlycam/types';
@@ -546,6 +547,448 @@ export async function getClip(params: {
     createdAt: clip.createdAt.toISOString(),
     updatedAt: clip.updatedAt?.toISOString() ?? null,
   };
+}
+
+export interface ClipListItem {
+  id: string;
+  userId: string;
+  name: string;
+  description: string | null;
+  status: string;
+  visibility: string;
+  thumbnailUrl: string | null;
+  durationSeconds: number | null;
+  showClipper: boolean;
+  showClipperAvatar: boolean;
+  clipperName: string | null;
+  clipperAvatarUrl: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+  lastEditedAt: string | null;
+  clipperDisplayName: string;
+  clipperAvatarUrlOwner: string | null;
+  clipperRole: string;
+}
+
+export async function listClips(params: {
+  userId: string;
+  page: number;
+  limit: number;
+  includeShared: boolean;
+  all: boolean;
+  isAdmin: boolean;
+}): Promise<{ clips: ClipListItem[]; total: number }> {
+  const { userId, page, limit, includeShared, all, isAdmin } = params;
+  const skip = page * limit;
+
+  let whereClause: Record<string, unknown>;
+  if (isAdmin && all) {
+    whereClause = { deletedAt: null };
+  } else if (includeShared) {
+    whereClause = {
+      deletedAt: null,
+      OR: [{ userId }, { userId: { not: userId }, visibility: { in: ['shared', 'public'] } }],
+    };
+  } else {
+    whereClause = { deletedAt: null, userId };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where = whereClause as any;
+  const [rows, total] = await Promise.all([
+    prisma.clip.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            avatarUrl: true,
+            role: true,
+            userTagText: true,
+            userTagColor: true,
+          },
+        },
+      },
+    }),
+    prisma.clip.count({ where }),
+  ]);
+
+  const clips: ClipListItem[] = rows.map((clip) => ({
+    id: clip.id,
+    userId: clip.userId,
+    name: clip.name,
+    description: clip.description,
+    status: clip.status,
+    visibility: clip.visibility,
+    thumbnailUrl: clip.thumbnailKey ? `${env.S3_PUBLIC_BASE_URL}/${clip.thumbnailKey}` : null,
+    durationSeconds: clip.durationSeconds,
+    showClipper: clip.showClipper,
+    showClipperAvatar: clip.showClipperAvatar,
+    clipperName: clip.clipperName,
+    clipperAvatarUrl: clip.clipperAvatarUrl,
+    createdAt: clip.createdAt.toISOString(),
+    updatedAt: clip.updatedAt?.toISOString() ?? null,
+    lastEditedAt: clip.lastEditedAt?.toISOString() ?? null,
+    clipperDisplayName: clip.user.displayName,
+    clipperAvatarUrlOwner: clip.user.avatarUrl,
+    clipperRole: clip.user.role,
+  }));
+
+  return { clips, total };
+}
+
+export async function deleteClip(params: {
+  clipId: string;
+  actor: { id: string; role: Role };
+}): Promise<void> {
+  const { clipId, actor } = params;
+
+  const clip = await prisma.clip.findUnique({
+    where: { id: clipId },
+    include: { user: { select: { role: true } } },
+  });
+
+  if (!clip || clip.deletedAt !== null) throw new AppError('Not found', 'NOT_FOUND', 404);
+
+  const isOwner = actor.id === clip.userId;
+  if (!isOwner && !canModerateOver(actor.role, clip.user.role as Role)) {
+    throw new AppError('Not found', 'NOT_FOUND', 404);
+  }
+
+  if (clip.status === 'pending') {
+    throw new AppError('Cannot delete a clip that is still processing', 'CONFLICT', 409);
+  }
+
+  if (clip.status === 'failed') {
+    await prisma.clip.delete({ where: { id: clipId } });
+    return;
+  }
+
+  // status: 'ready' — soft delete + S3 cleanup + broadcast
+  const chatClipIds = (
+    await prisma.message.findMany({
+      where: { clipId },
+      select: { id: true },
+      take: 100,
+    })
+  ).map((m) => m.id);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.clip.update({ where: { id: clipId }, data: { deletedAt: new Date() } });
+  });
+
+  if (!isOwner) {
+    await prisma.auditLog.create({
+      data: {
+        id: ulid(),
+        action: 'clip:deleted',
+        actorId: actor.id,
+        targetId: clip.userId,
+        metadata: { clipId, clipName: clip.name },
+      },
+    });
+  }
+
+  // S3 cleanup (best-effort)
+  const keysToDelete: string[] = [];
+  if (clip.s3Key) keysToDelete.push(clip.s3Key);
+  if (clip.thumbnailKey) keysToDelete.push(clip.thumbnailKey);
+  if (keysToDelete.length > 0) {
+    try {
+      await deleteS3Objects(keysToDelete);
+    } catch (err) {
+      logger.error({ err, clipId, keysToDelete }, 'clip: S3 delete failed (orphaned objects)');
+    }
+  }
+
+  wsHub.broadcast({
+    type: 'clip:visibility-changed',
+    payload: { clipId, visibility: 'deleted', chatClipIds },
+  });
+}
+
+export async function updateClip(params: {
+  clipId: string;
+  actor: { id: string; role: Role };
+  data: {
+    name?: string;
+    description?: string;
+    visibility?: string;
+    showClipper?: boolean;
+    showClipperAvatar?: boolean;
+    clipperName?: string;
+  };
+}): Promise<Record<string, unknown>> {
+  const { clipId, actor, data } = params;
+
+  const clip = await prisma.clip.findUnique({
+    where: { id: clipId },
+    include: { user: { select: { avatarUrl: true, role: true } } },
+  });
+
+  if (!clip || clip.deletedAt !== null) throw new AppError('Not found', 'NOT_FOUND', 404);
+
+  const isOwner = actor.id === clip.userId;
+  if (!isOwner && !canModerateOver(actor.role, clip.user.role as Role)) {
+    throw new AppError('Not found', 'NOT_FOUND', 404);
+  }
+
+  if (data.visibility === 'public' && ROLE_RANK[actor.role] < ROLE_RANK['Moderator']) {
+    throw new AppError('Insufficient role to set public visibility', 'FORBIDDEN', 422);
+  }
+
+  const updateData: Record<string, unknown> = {};
+  const auditCategories: string[] = [];
+
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.name !== undefined || data.description !== undefined) {
+    updateData.lastEditedAt = new Date();
+    if (!isOwner) auditCategories.push('clip:edited');
+  }
+
+  if (data.visibility !== undefined && data.visibility !== clip.visibility) {
+    updateData.visibility = data.visibility;
+    if (!isOwner) auditCategories.push('clip:visibility-changed');
+  }
+
+  const prevVisibility = clip.visibility;
+  const newVisibility = (data.visibility ?? clip.visibility) as string;
+
+  // Attribution controls — only relevant when going to/staying at public
+  if (data.showClipper !== undefined) updateData.showClipper = data.showClipper;
+  if (data.showClipperAvatar !== undefined) {
+    // null guard: if owner has no avatar, store false
+    if (data.showClipperAvatar && !clip.user.avatarUrl) {
+      updateData.showClipperAvatar = false;
+    } else {
+      updateData.showClipperAvatar = data.showClipperAvatar;
+      if (data.showClipperAvatar && clip.user.avatarUrl) {
+        updateData.clipperAvatarUrl = clip.user.avatarUrl;
+      }
+    }
+  }
+  if (data.clipperName !== undefined) updateData.clipperName = data.clipperName;
+  if (
+    (data.showClipper !== undefined ||
+      data.showClipperAvatar !== undefined ||
+      data.clipperName !== undefined) &&
+    !isOwner
+  ) {
+    auditCategories.push('clip:attribution-changed');
+  }
+
+  const updated = await prisma.clip.update({
+    where: { id: clipId },
+    data: updateData as Parameters<typeof prisma.clip.update>[0]['data'],
+    include: {
+      user: {
+        select: {
+          displayName: true,
+          avatarUrl: true,
+          role: true,
+          userTagText: true,
+          userTagColor: true,
+        },
+      },
+    },
+  });
+
+  // S3 ACL transitions
+  if (data.visibility !== undefined && data.visibility !== prevVisibility && updated.s3Key) {
+    try {
+      if (newVisibility === 'public') {
+        await putObjectAcl({ key: updated.s3Key, acl: 'public-read' });
+      } else if (prevVisibility === 'public') {
+        await putObjectAcl({ key: updated.s3Key, acl: 'private' });
+      }
+    } catch (err) {
+      logger.error({ err, clipId, newVisibility }, 'clip: S3 ACL transition failed (non-fatal)');
+    }
+  }
+
+  // Audit logging
+  if (!isOwner) {
+    for (const action of auditCategories) {
+      await prisma.auditLog.create({
+        data: {
+          id: ulid(),
+          action,
+          actorId: actor.id,
+          targetId: clip.userId,
+          metadata: { clipId, clipName: clip.name },
+        },
+      });
+    }
+  }
+
+  // Broadcast visibility change if changed
+  if (data.visibility !== undefined && data.visibility !== prevVisibility) {
+    const chatClipIds = (
+      await prisma.message.findMany({
+        where: { clipId },
+        select: { id: true },
+        take: 100,
+      })
+    ).map((m) => m.id);
+
+    const visibilityPayload: {
+      clipId: string;
+      visibility: string;
+      chatClipIds: string[];
+      clip?: ClipChatMessage;
+    } = { clipId, visibility: newVisibility, chatClipIds };
+
+    if (newVisibility === 'shared' || newVisibility === 'public') {
+      const userTag = computeUserTag(updated.user);
+      const clipMsg: ClipChatMessage = {
+        id: '',
+        userId: updated.userId,
+        displayName: updated.user.displayName,
+        avatarUrl: updated.user.avatarUrl,
+        authorRole: updated.user.role as Role,
+        messageType: 'clip',
+        content: `Clipped: ${updated.name}`,
+        clipId,
+        clipName: updated.name,
+        clipDurationSeconds: updated.durationSeconds,
+        ...(updated.thumbnailKey
+          ? { clipThumbnailUrl: `${env.S3_PUBLIC_BASE_URL}/${updated.thumbnailKey}` }
+          : {}),
+        ...(updated.clipperAvatarUrl ? { clipperAvatarUrl: updated.clipperAvatarUrl } : {}),
+        editHistory: null,
+        updatedAt: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: updated.createdAt.toISOString(),
+        userTag,
+      };
+      visibilityPayload.clip = clipMsg;
+    }
+
+    wsHub.broadcast({ type: 'clip:visibility-changed', payload: visibilityPayload });
+  }
+
+  return {
+    id: updated.id,
+    userId: updated.userId,
+    name: updated.name,
+    description: updated.description,
+    status: updated.status,
+    visibility: updated.visibility,
+    thumbnailKey: updated.thumbnailKey,
+    thumbnailUrl: updated.thumbnailKey ? `${env.S3_PUBLIC_BASE_URL}/${updated.thumbnailKey}` : null,
+    durationSeconds: updated.durationSeconds,
+    showClipper: updated.showClipper,
+    showClipperAvatar: updated.showClipperAvatar,
+    clipperName: updated.clipperName,
+    clipperAvatarUrl: updated.clipperAvatarUrl,
+    createdAt: updated.createdAt.toISOString(),
+    updatedAt: updated.updatedAt?.toISOString() ?? null,
+    lastEditedAt: updated.lastEditedAt?.toISOString() ?? null,
+  };
+}
+
+export async function shareClipToChat(params: {
+  clipId: string;
+  actor: {
+    id: string;
+    role: Role;
+    mutedAt: Date | null;
+    displayName: string;
+    avatarUrl: string | null;
+    userTagText: string | null;
+    userTagColor: string | null;
+  };
+}): Promise<void> {
+  const { clipId, actor } = params;
+
+  if (actor.mutedAt !== null) {
+    throw new AppError('Muted users cannot share clips to chat', 'FORBIDDEN', 403);
+  }
+
+  const clip = await prisma.clip.findUnique({
+    where: { id: clipId },
+    select: {
+      id: true,
+      userId: true,
+      name: true,
+      durationSeconds: true,
+      thumbnailKey: true,
+      status: true,
+      deletedAt: true,
+      visibility: true,
+    },
+  });
+
+  if (!clip || clip.deletedAt !== null) throw new AppError('Not found', 'NOT_FOUND', 404);
+  if (clip.status !== 'ready') throw new AppError('Clip not ready', 'CLIP_NOT_READY', 409);
+
+  const messageId = ulid();
+  const userTag = computeUserTag({
+    role: actor.role,
+    userTagText: actor.userTagText,
+    userTagColor: actor.userTagColor,
+  });
+  const clipMsg: ClipChatMessage = {
+    id: messageId,
+    userId: actor.id,
+    displayName: actor.displayName,
+    avatarUrl: actor.avatarUrl,
+    authorRole: actor.role,
+    messageType: 'clip',
+    content: `Clipped: ${clip.name}`,
+    clipId,
+    clipName: clip.name,
+    clipDurationSeconds: clip.durationSeconds,
+    ...(clip.thumbnailKey
+      ? { clipThumbnailUrl: `${env.S3_PUBLIC_BASE_URL}/${clip.thumbnailKey}` }
+      : {}),
+    editHistory: null,
+    updatedAt: null,
+    deletedAt: null,
+    deletedBy: null,
+    createdAt: new Date().toISOString(),
+    userTag,
+  };
+
+  const prevVisibility = clip.visibility;
+  const newVisibility = prevVisibility === 'private' ? 'shared' : prevVisibility;
+
+  await prisma.$transaction(async (tx) => {
+    if (prevVisibility === 'private') {
+      await tx.clip.update({ where: { id: clipId }, data: { visibility: 'shared' } });
+    }
+    await tx.message.create({
+      data: {
+        id: messageId,
+        userId: actor.id,
+        content: clipMsg.content,
+        messageType: 'clip',
+        clipId,
+      },
+    });
+  });
+
+  wsHub.broadcast({ type: 'chat:message', payload: clipMsg });
+
+  if (prevVisibility === 'private') {
+    const chatClipIds = (
+      await prisma.message.findMany({
+        where: { clipId },
+        select: { id: true },
+        take: 100,
+      })
+    ).map((m) => m.id);
+
+    wsHub.broadcast({
+      type: 'clip:visibility-changed',
+      payload: { clipId, visibility: newVisibility, chatClipIds, clip: clipMsg },
+    });
+  }
 }
 
 export async function getClipDownloadUrl(params: {

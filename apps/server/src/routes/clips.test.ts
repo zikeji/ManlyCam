@@ -37,6 +37,10 @@ vi.mock('../services/clipService.js', () => ({
   getClip: vi.fn(),
   getClipDownloadUrl: vi.fn(),
   getSegmentRange: vi.fn(),
+  listClips: vi.fn(),
+  deleteClip: vi.fn(),
+  updateClip: vi.fn(),
+  shareClipToChat: vi.fn(),
 }));
 
 import { getSessionUser } from '../services/authService.js';
@@ -45,6 +49,10 @@ import {
   getClip,
   getClipDownloadUrl,
   getSegmentRange,
+  listClips,
+  deleteClip,
+  updateClip,
+  shareClipToChat,
 } from '../services/clipService.js';
 import { AppError } from '../lib/errors.js';
 import { createApp } from '../app.js';
@@ -341,5 +349,296 @@ describe('GET /api/clips/segment-range', () => {
       headers: { cookie: 'session_id=valid' },
     });
     expect(res.status).toBe(422);
+  });
+});
+
+describe('GET /api/clips', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/clips');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 200 with clips list', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(listClips).mockResolvedValue({ clips: [], total: 0 });
+    const res = await createApp().app.request('/api/clips', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { clips: unknown[]; total: number };
+    expect(body.clips).toEqual([]);
+    expect(body.total).toBe(0);
+  });
+
+  it('passes page and limit to service', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(listClips).mockResolvedValue({ clips: [], total: 0 });
+    await createApp().app.request('/api/clips?page=2&limit=5', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(listClips).toHaveBeenCalledWith(expect.objectContaining({ page: 2, limit: 5 }));
+  });
+
+  it('passes includeShared=true when query param set', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(listClips).mockResolvedValue({ clips: [], total: 0 });
+    await createApp().app.request('/api/clips?includeShared=true', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(listClips).toHaveBeenCalledWith(expect.objectContaining({ includeShared: true }));
+  });
+
+  it('falls back to default limit when limit is non-numeric', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(listClips).mockResolvedValue({ clips: [], total: 0 });
+    await createApp().app.request('/api/clips?limit=abc', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(listClips).toHaveBeenCalledWith(expect.objectContaining({ limit: 20 }));
+  });
+
+  it('passes isAdmin=false for non-Admin user', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(listClips).mockResolvedValue({ clips: [], total: 0 });
+    await createApp().app.request('/api/clips', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(listClips).toHaveBeenCalledWith(expect.objectContaining({ isAdmin: false }));
+  });
+
+  it('propagates AppError from service', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(listClips).mockRejectedValue(new AppError('Internal error', 'SERVER_ERROR', 500));
+    const res = await createApp().app.request('/api/clips', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(500);
+  });
+});
+
+describe('PATCH /api/clips/:clipId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'New' }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 400 on invalid JSON', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: 'not-json',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 422 when name is empty string', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({ name: '' }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when visibility is invalid', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({ visibility: 'unlisted' }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when description is not a string', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({ description: 123 }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when showClipper is not boolean', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({ showClipper: 'yes' }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when showClipperAvatar is not boolean', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({ showClipperAvatar: 1 }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 422 when clipperName is not a string', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({ clipperName: 42 }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  it('returns 200 with updated clip', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(updateClip).mockResolvedValue({ id: 'clip-001', name: 'New Name' } as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({ name: 'New Name' }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { id: string; name: string };
+    expect(body.name).toBe('New Name');
+  });
+
+  it('passes all fields to service when provided', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(updateClip).mockResolvedValue({ id: 'clip-001' } as never);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({
+        description: 'Desc',
+        visibility: 'shared',
+        showClipper: true,
+        showClipperAvatar: true,
+        clipperName: 'Me',
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(updateClip).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          description: 'Desc',
+          visibility: 'shared',
+          showClipper: true,
+          showClipperAvatar: true,
+          clipperName: 'Me',
+        }),
+      }),
+    );
+  });
+
+  it('propagates 404 from service', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(updateClip).mockRejectedValue(new AppError('Not found', 'NOT_FOUND', 404));
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', cookie: 'session_id=valid' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('DELETE /api/clips/:clipId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/clips/clip-001', { method: 'DELETE' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 204 on success', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteClip).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(204);
+  });
+
+  it('propagates 404 from service', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteClip).mockRejectedValue(new AppError('Not found', 'NOT_FOUND', 404));
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('propagates 409 from service', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(deleteClip).mockRejectedValue(new AppError('Conflict', 'CONFLICT', 409));
+    const res = await createApp().app.request('/api/clips/clip-001', {
+      method: 'DELETE',
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(409);
+  });
+});
+
+describe('POST /api/clips/:clipId/share', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/clips/clip-001/share', { method: 'POST' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 204 on success', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(shareClipToChat).mockResolvedValue(undefined);
+    const res = await createApp().app.request('/api/clips/clip-001/share', {
+      method: 'POST',
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(204);
+  });
+
+  it('propagates 403 from service (muted user)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(shareClipToChat).mockRejectedValue(new AppError('Muted', 'FORBIDDEN', 403));
+    const res = await createApp().app.request('/api/clips/clip-001/share', {
+      method: 'POST',
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('propagates 409 from service (clip not ready)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(shareClipToChat).mockRejectedValue(new AppError('Not ready', 'CLIP_NOT_READY', 409));
+    const res = await createApp().app.request('/api/clips/clip-001/share', {
+      method: 'POST',
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(409);
   });
 });
