@@ -21,7 +21,7 @@ export const CAMERA_CONTROLS_ALLOWLIST = [
   'rpiCameraTextOverlay',
   'rpiCameraFPS',
   'rpiCameraBitrate',
-  'rpiCameraIdrPeriod',
+  'rpiCameraIDRPeriod',
   'rpiCameraWidth',
   'rpiCameraHeight',
   'rpiCameraHFlip',
@@ -322,7 +322,7 @@ export const CAMERA_CONTROL_META: CameraControlMeta[] = [
     },
   },
   {
-    key: 'rpiCameraIdrPeriod',
+    key: 'rpiCameraIDRPeriod',
     label: 'IDR Period (frames)',
     section: 'Encoding',
     type: 'number',
