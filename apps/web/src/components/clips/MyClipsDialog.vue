@@ -57,6 +57,7 @@ const includeShared = ref(false);
 const showAll = ref(false);
 const editingClip = ref<ClipListItem | null>(null);
 const deletingClipId = ref<string | null>(null);
+const deleteDialogOpen = ref(false);
 const watchingClipUrl = ref<string | null>(null);
 const watchingClipName = ref<string>('');
 
@@ -110,10 +111,12 @@ async function onDismiss(clipId: string) {
 }
 
 async function onConfirmDelete() {
-  /* c8 ignore next -- guard cannot be reached when dialog is open since deletingClipId is set to open it */
-  if (!deletingClipId.value) return;
+  const clipId = deletingClipId.value;
+  deleteDialogOpen.value = false;
+  /* c8 ignore next -- guard cannot be reached; AlertDialogAction only fires when dialog is open */
+  if (!clipId) return;
   try {
-    await deleteClip(deletingClipId.value);
+    await deleteClip(clipId);
   } catch (err: unknown) {
     toast.error(err instanceof Error ? err.message : 'Failed to delete clip');
   } finally {
@@ -356,7 +359,7 @@ watch(
                       <DropdownMenuItem
                         class="text-destructive focus:text-destructive"
                         data-testid="delete-button"
-                        @click="deletingClipId = clip.id"
+                        @click="() => { deletingClipId = clip.id; deleteDialogOpen = true; }"
                       >
                         Delete
                       </DropdownMenuItem>
@@ -424,8 +427,8 @@ watch(
 
   <!-- Delete confirmation dialog -->
   <AlertDialog
-    :open="deletingClipId !== null"
-    @update:open="(v) => { if (!v) deletingClipId = null; }"
+    :open="deleteDialogOpen"
+    @update:open="(v) => { if (!v) { deleteDialogOpen = false; deletingClipId = null; } }"
   >
     <AlertDialogContent>
       <AlertDialogHeader>
