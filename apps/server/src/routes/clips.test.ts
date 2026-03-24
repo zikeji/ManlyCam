@@ -37,6 +37,7 @@ vi.mock('../services/clipService.js', () => ({
   getClip: vi.fn(),
   getClipDownloadUrl: vi.fn(),
   getClipStreamUrl: vi.fn(),
+  getClipThumbnail: vi.fn(),
   getSegmentRange: vi.fn(),
   listClips: vi.fn(),
   deleteClip: vi.fn(),
@@ -50,6 +51,7 @@ import {
   getClip,
   getClipDownloadUrl,
   getClipStreamUrl,
+  getClipThumbnail,
   getSegmentRange,
   listClips,
   deleteClip,
@@ -662,7 +664,9 @@ describe('GET /api/clips/:clipId/stream', () => {
 
   it('returns 401 when unauthenticated', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(null);
-    vi.mocked(getClipStreamUrl).mockRejectedValue(new AppError('Unauthorized', 'UNAUTHORIZED', 401));
+    vi.mocked(getClipStreamUrl).mockRejectedValue(
+      new AppError('Unauthorized', 'UNAUTHORIZED', 401),
+    );
     const res = await createApp().app.request('/api/clips/clip-001/stream');
     expect(res.status).toBe(401);
   });
@@ -676,5 +680,43 @@ describe('GET /api/clips/:clipId/stream', () => {
       headers: { cookie: 'session_id=valid' },
     });
     expect(res.status).toBe(409);
+  });
+});
+
+describe('GET /api/clips/:clipId/thumbnail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 200 with image body and cache headers', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getClipThumbnail).mockResolvedValue({
+      body: Buffer.from('imgdata'),
+      contentType: 'image/jpeg',
+    });
+    const res = await createApp().app.request('/api/clips/clip-001/thumbnail', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toBe('image/jpeg');
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=86400');
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(null);
+    vi.mocked(getClipThumbnail).mockRejectedValue(
+      new AppError('Unauthorized', 'UNAUTHORIZED', 401),
+    );
+    const res = await createApp().app.request('/api/clips/clip-001/thumbnail');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when clip has no thumbnail', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
+    vi.mocked(getClipThumbnail).mockRejectedValue(new AppError('Not found', 'NOT_FOUND', 404));
+    const res = await createApp().app.request('/api/clips/clip-001/thumbnail', {
+      headers: { cookie: 'session_id=valid' },
+    });
+    expect(res.status).toBe(404);
   });
 });

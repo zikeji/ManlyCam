@@ -27,14 +27,6 @@ vi.mock('./slashCommands.js', () => ({
   executeCommand: vi.fn(() => null),
 }));
 
-vi.mock('../env.js', () => ({
-  env: { S3_PUBLIC_BASE_URL: 'http://localhost:9000' },
-}));
-
-vi.mock('../lib/s3-client.js', () => ({
-  s3PublicUrl: vi.fn().mockImplementation((key: string) => `http://localhost:9000/${key}`),
-}));
-
 import { prisma } from '../db/client.js';
 import { wsHub } from './wsHub.js';
 import { executeCommand } from './slashCommands.js';
@@ -706,7 +698,7 @@ describe('chatService.toApiChatMessage — clip messages', () => {
       expect(msg.clipId).toBe('clip-001');
       expect(msg.clipName).toBe('My Clip');
       expect(msg.clipDurationSeconds).toBe(42);
-      expect(msg.clipThumbnailUrl).toBe('http://localhost:9000/clips/clip-001/thumbnail.jpg');
+      expect(msg.clipThumbnailUrl).toBe('/api/clips/clip-001/thumbnail');
       expect(msg.tombstone).toBeUndefined();
     }
   });

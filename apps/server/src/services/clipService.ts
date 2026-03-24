@@ -6,13 +6,7 @@ import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { streamConfig } from '../lib/stream-config.js';
 import { wsHub } from './wsHub.js';
-import {
-  uploadToS3,
-  presignGetObject,
-  deleteS3Objects,
-  putObjectAcl,
-  s3PublicUrl,
-} from '../lib/s3-client.js';
+import { uploadToS3, presignGetObject, deleteS3Objects, getS3Object } from '../lib/s3-client.js';
 import { AppError } from '../lib/errors.js';
 import { computeUserTag } from '../lib/user-tag.js';
 import { canModerateOver } from '../lib/roleUtils.js';
@@ -235,16 +229,11 @@ export async function processClip({
 
   try {
     const videoStream = createReadStream(videoTmp);
-    await uploadToS3({ key: s3Key, body: videoStream, contentType: 'video/mp4', acl: 'private' });
+    await uploadToS3({ key: s3Key, body: videoStream, contentType: 'video/mp4' });
     uploadedKeys.push(s3Key);
 
     const thumbData = await readFile(thumbTmp);
-    await uploadToS3({
-      key: thumbnailKey,
-      body: thumbData,
-      contentType: 'image/jpeg',
-      acl: 'public-read',
-    });
+    await uploadToS3({ key: thumbnailKey, body: thumbData, contentType: 'image/jpeg' });
     uploadedKeys.push(thumbnailKey);
   } catch (err) {
     logger.error({ err, clipId }, 'clip: S3 upload failed');
@@ -300,7 +289,7 @@ export async function processClip({
       clipId,
       clipName: updatedClip.name,
       clipDurationSeconds: durationSeconds,
-      clipThumbnailUrl: s3PublicUrl(thumbnailKey),
+      clipThumbnailUrl: `/api/clips/${clipId}/thumbnail`,
       editHistory: null,
       updatedAt: null,
       deletedAt: null,
@@ -543,7 +532,7 @@ export async function getClip(params: {
     status: clip.status,
     visibility: clip.visibility,
     thumbnailKey: clip.thumbnailKey,
-    thumbnailUrl: clip.thumbnailKey ? s3PublicUrl(clip.thumbnailKey) : null,
+    thumbnailUrl: clip.thumbnailKey ? `/api/clips/${clip.id}/thumbnail` : null,
     durationSeconds: clip.durationSeconds,
     shareToChat: clip.shareToChat,
     showClipper: clip.showClipper,
@@ -629,7 +618,7 @@ export async function listClips(params: {
     description: clip.description,
     status: clip.status,
     visibility: clip.visibility,
-    thumbnailUrl: clip.thumbnailKey ? s3PublicUrl(clip.thumbnailKey) : null,
+    thumbnailUrl: clip.thumbnailKey ? `/api/clips/${clip.id}/thumbnail` : null,
     durationSeconds: clip.durationSeconds,
     showClipper: clip.showClipper,
     showClipperAvatar: clip.showClipperAvatar,
@@ -803,19 +792,6 @@ export async function updateClip(params: {
     },
   });
 
-  // S3 ACL transitions
-  if (data.visibility !== undefined && data.visibility !== prevVisibility && updated.s3Key) {
-    try {
-      if (newVisibility === 'public') {
-        await putObjectAcl({ key: updated.s3Key, acl: 'public-read' });
-      } else if (prevVisibility === 'public') {
-        await putObjectAcl({ key: updated.s3Key, acl: 'private' });
-      }
-    } catch (err) {
-      logger.error({ err, clipId, newVisibility }, 'clip: S3 ACL transition failed (non-fatal)');
-    }
-  }
-
   // Audit logging
   if (!isOwner) {
     for (const action of auditCategories) {
@@ -861,7 +837,7 @@ export async function updateClip(params: {
         clipId,
         clipName: updated.name,
         clipDurationSeconds: updated.durationSeconds,
-        ...(updated.thumbnailKey ? { clipThumbnailUrl: s3PublicUrl(updated.thumbnailKey) } : {}),
+        ...(updated.thumbnailKey ? { clipThumbnailUrl: `/api/clips/${clipId}/thumbnail` } : {}),
         ...(updated.clipperAvatarUrl ? { clipperAvatarUrl: updated.clipperAvatarUrl } : {}),
         editHistory: null,
         updatedAt: null,
@@ -884,7 +860,7 @@ export async function updateClip(params: {
     status: updated.status,
     visibility: updated.visibility,
     thumbnailKey: updated.thumbnailKey,
-    thumbnailUrl: updated.thumbnailKey ? s3PublicUrl(updated.thumbnailKey) : null,
+    thumbnailUrl: updated.thumbnailKey ? `/api/clips/${updated.id}/thumbnail` : null,
     durationSeconds: updated.durationSeconds,
     showClipper: updated.showClipper,
     showClipperAvatar: updated.showClipperAvatar,
@@ -948,7 +924,7 @@ export async function shareClipToChat(params: {
     clipId,
     clipName: clip.name,
     clipDurationSeconds: clip.durationSeconds,
-    ...(clip.thumbnailKey ? { clipThumbnailUrl: s3PublicUrl(clip.thumbnailKey) } : {}),
+    ...(clip.thumbnailKey ? { clipThumbnailUrl: `/api/clips/${clipId}/thumbnail` } : {}),
     editHistory: null,
     updatedAt: null,
     deletedAt: null,
@@ -1046,4 +1022,14 @@ export async function getClipStreamUrl(params: {
 }): Promise<string> {
   const clip = await resolveClipForAccess(params);
   return presignGetObject({ key: clip.s3Key!, expiresIn: 3600 });
+}
+
+export async function getClipThumbnail(params: {
+  clipId: string;
+  requestingUserId?: string;
+  requestingUserRole?: string;
+}): Promise<{ body: Buffer; contentType: string }> {
+  const clip = await resolveClipForAccess(params);
+  if (!clip.thumbnailKey) throw new AppError('Not found', 'NOT_FOUND', 404);
+  return getS3Object(clip.thumbnailKey);
 }

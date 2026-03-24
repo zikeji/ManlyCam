@@ -6,6 +6,7 @@ import {
   getClip,
   getClipDownloadUrl,
   getClipStreamUrl,
+  getClipThumbnail,
   getSegmentRange,
   listClips,
   deleteClip,
@@ -206,6 +207,24 @@ export function createClipsRouter() {
     });
 
     return c.json({ url });
+  });
+
+  clipsRouter.get('/api/clips/:clipId/thumbnail', async (c) => {
+    const clipId = c.req.param('clipId');
+    const user = c.get('user');
+
+    const { body, contentType } = await getClipThumbnail({
+      clipId,
+      requestingUserId: user?.id,
+      requestingUserRole: user?.role,
+    });
+
+    return new Response(body as unknown as BodyInit, {
+      headers: {
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
   });
 
   return clipsRouter;

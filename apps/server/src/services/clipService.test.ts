@@ -5,7 +5,6 @@ import { logger } from '../lib/logger.js';
 vi.mock('../env.js', () => ({
   env: {
     MTX_HLS_URL: 'http://127.0.0.1:8090',
-    S3_PUBLIC_BASE_URL: 'https://cdn.example.com',
     S3_BUCKET: 'test-bucket',
     S3_ENDPOINT: 'https://s3.example.com',
     S3_REGION: 'us-east-1',
@@ -45,10 +44,7 @@ vi.mock('../lib/s3-client.js', () => ({
   uploadToS3: vi.fn().mockResolvedValue(undefined),
   presignGetObject: vi.fn().mockResolvedValue('https://presigned.example.com/video'),
   deleteS3Objects: vi.fn().mockResolvedValue(undefined),
-  putObjectAcl: vi.fn().mockResolvedValue(undefined),
-  s3PublicUrl: vi
-    .fn()
-    .mockImplementation((key: string) => `https://cdn.example.com/test-bucket/${key}`),
+  getS3Object: vi.fn().mockResolvedValue({ body: Buffer.from('img'), contentType: 'image/jpeg' }),
 }));
 vi.mock('../lib/logger.js', () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -69,7 +65,7 @@ vi.mock('node:fs/promises', () => ({
 
 import { prisma } from '../db/client.js';
 import { streamConfig } from '../lib/stream-config.js';
-import { uploadToS3, presignGetObject, deleteS3Objects, putObjectAcl } from '../lib/s3-client.js';
+import { uploadToS3, presignGetObject, deleteS3Objects, getS3Object } from '../lib/s3-client.js';
 import { wsHub } from '../services/wsHub.js';
 import { spawn } from 'node:child_process';
 import { unlink } from 'node:fs/promises';
@@ -82,6 +78,7 @@ import {
   getClip,
   getClipDownloadUrl,
   getClipStreamUrl,
+  getClipThumbnail,
   listClips,
   deleteClip,
   updateClip,
@@ -684,9 +681,7 @@ describe('getClip', () => {
       requestingUserRole: 'Viewer',
     });
     expect(result).toMatchObject({ id: 'clip-001', name: 'My Clip' });
-    expect(result.thumbnailUrl).toBe(
-      'https://cdn.example.com/test-bucket/clips/clip-001-thumb.jpg',
-    );
+    expect(result.thumbnailUrl).toBe('/api/clips/clip-001/thumbnail');
   });
 
   it('returns clip for Admin', async () => {
@@ -925,6 +920,48 @@ describe('getClipStreamUrl', () => {
   });
 });
 
+describe('getClipThumbnail', () => {
+  const clip = {
+    id: 'clip-001',
+    userId: 'user-001',
+    status: 'ready',
+    visibility: 'private',
+    s3Key: 'clips/clip-001.mp4',
+    thumbnailKey: 'clips/clip-001/thumbnail.jpg',
+    deletedAt: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns buffer and contentType for owner', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(clip as never);
+    const result = await getClipThumbnail({
+      clipId: 'clip-001',
+      requestingUserId: 'user-001',
+    });
+    expect(getS3Object).toHaveBeenCalledWith('clips/clip-001/thumbnail.jpg');
+    expect(result.contentType).toBe('image/jpeg');
+  });
+
+  it('throws 404 when thumbnailKey is null', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...clip,
+      thumbnailKey: null,
+    } as never);
+    await expect(
+      getClipThumbnail({ clipId: 'clip-001', requestingUserId: 'user-001' }),
+    ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 401 when unauthenticated', async () => {
+    await expect(getClipThumbnail({ clipId: 'clip-001' })).rejects.toMatchObject({
+      statusCode: 401,
+    });
+  });
+});
+
 const baseClipUser = {
   displayName: 'Test User',
   avatarUrl: null,
@@ -961,7 +998,7 @@ describe('listClips', () => {
     vi.mocked(prisma.clip.count).mockResolvedValue(1);
   });
 
-  it('returns clips with thumbnailUrl computed from S3_PUBLIC_BASE_URL', async () => {
+  it('returns clips with thumbnailUrl as proxy path', async () => {
     const result = await listClips({
       userId: 'user-001',
       page: 0,
@@ -971,9 +1008,7 @@ describe('listClips', () => {
       isAdmin: false,
     });
     expect(result.clips).toHaveLength(1);
-    expect(result.clips[0].thumbnailUrl).toBe(
-      'https://cdn.example.com/test-bucket/clips/clip-001-thumb.jpg',
-    );
+    expect(result.clips[0].thumbnailUrl).toBe('/api/clips/clip-001/thumbnail');
     expect(result.total).toBe(1);
   });
 
@@ -1384,59 +1419,6 @@ describe('updateClip', () => {
     );
   });
 
-  it('calls PutObjectAcl(public-read) when visibility changes to public', async () => {
-    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
-      ...baseClip,
-      visibility: 'shared',
-    } as never);
-    vi.mocked(prisma.clip.update).mockResolvedValue({
-      ...baseClip,
-      visibility: 'public',
-      user: { ...baseClipUser, userTagText: null, userTagColor: null },
-    } as never);
-    await updateClip({
-      clipId: 'clip-001',
-      actor: { id: 'user-001', role: 'Moderator' },
-      data: { visibility: 'public' },
-    });
-    expect(putObjectAcl).toHaveBeenCalledWith({ key: 'clips/clip-001.mp4', acl: 'public-read' });
-  });
-
-  it('calls PutObjectAcl(private) when downgrading from public', async () => {
-    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
-      ...baseClip,
-      visibility: 'public',
-    } as never);
-    vi.mocked(prisma.clip.update).mockResolvedValue({
-      ...baseClip,
-      visibility: 'shared',
-      user: { ...baseClipUser, userTagText: null, userTagColor: null },
-    } as never);
-    await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
-    expect(putObjectAcl).toHaveBeenCalledWith({ key: 'clips/clip-001.mp4', acl: 'private' });
-  });
-
-  it('logs S3 ACL failure but does not throw', async () => {
-    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
-      ...baseClip,
-      visibility: 'shared',
-    } as never);
-    vi.mocked(prisma.clip.update).mockResolvedValue({
-      ...baseClip,
-      visibility: 'public',
-      user: { ...baseClipUser, userTagText: null, userTagColor: null },
-    } as never);
-    vi.mocked(putObjectAcl).mockRejectedValueOnce(new Error('ACL error'));
-    await expect(
-      updateClip({
-        clipId: 'clip-001',
-        actor: { id: 'user-001', role: 'Moderator' },
-        data: { visibility: 'public' },
-      }),
-    ).resolves.toBeDefined();
-    expect(logger.error).toHaveBeenCalled();
-  });
-
   it('broadcasts clip:visibility-changed when visibility changes', async () => {
     vi.mocked(prisma.clip.update).mockResolvedValue({
       ...baseClip,
@@ -1692,7 +1674,7 @@ describe('shareClipToChat', () => {
     expect(wsHub.broadcast).toHaveBeenCalledWith({
       type: 'chat:message',
       payload: expect.objectContaining({
-        clipThumbnailUrl: 'https://cdn.example.com/test-bucket/clips/clip-001-thumb.jpg',
+        clipThumbnailUrl: '/api/clips/clip-001/thumbnail',
       }),
     });
   });

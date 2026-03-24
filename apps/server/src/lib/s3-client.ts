@@ -1,12 +1,11 @@
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectsCommand,
   AbortMultipartUploadCommand,
-  PutObjectAclCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { env } from '../env.js';
 
 export const s3Client = new S3Client({
@@ -19,31 +18,32 @@ export const s3Client = new S3Client({
   forcePathStyle: env.S3_FORCE_PATH_STYLE,
 });
 
-export function s3PublicUrl(key: string): string {
-  return env.S3_FORCE_PATH_STYLE
-    ? `${env.S3_PUBLIC_BASE_URL}/${env.S3_BUCKET}/${key}`
-    : `${env.S3_PUBLIC_BASE_URL}/${key}`;
-}
-
 export async function uploadToS3({
   key,
   body,
   contentType,
-  acl,
 }: {
   key: string;
   body: Buffer | import('node:stream').Readable;
   contentType: string;
-  acl?: 'private' | 'public-read';
 }): Promise<void> {
   const cmd = new PutObjectCommand({
     Bucket: env.S3_BUCKET,
     Key: key,
     Body: body,
     ContentType: contentType,
-    ...(acl ? { ACL: acl } : {}),
   });
   await s3Client.send(cmd);
+}
+
+export async function getS3Object(key: string): Promise<{ body: Buffer; contentType: string }> {
+  const cmd = new GetObjectCommand({ Bucket: env.S3_BUCKET, Key: key });
+  const response = await s3Client.send(cmd);
+  const bytes = await response.Body?.transformToByteArray();
+  return {
+    body: Buffer.from(bytes ?? /* c8 ignore next */ []),
+    contentType: response.ContentType ?? 'application/octet-stream',
+  };
 }
 
 export async function presignGetObject({
@@ -61,21 +61,6 @@ export async function presignGetObject({
     ...(contentDisposition ? { ResponseContentDisposition: contentDisposition } : {}),
   });
   return getSignedUrl(s3Client, cmd, { expiresIn });
-}
-
-export async function putObjectAcl({
-  key,
-  acl,
-}: {
-  key: string;
-  acl: 'private' | 'public-read';
-}): Promise<void> {
-  const cmd = new PutObjectAclCommand({
-    Bucket: env.S3_BUCKET,
-    Key: key,
-    ACL: acl,
-  });
-  await s3Client.send(cmd);
 }
 
 export async function deleteS3Objects(keys: string[]): Promise<void> {

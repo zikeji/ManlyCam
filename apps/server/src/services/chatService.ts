@@ -6,7 +6,6 @@ import { canModerateOver } from '../lib/roleUtils.js';
 import { computeUserTag } from '../lib/user-tag.js';
 import { executeCommand } from './slashCommands.js';
 import { getReactionsForMessages } from './reactionsService.js';
-import { s3PublicUrl } from '../lib/s3-client.js';
 import { SYSTEM_USER_ID } from '@manlycam/types';
 import type {
   TextChatMessage,
@@ -96,7 +95,7 @@ function toApiChatMessage(
     };
 
     if (isTombstone) msg.tombstone = true;
-    if (clip?.thumbnailKey) msg.clipThumbnailUrl = s3PublicUrl(clip.thumbnailKey);
+    if (clip?.thumbnailKey) msg.clipThumbnailUrl = `/api/clips/${clip.id}/thumbnail`;
     if (clip?.showClipper && clip.clipperName) msg.clipperName = clip.clipperName;
     if (clip?.showClipperAvatar && clip.clipperAvatarUrl)
       msg.clipperAvatarUrl = clip.clipperAvatarUrl;

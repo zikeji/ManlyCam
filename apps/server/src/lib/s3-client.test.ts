@@ -8,7 +8,6 @@ vi.mock('../env.js', () => ({
     S3_SECRET_KEY: 'secret',
     S3_FORCE_PATH_STYLE: true,
     S3_BUCKET: 'test-bucket',
-    S3_PUBLIC_BASE_URL: 'https://cdn.example.com',
   },
 }));
 
@@ -31,9 +30,6 @@ vi.mock('@aws-sdk/client-s3', async (importOriginal) => {
     AbortMultipartUploadCommand: vi
       .fn()
       .mockImplementation((input: unknown) => ({ input, _tag: 'AbortMultipartUpload' })),
-    PutObjectAclCommand: vi
-      .fn()
-      .mockImplementation((input: unknown) => ({ input, _tag: 'PutObjectAcl' })),
   };
 });
 
@@ -41,23 +37,20 @@ vi.mock('@aws-sdk/s3-request-presigner', () => ({
   getSignedUrl: vi.fn().mockResolvedValue('https://presigned.example.com/key'),
 }));
 
-import { env } from '../env.js';
 import {
   s3Client,
-  s3PublicUrl,
   uploadToS3,
   presignGetObject,
-  putObjectAcl,
+  getS3Object,
   deleteS3Objects,
   abortMultipartUpload,
 } from './s3-client.js';
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   DeleteObjectsCommand,
   AbortMultipartUploadCommand,
-  PutObjectAclCommand,
-  GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
@@ -87,18 +80,7 @@ describe('uploadToS3', () => {
     expect(mockSend).toHaveBeenCalled();
   });
 
-  it('includes ACL when provided', async () => {
-    const body = Buffer.from('img');
-    await uploadToS3({
-      key: 'clips/thumb.jpg',
-      body,
-      contentType: 'image/jpeg',
-      acl: 'public-read',
-    });
-    expect(PutObjectCommand).toHaveBeenCalledWith(expect.objectContaining({ ACL: 'public-read' }));
-  });
-
-  it('does not include ACL when not provided', async () => {
+  it('does not include ACL field', async () => {
     await uploadToS3({ key: 'clips/test.mp4', body: Buffer.from(''), contentType: 'video/mp4' });
     const call = vi.mocked(PutObjectCommand).mock.calls[0][0];
     expect(call).not.toHaveProperty('ACL');
@@ -147,21 +129,32 @@ describe('presignGetObject', () => {
   });
 });
 
-describe('putObjectAcl', () => {
+describe('getS3Object', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSend.mockResolvedValue({});
   });
 
-  it('calls PutObjectAclCommand with key and ACL', async () => {
-    await putObjectAcl({ key: 'clips/thumb.jpg', acl: 'public-read' });
-    expect(PutObjectAclCommand).toHaveBeenCalledWith(
-      expect.objectContaining({
-        Bucket: 'test-bucket',
-        Key: 'clips/thumb.jpg',
-        ACL: 'public-read',
-      }),
+  it('returns body buffer and contentType', async () => {
+    const fakeBytes = new Uint8Array([1, 2, 3]);
+    mockSend.mockResolvedValue({
+      Body: { transformToByteArray: vi.fn().mockResolvedValue(fakeBytes) },
+      ContentType: 'image/jpeg',
+    });
+    const result = await getS3Object('clips/clip-001/thumbnail.jpg');
+    expect(GetObjectCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ Bucket: 'test-bucket', Key: 'clips/clip-001/thumbnail.jpg' }),
     );
+    expect(result.body).toEqual(Buffer.from(fakeBytes));
+    expect(result.contentType).toBe('image/jpeg');
+  });
+
+  it('falls back to application/octet-stream when ContentType is absent', async () => {
+    mockSend.mockResolvedValue({
+      Body: { transformToByteArray: vi.fn().mockResolvedValue(new Uint8Array()) },
+      ContentType: undefined,
+    });
+    const result = await getS3Object('clips/clip-001/thumbnail.jpg');
+    expect(result.contentType).toBe('application/octet-stream');
   });
 });
 
@@ -204,19 +197,5 @@ describe('abortMultipartUpload', () => {
         UploadId: 'upload-001',
       }),
     );
-  });
-});
-
-describe('s3PublicUrl', () => {
-  it('includes bucket in path when S3_FORCE_PATH_STYLE is true', () => {
-    expect(s3PublicUrl('clips/abc-thumb.jpg')).toBe(
-      'https://cdn.example.com/test-bucket/clips/abc-thumb.jpg',
-    );
-  });
-
-  it('omits bucket when S3_FORCE_PATH_STYLE is false', () => {
-    (env as unknown as Record<string, unknown>).S3_FORCE_PATH_STYLE = false;
-    expect(s3PublicUrl('clips/abc-thumb.jpg')).toBe('https://cdn.example.com/clips/abc-thumb.jpg');
-    (env as unknown as Record<string, unknown>).S3_FORCE_PATH_STYLE = true;
   });
 });
