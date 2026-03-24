@@ -32,6 +32,11 @@ const adminDialogOpen = ref(false);
 
 const streamPlayerRef = ref<InstanceType<typeof StreamPlayer> | null>(null);
 const streamVideoRef = computed(() => streamPlayerRef.value?.videoRef ?? null);
+const hlsVideoRef = computed(() => streamPlayerRef.value?.hlsVideoRef ?? null);
+// Switch atmospheric blur to HLS video when clip editor is open
+const voidVideoRef = computed(() =>
+  clipEditorOpen.value && hlsVideoRef.value ? hlsVideoRef.value : streamVideoRef.value,
+);
 
 const chatPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const splitterAnimating = ref(false);
@@ -208,7 +213,7 @@ onMounted(() => {
       <!-- Panel 1: Main column (stream + console + void) -->
       <SplitterPanel class="flex flex-col bg-black overflow-hidden relative">
         <div class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
-          <AtmosphericVoid class="absolute inset-0" :video-ref="streamVideoRef" />
+          <AtmosphericVoid class="absolute inset-0" :video-ref="voidVideoRef" />
           <StreamPlayer
             ref="streamPlayerRef"
             class="relative z-10 w-full"
@@ -278,7 +283,7 @@ onMounted(() => {
         v-if="!isMobilePortrait"
         class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden"
       >
-        <AtmosphericVoid class="absolute inset-0" :video-ref="streamVideoRef" />
+        <AtmosphericVoid class="absolute inset-0" :video-ref="voidVideoRef" />
         <StreamPlayer
           ref="streamPlayerRef"
           class="relative z-10 w-full"

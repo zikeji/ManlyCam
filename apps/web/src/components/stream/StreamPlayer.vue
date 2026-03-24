@@ -102,7 +102,7 @@ onUnmounted(() => {
   if (tapTimer) clearTimeout(tapTimer);
 });
 
-defineExpose({ videoRef });
+defineExpose({ videoRef, hlsVideoRef });
 </script>
 
 <template>

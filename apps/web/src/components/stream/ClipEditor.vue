@@ -51,6 +51,7 @@ const isPlaying = ref(false);
 const autoAdvance = ref(true);
 const streamOfflineWarning = ref(false);
 const isDragging = ref(false);
+const suppressTransition = ref(true);
 const scrubMs = ref<number | null>(null);
 
 // Auto-advance polling
@@ -120,6 +121,9 @@ function resetForm(): void {
 }
 
 function initScrubber(): void {
+  // Suppress CSS transitions so initial positioning doesn't animate
+  suppressTransition.value = true;
+
   earliestMs.value = new Date(props.segmentRange.earliest).getTime();
   latestMs.value = new Date(props.segmentRange.latest).getTime();
 
@@ -130,6 +134,13 @@ function initScrubber(): void {
   autoAdvance.value = true;
   streamOfflineWarning.value = false;
   isPlaying.value = false;
+
+  // Re-enable transitions after two frames so the DOM settles first
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      suppressTransition.value = false;
+    });
+  });
 }
 
 // --- Pixel ↔ time mapping ---
@@ -165,8 +176,9 @@ const selectionLeftPx = computed(() => msToPixel(selectionStartMs.value));
 const selectionRightPx = computed(() => msToPixel(selectionEndMs.value));
 
 // Smooth CSS transition for boundary polling updates; disabled during interaction
+// and during initial positioning to prevent jarring slide-in on open
 const pxTransition = computed(() =>
-  isDragging.value ? 'none' : 'left 0.4s ease-out, width 0.4s ease-out',
+  isDragging.value || suppressTransition.value ? 'none' : 'left 0.4s ease-out, width 0.4s ease-out',
 );
 
 // --- Handle limit feedback ---
@@ -765,11 +777,11 @@ onUnmounted(() => {
             />
           </div>
 
-          <!-- Playhead -->
+          <!-- Playhead — no transition; it should track position instantly -->
           <div
             v-if="isPlaying || hlsReady"
             class="absolute top-0 bottom-0 w-0.5 bg-white z-20 pointer-events-none"
-            :style="{ left: `${playheadPx}px`, transition: pxTransition }"
+            :style="{ left: `${playheadPx}px` }"
           />
         </div>
 
