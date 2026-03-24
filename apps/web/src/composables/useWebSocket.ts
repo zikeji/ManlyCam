@@ -7,6 +7,7 @@ import {
   handleChatEdit,
   handleChatDelete,
   handleEphemeral,
+  handleClipTombstoneRestore,
 } from './useChat';
 import { handleAdminUserUpdate } from './useAdminUsers';
 import {
@@ -162,6 +163,7 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'clip:visibility-changed') {
         handleClipVisibilityChanged(msg.payload);
+        handleClipTombstoneRestore(msg.payload);
       }
     } catch {
       // Ignore malformed messages

@@ -49,6 +49,8 @@ const mockHandleChatEdit = vi.hoisted(() => vi.fn());
 const mockHandleChatDelete = vi.hoisted(() => vi.fn());
 const mockHandleEphemeral = vi.hoisted(() => vi.fn());
 
+const mockHandleClipTombstoneRestore = vi.hoisted(() => vi.fn());
+
 vi.mock('@/composables/useChat', () => ({
   useChat: () => ({
     handleChatMessage: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('@/composables/useChat', () => ({
   handleChatEdit: mockHandleChatEdit,
   handleChatDelete: mockHandleChatDelete,
   handleEphemeral: mockHandleEphemeral,
+  handleClipTombstoneRestore: mockHandleClipTombstoneRestore,
 }));
 
 // --- usePresence mock ---
@@ -98,6 +101,14 @@ vi.mock('./useReactions', () => ({
 const mockHandleClipStatusChanged = vi.hoisted(() => vi.fn());
 vi.mock('./useClipCreate', () => ({
   handleClipStatusChanged: mockHandleClipStatusChanged,
+}));
+
+// --- useClips mock ---
+const mockHandleClipStatusUpdate = vi.hoisted(() => vi.fn());
+const mockHandleClipVisibilityChanged = vi.hoisted(() => vi.fn());
+vi.mock('./useClips', () => ({
+  handleClipStatusUpdate: mockHandleClipStatusUpdate,
+  handleClipVisibilityChanged: mockHandleClipVisibilityChanged,
 }));
 
 // --- useUserCache mock ---
@@ -519,6 +530,31 @@ describe('useWebSocket', () => {
         }),
       );
       expect(mockHandleClipStatusChanged).toHaveBeenCalledWith(payload);
+    });
+
+    it('dispatches clip:visibility-changed to handleClipVisibilityChanged() and handleClipTombstoneRestore()', () => {
+      const { connect } = useWebSocket();
+      connect();
+      const payload = {
+        clipId: 'clip-001',
+        visibility: 'public',
+        chatClipIds: ['msg-001'],
+        clip: {
+          clipId: 'clip-001',
+          clipName: 'Test Clip',
+          clipDurationSeconds: 30,
+          clipThumbnailUrl: null,
+          clipperName: 'Alice',
+          clipperAvatarUrl: null,
+        },
+      };
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'clip:visibility-changed', payload }),
+        }),
+      );
+      expect(mockHandleClipVisibilityChanged).toHaveBeenCalledWith(payload);
+      expect(mockHandleClipTombstoneRestore).toHaveBeenCalledWith(payload);
     });
   });
 

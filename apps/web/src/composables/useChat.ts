@@ -1,6 +1,12 @@
 import { ref, computed } from 'vue';
 import { apiFetch } from '@/lib/api';
-import type { ChatMessage, ChatEdit, UserProfile } from '@manlycam/types';
+import type {
+  ChatMessage,
+  ChatEdit,
+  ClipChatMessage,
+  ClipVisibilityChangedPayload,
+  UserProfile,
+} from '@manlycam/types';
 
 // Module-level singletons — all callers share the same refs (same pattern as useStream)
 // Exported directly for test reset (do not access via useChat factory in tests)
@@ -52,6 +58,57 @@ export const dismissEphemeral = (id: string): void => {
   ephemeralMessages.value = ephemeralMessages.value.filter((m) => m.id !== id);
 };
 
+// Restores tombstoned clip chat messages to live cards when a clip becomes public/shared.
+// Called by useWebSocket when a clip:visibility-changed WS message arrives with
+// visibility 'shared' or 'public' and chatClipIds + clip payload.
+export const handleClipTombstoneRestore = (payload: ClipVisibilityChangedPayload): void => {
+  if (
+    (payload.visibility !== 'shared' && payload.visibility !== 'public') ||
+    !payload.chatClipIds?.length ||
+    !payload.clip
+  )
+    return;
+
+  const clipData = payload.clip;
+  const ids = new Set(payload.chatClipIds);
+
+  messages.value = messages.value.map((msg) => {
+    if (msg.messageType !== 'clip' || !ids.has(msg.id) || !msg.tombstone) return msg;
+    const restored: ClipChatMessage = {
+      ...(msg as ClipChatMessage),
+      clipId: clipData.clipId,
+      clipName: clipData.clipName,
+      clipDurationSeconds: clipData.clipDurationSeconds,
+      clipThumbnailUrl: clipData.clipThumbnailUrl,
+      clipperName: clipData.clipperName,
+      clipperAvatarUrl: clipData.clipperAvatarUrl,
+      tombstone: undefined,
+    };
+    return restored;
+  });
+};
+
+// Merges incoming messages into the existing list:
+// - Prepends messages with new IDs
+// - Updates existing messages if the incoming version has tombstone: true
+function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
+  const incomingMap = new Map(incoming.map((m) => [m.id, m]));
+  const existingIds = new Set(existing.map((m) => m.id));
+
+  // Apply tombstone updates to existing messages
+  const existingUpdated = existing.map((msg) => {
+    const incomingVersion = incomingMap.get(msg.id);
+    if (incomingVersion?.messageType === 'clip' && incomingVersion.tombstone) {
+      return { ...msg, tombstone: true } as ClipChatMessage;
+    }
+    return msg;
+  });
+
+  // Prepend only messages that are not already in the existing list
+  const newMessages = incoming.filter((m) => !existingIds.has(m.id));
+  return [...newMessages, ...existingUpdated];
+}
+
 export const useChat = () => {
   const sendChatMessage = async (content: string): Promise<void> => {
     await apiFetch<{ message: ChatMessage }>('/api/chat/messages', {
@@ -71,7 +128,7 @@ export const useChat = () => {
     const data = await apiFetch<{ messages: ChatMessage[]; hasMore: boolean }>(
       '/api/chat/history?limit=50',
     );
-    messages.value = [...data.messages, ...messages.value];
+    messages.value = mergeMessages(messages.value, data.messages);
     hasMore.value = data.hasMore;
     isLoadingHistory.value = false;
   };
@@ -84,7 +141,7 @@ export const useChat = () => {
       ? `/api/chat/history?limit=50&before=${before}`
       : '/api/chat/history?limit=50';
     const data = await apiFetch<{ messages: ChatMessage[]; hasMore: boolean }>(url);
-    messages.value = [...data.messages, ...messages.value];
+    messages.value = mergeMessages(messages.value, data.messages);
     hasMore.value = data.hasMore;
     isLoadingHistory.value = false;
   };

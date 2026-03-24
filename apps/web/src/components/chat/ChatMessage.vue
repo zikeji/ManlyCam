@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onUnmounted } from 'vue';
-import type { ChatMessage, Role, UserPresence } from '@manlycam/types';
+import type { ChatMessage, ClipChatMessage, Role, UserPresence } from '@manlycam/types';
 import { ROLE_RANK, SYSTEM_USER_ID } from '@manlycam/types';
 import { MicOff } from 'lucide-vue-next';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -27,6 +27,7 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import ReactionBar from './ReactionBar.vue';
 import ReactionDisplay from './ReactionDisplay.vue';
+import ClipCard from './ClipCard.vue';
 import { useReactions } from '@/composables/useReactions';
 
 const props = defineProps<{
@@ -53,6 +54,12 @@ const emit = defineEmits<{
 
 const timeLabel = computed(() => formatTime(props.message.createdAt));
 const avatarInitials = computed(() => initials(props.message.displayName));
+const isClipMessage = computed(() => props.message.messageType === 'clip');
+
+function handleClipDownload(clipId: string) {
+  window.open(`/api/clips/${clipId}/download`, '_blank');
+}
+
 const renderedContent = computed(() => {
   const html = renderMarkdown(props.message.content);
   // Build a map from the prop viewers (online / freshly-passed) for fast lookup,
@@ -291,7 +298,13 @@ function executeBan() {
               @close="showReactionBar = false"
             />
           </div>
+          <ClipCard
+            v-if="isClipMessage"
+            :message="(message as ClipChatMessage)"
+            @download="handleClipDownload"
+          />
           <div
+            v-else
             class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
             v-html="renderedContent"
           />
@@ -374,7 +387,13 @@ function executeBan() {
           @close="showReactionBar = false"
         />
       </div>
+      <ClipCard
+        v-if="isClipMessage"
+        :message="(message as ClipChatMessage)"
+        @download="handleClipDownload"
+      />
       <div
+        v-else
         class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
         v-html="renderedContent"
       />
@@ -494,7 +513,13 @@ function executeBan() {
             </TooltipProvider>
           </div>
           <template v-if="!isEditing">
+            <ClipCard
+              v-if="isClipMessage"
+              :message="(message as ClipChatMessage)"
+              @download="handleClipDownload"
+            />
             <p
+              v-else
               class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
               v-html="renderedContent"
             />
@@ -629,7 +654,13 @@ function executeBan() {
         </TooltipProvider>
       </div>
       <template v-if="!isEditing">
+        <ClipCard
+          v-if="isClipMessage"
+          :message="(message as ClipChatMessage)"
+          @download="handleClipDownload"
+        />
         <div
+          v-else
           class="text-sm text-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_img]:max-h-64 [&_img]:object-contain [&_img]:rounded [&_img]:my-1 [&_s]:line-through [&_del]:line-through"
           v-html="renderedContent"
         />

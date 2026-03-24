@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { defineComponent, nextTick } from 'vue';
 import ChatMessage from './ChatMessage.vue';
-import type { ChatMessage as ChatMessageType } from '@manlycam/types';
+import type { ChatMessage as ChatMessageType, ClipChatMessage } from '@manlycam/types';
 
 // Mock context-menu with simple stubs that render slots and fire click events
 vi.mock('@/components/ui/context-menu', () => ({
@@ -68,6 +68,25 @@ vi.mock('@/composables/useReactions', () => ({
     removeReaction: vi.fn(),
     modRemoveReaction: vi.fn(),
   })),
+}));
+
+// Mock ClipCard
+vi.mock('./ClipCard.vue', () => ({
+  default: defineComponent({
+    name: 'ClipCard',
+    props: ['message'],
+    emits: ['download'],
+    template: '<div data-clip-card :data-clip-id="message.clipId"><slot/></div>',
+  }),
+}));
+
+// Mock useClipModal
+vi.mock('@/composables/useClipModal', () => ({
+  openClip: vi.fn(),
+  closeClip: vi.fn(),
+  isClipModalOpen: { value: false },
+  activeClipId: { value: null },
+  useClipModal: vi.fn(),
 }));
 
 const baseMessage: ChatMessageType = {
@@ -943,6 +962,55 @@ describe('ChatMessage.vue', () => {
       comp.startEdit();
       await nextTick();
       expect(wrapper.find('textarea').exists()).toBe(true);
+    });
+  });
+
+  describe('clip message rendering', () => {
+    const clipMessage: ClipChatMessage = {
+      id: 'msg-clip-001',
+      userId: 'user-001',
+      displayName: 'Test User',
+      avatarUrl: null,
+      authorRole: 'ViewerCompany',
+      messageType: 'clip',
+      content: 'Shared a clip',
+      editHistory: null,
+      updatedAt: null,
+      deletedAt: null,
+      deletedBy: null,
+      createdAt: '2026-03-08T10:00:00.000Z',
+      userTag: null,
+      clipId: 'clip-001',
+      clipName: 'Dog runs around',
+      clipDurationSeconds: 65,
+      clipThumbnailUrl: '/api/clips/clip-001/thumbnail',
+    };
+
+    it('renders ClipCard component for clip messageType', () => {
+      wrapper = mount(ChatMessage, { props: { message: clipMessage } });
+      expect(wrapper.find('[data-clip-card]').exists()).toBe(true);
+    });
+
+    it('does not render ClipCard for text messages', () => {
+      wrapper = mount(ChatMessage, { props: { message: baseMessage } });
+      expect(wrapper.find('[data-clip-card]').exists()).toBe(false);
+    });
+
+    it('renders sender metadata (displayName, timestamp) with clip messages', () => {
+      wrapper = mount(ChatMessage, { props: { message: clipMessage } });
+      expect(wrapper.text()).toContain('Test User');
+    });
+
+    it('renders ClipCard inside continuation row for clip messages', () => {
+      wrapper = mount(ChatMessage, {
+        props: { message: clipMessage, isContinuation: true },
+      });
+      expect(wrapper.find('[data-clip-card]').exists()).toBe(true);
+    });
+
+    it('passes correct clipId to ClipCard', () => {
+      wrapper = mount(ChatMessage, { props: { message: clipMessage } });
+      expect(wrapper.find('[data-clip-card]').attributes('data-clip-id')).toBe('clip-001');
     });
   });
 });

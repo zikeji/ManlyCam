@@ -1,6 +1,6 @@
 # Story 10.5: Chat Clip Integration
 
-Status: ready-for-dev
+Status: ready-for-review
 
 ## Story
 
@@ -180,8 +180,39 @@ New files:
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
 
 ### Completion Notes List
 
+1. **ClipCard.vue Watch button**: Calls `openClip(clipId)` via direct module-level import from `useClipModal` (not emit chain). Consistent with `useChat.ts` module-level singleton pattern.
+
+2. **ClipViewerModal.vue**: Uses `position: fixed` overlay. Fetches `GET /api/clips/:id` for metadata on `activeClipId` watch with `immediate: true`. Video `src` uses `/api/clips/:id/download` (browser follows 302 redirect). Escape key and backdrop click close the modal.
+
+3. **History API modal pattern**: `history.pushState` bypasses Vue Router, so `$route.path` stays as `/` and `WatchView` remains mounted. Direct navigation to `/clips/:id` hits the router and shows standalone placeholder. `ClipStandalonePage` is a minimal inline component — Story 10-6 will implement the full page.
+
+4. **Tombstone merge in pagination**: `mergeMessages()` helper in `useChat.ts` applies `tombstone: true` from incoming messages to existing ones. Prevents stale live cards persisting after a clip went private between page loads.
+
+5. **Real-time tombstone restoration**: `handleClipTombstoneRestore()` in `useChat.ts` handles `clip:visibility-changed` with `visibility: 'shared'|'public'` — updates all matching tombstoned messages to live cards using the WS payload's clip data. Called from `useWebSocket.ts` alongside `handleClipVisibilityChanged`.
+
+6. **vi.hoisted for mock refs**: `ClipViewerModal.test.ts` uses `vi.hoisted` with `__v_isRef: true` on the fake `activeClipId` mock so Vue's `watch(activeClipId, ...)` functions correctly in the test environment.
+
+7. **router/index.ts defineComponent import**: Added `import { defineComponent } from 'vue'` (separate from `vue-router` import) for the `ClipStandalonePage` placeholder. The initial implementation incorrectly imported from `vue-router`.
+
 ### File List
+
+- `apps/web/src/components/chat/ClipCard.vue` (NEW)
+- `apps/web/src/components/chat/ClipCard.test.ts` (NEW)
+- `apps/web/src/components/chat/ChatMessage.vue` (MODIFIED)
+- `apps/web/src/components/chat/ChatMessage.test.ts` (MODIFIED)
+- `apps/web/src/components/clip/ClipViewerModal.vue` (NEW)
+- `apps/web/src/components/clip/ClipViewerModal.test.ts` (NEW)
+- `apps/web/src/composables/useClipModal.ts` (NEW)
+- `apps/web/src/composables/useClipModal.test.ts` (NEW)
+- `apps/web/src/composables/useChat.ts` (MODIFIED)
+- `apps/web/src/composables/useChat.test.ts` (MODIFIED)
+- `apps/web/src/composables/useWebSocket.ts` (MODIFIED)
+- `apps/web/src/composables/useWebSocket.test.ts` (MODIFIED)
+- `apps/web/src/router/index.ts` (MODIFIED)
+- `apps/web/src/views/WatchView.vue` (MODIFIED)

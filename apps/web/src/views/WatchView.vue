@@ -10,6 +10,7 @@ import AtmosphericVoid from '@/components/stream/AtmosphericVoid.vue';
 import CameraControlsPanel from '@/components/admin/CameraControlsPanel.vue';
 import AdminDialog from '@/components/admin/AdminDialog.vue';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
+import ClipViewerModal from '@/components/clip/ClipViewerModal.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
   messages,
@@ -18,9 +19,13 @@ import {
   incrementUnread,
   isLoadingHistory,
 } from '@/composables/useChat';
+import { useClipModal, isClipModalOpen } from '@/composables/useClipModal';
 
 const { user } = useAuth();
 const { streamState, piReachableWhileOffline, initStream } = useStream();
+
+// Register popstate listener for clip modal history navigation
+useClipModal();
 
 const isDesktop = ref(false);
 const isMobilePortrait = ref(false);
@@ -381,6 +386,9 @@ onMounted(() => {
     </Sheet>
 
     <AdminDialog v-if="isAdmin" v-model:open="adminDialogOpen" />
+
+    <!-- Clip viewer modal — fixed overlay, stream + chat continue behind it -->
+    <ClipViewerModal v-if="isClipModalOpen" />
   </div>
 </template>
 

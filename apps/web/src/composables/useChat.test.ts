@@ -12,11 +12,18 @@ import {
   handleChatDelete,
   handleEphemeral,
   dismissEphemeral,
+  handleClipTombstoneRestore,
   unreadCount,
   resetUnread,
   incrementUnread,
 } from './useChat';
-import type { ChatMessage, ChatEdit, UserProfile } from '@manlycam/types';
+import type {
+  ChatMessage,
+  ChatEdit,
+  UserProfile,
+  ClipChatMessage,
+  ClipVisibilityChangedPayload,
+} from '@manlycam/types';
 
 const mockUserProfile: UserProfile = {
   id: 'user-001',
@@ -47,8 +54,9 @@ describe('useChat', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset module-level singletons between tests
-    const { messages, hasMore, isLoadingHistory } = useChat();
+    const { messages, ephemeralMessages, hasMore, isLoadingHistory } = useChat();
     messages.value = [];
+    ephemeralMessages.value = [];
     hasMore.value = true;
     isLoadingHistory.value = false;
     unreadCount.value = 0;
@@ -413,6 +421,191 @@ describe('useChat', () => {
       await deleteMessage('msg-001');
 
       expect(apiFetch).toHaveBeenCalledWith('/api/chat/messages/msg-001', { method: 'DELETE' });
+    });
+  });
+
+  describe('handleClipTombstoneRestore', () => {
+    const liveClipMsg: ClipChatMessage = {
+      id: 'msg-clip-001',
+      userId: 'user-001',
+      displayName: 'Alice',
+      avatarUrl: null,
+      authorRole: 'ViewerCompany',
+      messageType: 'clip',
+      content: '',
+      editHistory: null,
+      updatedAt: null,
+      deletedAt: null,
+      deletedBy: null,
+      createdAt: '2026-03-08T10:00:00.000Z',
+      userTag: null,
+      clipId: 'clip-001',
+      clipName: 'Old Name',
+      clipDurationSeconds: 30,
+      clipperName: 'Alice',
+      tombstone: true,
+    };
+
+    const restorePayload: ClipVisibilityChangedPayload = {
+      clipId: 'clip-001',
+      visibility: 'public',
+      chatClipIds: ['msg-clip-001'],
+      clip: {
+        id: 'msg-clip-001',
+        userId: 'user-001',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany',
+        messageType: 'clip',
+        content: '',
+        editHistory: null,
+        updatedAt: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: '2026-03-08T10:00:00.000Z',
+        userTag: null,
+        clipId: 'clip-001',
+        clipName: 'New Name',
+        clipDurationSeconds: 60,
+        clipThumbnailUrl: 'https://cdn.example.com/thumb.jpg',
+        clipperName: 'Alice',
+      },
+    };
+
+    it('restores a tombstoned clip message to live card with updated clip data', () => {
+      const { messages } = useChat();
+      messages.value = [liveClipMsg];
+
+      handleClipTombstoneRestore(restorePayload);
+
+      const restored = messages.value[0] as ClipChatMessage;
+      expect(restored.tombstone).toBeUndefined();
+      expect(restored.clipName).toBe('New Name');
+      expect(restored.clipDurationSeconds).toBe(60);
+      expect(restored.clipThumbnailUrl).toBe('https://cdn.example.com/thumb.jpg');
+    });
+
+    it('does nothing when visibility is not shared or public', () => {
+      const { messages } = useChat();
+      messages.value = [liveClipMsg];
+
+      handleClipTombstoneRestore({ ...restorePayload, visibility: 'private' });
+
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
+    });
+
+    it('does nothing when chatClipIds is empty', () => {
+      const { messages } = useChat();
+      messages.value = [liveClipMsg];
+
+      handleClipTombstoneRestore({ ...restorePayload, chatClipIds: [] });
+
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
+    });
+
+    it('does nothing when clip payload is missing', () => {
+      const { messages } = useChat();
+      messages.value = [liveClipMsg];
+
+      handleClipTombstoneRestore({ ...restorePayload, clip: undefined });
+
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
+    });
+
+    it('does not restore a non-tombstoned clip message', () => {
+      const { messages } = useChat();
+      const liveNotTombstoned = { ...liveClipMsg, tombstone: undefined };
+      messages.value = [liveNotTombstoned];
+
+      handleClipTombstoneRestore(restorePayload);
+
+      // Message should not be changed (tombstone remains undefined, clipName unchanged)
+      expect((messages.value[0] as ClipChatMessage).clipName).toBe('Old Name');
+    });
+
+    it('only restores messages whose IDs are in chatClipIds', () => {
+      const { messages } = useChat();
+      const otherMsg: ClipChatMessage = { ...liveClipMsg, id: 'msg-clip-002', tombstone: true };
+      messages.value = [liveClipMsg, otherMsg];
+
+      handleClipTombstoneRestore(restorePayload); // only targets msg-clip-001
+
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBeUndefined();
+      expect((messages.value[1] as ClipChatMessage).tombstone).toBe(true);
+    });
+
+    it('works when messages list is empty (no-op)', () => {
+      const { messages } = useChat();
+      messages.value = [];
+
+      expect(() => handleClipTombstoneRestore(restorePayload)).not.toThrow();
+    });
+  });
+
+  describe('mergeMessages tombstone behavior (pagination)', () => {
+    it('applies tombstone from incoming to existing live clip message', async () => {
+      const liveClip: ClipChatMessage = {
+        id: 'msg-clip-001',
+        userId: 'user-001',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany',
+        messageType: 'clip',
+        content: '',
+        editHistory: null,
+        updatedAt: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: '2026-03-08T09:00:00.000Z',
+        userTag: null,
+        clipId: 'clip-001',
+        clipName: 'My Clip',
+        clipDurationSeconds: 30,
+        clipperName: 'Alice',
+      };
+
+      const { messages, loadMoreHistory } = useChat();
+      messages.value = [liveClip];
+
+      // Simulate server returning the same clip message but with tombstone:true
+      const tombstoned = { ...liveClip, tombstone: true as const };
+      vi.mocked(apiFetch).mockResolvedValue({ messages: [tombstoned], hasMore: false });
+
+      await loadMoreHistory();
+
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
+    });
+
+    it('does not add tombstone to existing message if incoming version has no tombstone', async () => {
+      const existing: ClipChatMessage = {
+        id: 'msg-clip-002',
+        userId: 'user-001',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany',
+        messageType: 'clip',
+        content: '',
+        editHistory: null,
+        updatedAt: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: '2026-03-08T09:00:00.000Z',
+        userTag: null,
+        clipId: 'clip-002',
+        clipName: 'Clip Two',
+        clipDurationSeconds: 45,
+        clipperName: 'Alice',
+      };
+
+      const { messages, loadMoreHistory } = useChat();
+      messages.value = [existing];
+
+      // Server returns same clip WITHOUT tombstone
+      vi.mocked(apiFetch).mockResolvedValue({ messages: [existing], hasMore: false });
+
+      await loadMoreHistory();
+
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBeUndefined();
     });
   });
 });
