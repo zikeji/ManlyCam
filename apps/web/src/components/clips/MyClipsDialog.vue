@@ -116,7 +116,10 @@ async function onConfirmDelete() {
   if (!deletingClipId.value) return;
   isDeleting.value = true;
   try {
-    await deleteClip(deletingClipId.value);
+    await Promise.all([
+      deleteClip(deletingClipId.value),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+    ]);
     deleteDialogOpen.value = false;
     deletingClipId.value = null;
   } catch (err: unknown) {

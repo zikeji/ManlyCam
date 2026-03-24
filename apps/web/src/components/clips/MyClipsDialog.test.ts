@@ -343,6 +343,7 @@ describe('MyClipsDialog', () => {
   });
 
   it('calls deleteClip when confirm button clicked', async () => {
+    vi.useFakeTimers();
     mockClips.value = [{ ...baseClip }];
     wrapper = mountOpen();
     await nextTick();
@@ -351,6 +352,7 @@ describe('MyClipsDialog', () => {
     await wrapper.find('[data-testid="delete-confirm-button"]').trigger('click');
     await flushPromises();
     expect(mockDeleteClip).toHaveBeenCalledWith('clip-001');
+    vi.useRealTimers();
   });
 
   it('does not call deleteClip when cancel button clicked', async () => {
