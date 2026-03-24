@@ -14,6 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import ClipEditForm from '@/components/clips/ClipEditForm.vue';
 import type { UpdateClipData } from '@/composables/useClips';
 
@@ -38,6 +48,7 @@ const {
 const includeShared = ref(false);
 const showAll = ref(false);
 const editingClip = ref<ClipListItem | null>(null);
+const deletingClipId = ref<string | null>(null);
 
 const isAdmin = computed(() => user.value && ROLE_RANK[user.value.role] >= ROLE_RANK[Role.Admin]);
 const isMuted = computed(() => !!user.value?.mutedAt);
@@ -88,11 +99,15 @@ async function onDismiss(clipId: string) {
   }
 }
 
-async function onDelete(clipId: string) {
+async function onConfirmDelete() {
+  /* c8 ignore next -- guard cannot be reached when dialog is open since deletingClipId is set to open it */
+  if (!deletingClipId.value) return;
   try {
-    await deleteClip(clipId);
+    await deleteClip(deletingClipId.value);
   } catch (err: unknown) {
     toast.error(err instanceof Error ? err.message : 'Failed to delete clip');
+  } finally {
+    deletingClipId.value = null;
   }
 }
 
@@ -300,7 +315,7 @@ watch(
                   size="sm"
                   variant="destructive"
                   data-testid="delete-button"
-                  @click="onDelete(clip.id)"
+                  @click="deletingClipId = clip.id"
                 >
                   Delete
                 </Button>
@@ -340,4 +355,29 @@ watch(
       />
     </DialogContent>
   </Dialog>
+
+  <!-- Delete confirmation dialog -->
+  <AlertDialog
+    :open="deletingClipId !== null"
+    @update:open="(v) => { if (!v) deletingClipId = null; }"
+  >
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Delete clip?</AlertDialogTitle>
+        <AlertDialogDescription>
+          This will permanently delete the clip. This action cannot be undone.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel data-testid="delete-cancel-button">Cancel</AlertDialogCancel>
+        <AlertDialogAction
+          data-testid="delete-confirm-button"
+          class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          @click="onConfirmDelete"
+        >
+          Delete
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>

@@ -78,6 +78,22 @@ vi.mock('@/components/ui/dialog', () => ({
   DialogHeader: { template: '<div><slot /></div>' },
   DialogTitle: { template: '<div><slot /></div>' },
 }));
+vi.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: { props: ['open'], template: '<div v-if="open"><slot /></div>' },
+  AlertDialogContent: { template: '<div><slot /></div>' },
+  AlertDialogHeader: { template: '<div><slot /></div>' },
+  AlertDialogTitle: { template: '<div><slot /></div>' },
+  AlertDialogDescription: { template: '<div><slot /></div>' },
+  AlertDialogFooter: { template: '<div><slot /></div>' },
+  AlertDialogCancel: {
+    template:
+      '<button data-testid="delete-cancel-button" @click="$emit(\'click\')"><slot /></button>',
+  },
+  AlertDialogAction: {
+    template:
+      '<button data-testid="delete-confirm-button" @click="$emit(\'click\')"><slot /></button>',
+  },
+}));
 vi.mock('@/components/clips/ClipEditForm.vue', () => ({
   default: {
     props: ['clip', 'userRole'],
@@ -310,13 +326,35 @@ describe('MyClipsDialog', () => {
     expect(mockDeleteClip).toHaveBeenCalledWith('clip-001');
   });
 
-  it('calls deleteClip when delete button clicked', async () => {
+  it('opens confirm dialog when delete button clicked', async () => {
     mockClips.value = [{ ...baseClip }];
     wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="delete-button"]').trigger('click');
+    await nextTick();
+    expect(wrapper.find('[data-testid="delete-confirm-button"]').exists()).toBe(true);
+  });
+
+  it('calls deleteClip when confirm button clicked', async () => {
+    mockClips.value = [{ ...baseClip }];
+    wrapper = mountOpen();
+    await nextTick();
+    await wrapper.find('[data-testid="delete-button"]').trigger('click');
+    await nextTick();
+    await wrapper.find('[data-testid="delete-confirm-button"]').trigger('click');
     await flushPromises();
     expect(mockDeleteClip).toHaveBeenCalledWith('clip-001');
+  });
+
+  it('does not call deleteClip when cancel button clicked', async () => {
+    mockClips.value = [{ ...baseClip }];
+    wrapper = mountOpen();
+    await nextTick();
+    await wrapper.find('[data-testid="delete-button"]').trigger('click');
+    await nextTick();
+    await wrapper.find('[data-testid="delete-cancel-button"]').trigger('click');
+    await nextTick();
+    expect(mockDeleteClip).not.toHaveBeenCalled();
   });
 
   it('calls shareClipToChat when share button clicked', async () => {
@@ -392,13 +430,15 @@ describe('MyClipsDialog', () => {
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Delete failed');
   });
 
-  it('shows error toast when onDelete fails', async () => {
+  it('shows error toast when onConfirmDelete fails', async () => {
     mockClips.value = [{ ...baseClip }];
     mockDeleteClip.mockRejectedValueOnce(new Error('Delete failed'));
     const { toast } = await import('vue-sonner');
     wrapper = mountOpen();
     await nextTick();
     await wrapper.find('[data-testid="delete-button"]').trigger('click');
+    await nextTick();
+    await wrapper.find('[data-testid="delete-confirm-button"]').trigger('click');
     await flushPromises();
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Delete failed');
   });
