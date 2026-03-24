@@ -239,4 +239,6 @@ None — no debug sessions required.
 - `apps/web/src/components/clips/MyClipsDialog.test.ts` (new)
 - `apps/web/src/components/clips/ClipEditForm.vue` (new)
 - `apps/web/src/components/clips/ClipEditForm.test.ts` (new)
+- `apps/web/src/components/stream/BroadcastConsole.vue` (modified — My Clips button + dialog in profile popover)
+- `apps/web/src/components/stream/BroadcastConsole.test.ts` (modified — My Clips dialog integration tests)
 - `apps/web/src/router/index.ts` (not modified — no /clips route; My Clips is a dialog)
