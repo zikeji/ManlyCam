@@ -40,6 +40,7 @@ function startCanvasLoop(): void {
   let lastDraw = 0;
   const interval = 1000 / CANVAS_FPS;
 
+  /* c8 ignore start -- rAF callback requires real browser rendering pipeline; JSDOM does not support it */
   const tick = (now: number) => {
     canvasRaf = requestAnimationFrame(tick);
     if (now - lastDraw < interval) return;
@@ -49,6 +50,7 @@ function startCanvasLoop(): void {
     if (!src || src.readyState < 2) return;
     ctx.drawImage(src, 0, 0, CANVAS_W, CANVAS_H);
   };
+  /* c8 ignore stop */
 
   canvasRaf = requestAnimationFrame(tick);
 }

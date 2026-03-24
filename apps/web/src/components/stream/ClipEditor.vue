@@ -499,6 +499,7 @@ function startPolling(): void {
       const newLatest = new Date(range.latest).getTime();
       const newEarliest = new Date(range.earliest).getTime();
       const selDur = selectionEndMs.value - selectionStartMs.value;
+      const prevEarliest = earliestMs.value;
 
       // Always update timeline boundaries so the track stays in sync
       // with the rolling HLS buffer (old segments get deleted by mediamtx)
@@ -506,24 +507,34 @@ function startPolling(): void {
       earliestMs.value = Math.max(new Date(range.streamStartedAt).getTime(), newEarliest);
 
       if (autoAdvance.value) {
-        // Auto-advance: pin selection end to the live edge
+        // Auto-advance: pin selection end to the live edge, preserve duration.
+        const bufferMs = newLatest - earliestMs.value;
+        const targetDur = Math.min(selDur, bufferMs);
         selectionEndMs.value = newLatest;
-        selectionStartMs.value = newLatest - selDur;
-        if (selectionStartMs.value < earliestMs.value) {
-          selectionStartMs.value = earliestMs.value;
-        }
+        selectionStartMs.value = newLatest - targetDur;
       } else {
-        // Manual mode: clamp selection if it drifted outside new boundaries
-        if (selectionEndMs.value > newLatest) {
-          selectionEndMs.value = newLatest;
-        }
-        if (selectionStartMs.value < earliestMs.value) {
+        // Manual mode: preserve selection duration when the buffer start
+        // overtakes the selection (old segments purged). Live-edge pinning
+        // only happens in auto-advance mode (the "Live" button).
+        const wasAtBufferStart = selectionStartMs.value <= prevEarliest + 500;
+
+        if (wasAtBufferStart && earliestMs.value > selectionStartMs.value) {
+          // Buffer start moved past selection start — push selection forward
           selectionStartMs.value = earliestMs.value;
+          selectionEndMs.value = Math.min(newLatest, earliestMs.value + selDur);
+        } else {
+          // Selection is in the middle — just clamp without shifting
+          if (selectionEndMs.value > newLatest) {
+            selectionEndMs.value = newLatest;
+          }
+          if (selectionStartMs.value < earliestMs.value) {
+            selectionStartMs.value = earliestMs.value;
+          }
         }
 
-        // After clamping, check if selection is still valid
+        // Safety: if clamping collapsed the selection (buffer jumped way past),
+        // reset to last 30s of available buffer
         if (selectionStartMs.value >= selectionEndMs.value) {
-          // Reset to last N seconds of available buffer (use current preset or default 30s)
           const defaultDurationMs = 30_000;
           const maxAllowedDurationMs = props.segmentRange.maxDurationSeconds * 1000;
           const durationMs = Math.min(
@@ -531,9 +542,8 @@ function startPolling(): void {
             maxAllowedDurationMs,
             newLatest - earliestMs.value,
           );
-
           selectionEndMs.value = newLatest;
-          selectionStartMs.value = Math.max(earliestMs.value, selectionEndMs.value - durationMs);
+          selectionStartMs.value = Math.max(earliestMs.value, newLatest - durationMs);
         }
       }
     } catch {
