@@ -439,6 +439,7 @@ Users can clip segments from the rolling server-side HLS buffer, manage clips th
 - 10-4: My Clips Dialog (clip management via profile-menu dialog, visibility, audit logging, shared clips toggle, deletion, download) _(depends on 10-2)_
 - 10-5: Chat Clip Integration (clip message type, Watch modal, tombstone, live visibility updates, download) _(depends on 10-3)_
 - 10-6: Public Clip Pages (unauthenticated route, OG meta injection, clipper attribution, stream-status CTA, download) _(depends on 10-2, 10-3)_
+- 10-6b: Clip UX Polish (My Clips clipper attribution in mixed-ownership view, locked-out public visibility UX, spacebar play/pause in clip editor) _(depends on 10-6)_
 - 10-7: Production Deployment Documentation _(closes epic)_
 
 ---
