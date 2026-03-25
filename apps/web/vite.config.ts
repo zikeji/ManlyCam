@@ -41,8 +41,8 @@ export const config = defineConfig({
         name: '__SITE_NAME__',
         short_name: '__SITE_NAME__',
         description: 'Live pet camera',
-        theme_color: '#09090b',
-        background_color: '#09090b',
+        theme_color: '#915930',
+        background_color: '#1b1917',
         display: 'standalone',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
