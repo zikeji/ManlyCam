@@ -1364,6 +1364,18 @@ describe('updateClip', () => {
     ).rejects.toMatchObject({ statusCode: 422, code: 'VALIDATION_ERROR' });
   });
 
+  it('throws 422 when name is whitespace only', async () => {
+    await expect(
+      updateClip({ clipId: 'clip-001', actor, data: { name: '   ' } }),
+    ).rejects.toMatchObject({ statusCode: 422, code: 'VALIDATION_ERROR' });
+  });
+
+  it('throws 422 when description is whitespace only', async () => {
+    await expect(
+      updateClip({ clipId: 'clip-001', actor, data: { description: '   ' } }),
+    ).rejects.toMatchObject({ statusCode: 422, code: 'VALIDATION_ERROR' });
+  });
+
   it('throws 422 when ViewerGuest tries to set public visibility', async () => {
     await expect(
       updateClip({ clipId: 'clip-001', actor, data: { visibility: 'public' } }),

@@ -1,6 +1,6 @@
 # Story 10.6: Public Clip Pages
 
-Status: review
+Status: done
 
 ## Story
 
@@ -160,3 +160,4 @@ claude-sonnet-4-6
 
 - 2026-03-24: Story implemented — server OG injection route, ClipPage.vue standalone page, router placeholder replaced. 752 server tests + 1461 web tests passing. All quality gates green.
 - 2026-03-24: Smoke test fixes — (1) `resolveClipForAccess` in clipService.ts fixed to allow unauthenticated access to public clips (was unconditionally throwing 401 before DB lookup); (2) description now renders as markdown via `renderMarkdown`; (3) landscape two-column layout (video left, content right at `sm:` breakpoint). 754 server tests + 1461 web tests passing. All quality gates green.
+- 2026-03-25: Code review complete — 4 patch findings fixed: (1) video `@error` handler with download fallback UI; (2) `fetchCurrentUser` wrapped in try/catch; (3) `index.html` cached at module init for performance; (4) whitespace-only validation tests added. 758 server + 1473 web tests passing. All quality gates green.

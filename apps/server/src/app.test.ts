@@ -3,10 +3,13 @@ import { AppError } from './lib/errors.js';
 import { env } from './env.js';
 import { readFileSync } from 'node:fs';
 
+const { mockExistsSync } = vi.hoisted(() => ({ mockExistsSync: vi.fn(() => true) }));
+
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
   return {
     ...actual,
+    existsSync: mockExistsSync,
     readFileSync: vi.fn(
       () => '<html><head><title>ManlyCam</title></head><body>mocked</body></html>',
     ),
@@ -93,7 +96,6 @@ describe('createApp() global error handler', () => {
     expect(spaRes.status).toBe(200);
     const text = await spaRes.text();
     expect(text).toBe('<html><head><title>ManlyCam</title></head><body>mocked</body></html>');
-    expect(readFileSync).toHaveBeenCalled();
 
     env.NODE_ENV = originalEnv;
   });

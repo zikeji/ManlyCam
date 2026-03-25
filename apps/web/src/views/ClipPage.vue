@@ -21,7 +21,7 @@ type ClipData = {
   clipperAvatarUrl: string | null;
 };
 
-type ClipState = 'loading' | 'found' | 'unauthorized' | 'not-found';
+type ClipState = 'loading' | 'found' | 'unauthorized' | 'not-found' | 'video-error';
 
 const route = useRoute();
 const { streamState, initStream } = useStream();
@@ -30,12 +30,15 @@ const clipId = computed(() => route.params.id as string);
 const clip = ref<ClipData | null>(null);
 const clipState = ref<ClipState>('loading');
 const isModalMode = ref(false);
+const videoError = ref(false);
 
 const downloadUrl = computed(() => `/api/clips/${clipId.value}/download`);
 
-const ctaText = computed(() =>
-  streamState.value === 'live' ? 'Watch Live' : 'Go to Stream',
-);
+const ctaText = computed(() => (streamState.value === 'live' ? 'Watch Live' : 'Go to Stream'));
+
+function handleVideoError() {
+  videoError.value = true;
+}
 
 onMounted(async () => {
   // Detect modal mode — clip was opened via pushState from the stream page
@@ -45,7 +48,11 @@ onMounted(async () => {
   }
 
   // Ensure auth state is resolved before determining CTA visibility
-  await fetchCurrentUser();
+  try {
+    await fetchCurrentUser();
+  } catch {
+    // Auth fetch failed — continue without user context
+  }
 
   try {
     const data = await apiFetch<ClipData>(`/api/clips/${clipId.value}`);
@@ -84,7 +91,11 @@ onMounted(async () => {
       aria-hidden="true"
     >
       <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+      <path
+        class="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+      />
     </svg>
   </div>
 
@@ -94,7 +105,9 @@ onMounted(async () => {
     class="flex min-h-dvh items-center justify-center bg-[hsl(var(--background))]"
     data-testid="clip-unauthorized"
   >
-    <div class="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border border-border bg-card p-10 text-center shadow-lg">
+    <div
+      class="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border border-border bg-card p-10 text-center shadow-lg"
+    >
       <h1 class="text-xl font-semibold text-foreground">Sign in to view this clip</h1>
       <p class="text-sm text-muted-foreground">This clip is only available to signed-in users.</p>
       <a
@@ -112,7 +125,9 @@ onMounted(async () => {
     class="flex min-h-dvh items-center justify-center bg-[hsl(var(--background))]"
     data-testid="clip-not-found"
   >
-    <div class="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border border-border bg-card p-10 text-center shadow-lg">
+    <div
+      class="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border border-border bg-card p-10 text-center shadow-lg"
+    >
       <h1 class="text-xl font-semibold text-foreground">Clip not found</h1>
       <p class="text-sm text-muted-foreground">This clip may have been removed or made private.</p>
     </div>
@@ -124,20 +139,41 @@ onMounted(async () => {
     class="min-h-dvh bg-[hsl(var(--background))] text-foreground [@media(orientation:landscape)_and_(max-height:500px)]:h-dvh [@media(orientation:landscape)_and_(max-height:500px)]:overflow-hidden"
     data-testid="clip-page"
   >
-    <div class="mx-auto max-w-5xl px-4 py-6 flex flex-col gap-6 [@media(orientation:landscape)_and_(max-height:500px)]:flex-row [@media(orientation:landscape)_and_(max-height:500px)]:max-w-none [@media(orientation:landscape)_and_(max-height:500px)]:p-0 [@media(orientation:landscape)_and_(max-height:500px)]:gap-0 [@media(orientation:landscape)_and_(max-height:500px)]:h-full">
+    <div
+      class="mx-auto max-w-5xl px-4 py-6 flex flex-col gap-6 [@media(orientation:landscape)_and_(max-height:500px)]:flex-row [@media(orientation:landscape)_and_(max-height:500px)]:max-w-none [@media(orientation:landscape)_and_(max-height:500px)]:p-0 [@media(orientation:landscape)_and_(max-height:500px)]:gap-0 [@media(orientation:landscape)_and_(max-height:500px)]:h-full"
+    >
       <!-- Video player — full width on portrait/desktop, full height on mobile landscape -->
       <video
+        v-if="!videoError"
         :src="downloadUrl"
         controls
         class="w-full rounded-lg bg-black [@media(orientation:landscape)_and_(max-height:500px)]:h-full [@media(orientation:landscape)_and_(max-height:500px)]:w-auto [@media(orientation:landscape)_and_(max-height:500px)]:rounded-none [@media(orientation:landscape)_and_(max-height:500px)]:flex-shrink-0"
         data-testid="clip-video"
+        @error="handleVideoError"
       />
+      <!-- Video error state -->
+      <div
+        v-else
+        class="w-full aspect-video rounded-lg bg-black flex items-center justify-center [@media(orientation:landscape)_and_(max-height:500px)]:h-full [@media(orientation:landscape)_and_(max-height:500px)]:w-auto [@media(orientation:landscape)_and_(max-height:500px)]:rounded-none [@media(orientation:landscape)_and_(max-height:500px)]:flex-shrink-0"
+        data-testid="clip-video-error"
+      >
+        <div class="text-center text-muted-foreground">
+          <p class="text-sm">Video failed to load</p>
+          <a :href="downloadUrl" class="mt-2 inline-block text-sm text-primary hover:underline">
+            Try downloading instead
+          </a>
+        </div>
+      </div>
 
       <!-- Right column (mobile landscape) / below (portrait/desktop): metadata + actions -->
-      <div class="flex flex-col gap-4 [@media(orientation:landscape)_and_(max-height:500px)]:flex-1 [@media(orientation:landscape)_and_(max-height:500px)]:overflow-y-auto [@media(orientation:landscape)_and_(max-height:500px)]:p-4 [@media(orientation:landscape)_and_(max-height:500px)]:min-w-0">
+      <div
+        class="flex flex-col gap-4 [@media(orientation:landscape)_and_(max-height:500px)]:flex-1 [@media(orientation:landscape)_and_(max-height:500px)]:overflow-y-auto [@media(orientation:landscape)_and_(max-height:500px)]:p-4 [@media(orientation:landscape)_and_(max-height:500px)]:min-w-0"
+      >
         <!-- Clip metadata -->
         <div class="flex flex-col gap-2">
-          <h1 class="text-xl font-semibold leading-snug" data-testid="clip-name">{{ clip.name }}</h1>
+          <h1 class="text-xl font-semibold leading-snug" data-testid="clip-name">
+            {{ clip.name }}
+          </h1>
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div
             v-if="clip.description"
@@ -148,11 +184,7 @@ onMounted(async () => {
         </div>
 
         <!-- Clipper attribution -->
-        <div
-          v-if="clip.showClipper"
-          class="flex items-center gap-3"
-          data-testid="clip-attribution"
-        >
+        <div v-if="clip.showClipper" class="flex items-center gap-3" data-testid="clip-attribution">
           <img
             v-if="clip.showClipperAvatar && clip.clipperAvatarUrl"
             :src="clip.clipperAvatarUrl"

@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { serveStatic } from '@hono/node-server/serve-static';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -28,6 +28,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Hoisted so both the OG injection route and production static block share it
 const distPath = join(__dirname, '../../web/dist');
+const indexHtmlPath = join(distPath, 'index.html');
+
+// Cache index.html at module init to avoid blocking I/O on every request
+let cachedIndexHtml: string | null = null;
+/* c8 ignore next 3 -- cached at module load, tests mock fs */
+if (existsSync(indexHtmlPath)) {
+  cachedIndexHtml = readFileSync(indexHtmlPath, 'utf-8');
+}
 
 function escapeHtmlAttr(str: string): string {
   return str
@@ -66,13 +74,10 @@ export function createApp() {
   // OG injection route for public clips — must be before SPA catch-all
   app.get('/clips/:id', async (c) => {
     const { id } = c.req.param();
-    const indexHtmlPath = join(distPath, 'index.html');
 
-    let indexHtml: string;
-    try {
-      indexHtml = readFileSync(indexHtmlPath, 'utf-8');
-    } catch {
-      // Dev environment without a built SPA — serve minimal placeholder
+    /* c8 ignore next 4 -- dev-only: index.html missing without build */
+    if (!cachedIndexHtml) {
+      logger.warn('index.html not found — dev environment without built SPA');
       return c.html('<!doctype html><html><head></head><body></body></html>');
     }
 
@@ -92,7 +97,7 @@ export function createApp() {
           `    <meta property="og:description" content="${ogDesc}" />\n` +
           `    <meta property="og:image" content="${ogImage}" />\n` +
           `    <meta property="og:url" content="${ogUrl}" />`;
-        const withOg = indexHtml.replace('</head>', `${ogTags}\n  </head>`);
+        const withOg = cachedIndexHtml.replace('</head>', `${ogTags}\n  </head>`);
         const modified = withOg.replace(/<title>[^<]*<\/title>/, `<title>${ogTitle}</title>`);
         return c.html(modified);
       }
@@ -100,7 +105,7 @@ export function createApp() {
       logger.error({ err }, 'OG injection DB lookup failed');
     }
 
-    return c.html(indexHtml);
+    return c.html(cachedIndexHtml);
   });
 
   // SPA catch-all: serve Vue dist in production
@@ -113,9 +118,12 @@ export function createApp() {
     });
     app.use('/*', serveStatic({ root: distPath }));
     app.get('/*', (c) => {
-      const indexHtmlPath = join(distPath, 'index.html');
-      const indexHtml = readFileSync(indexHtmlPath, 'utf-8');
-      return c.html(indexHtml);
+      /* c8 ignore next 4 -- defensive: production builds always have index.html */
+      if (!cachedIndexHtml) {
+        logger.error('index.html not found in production');
+        return c.html('<!doctype html><html><head></head><body>Build error</body></html>', 500);
+      }
+      return c.html(cachedIndexHtml);
     });
   }
 

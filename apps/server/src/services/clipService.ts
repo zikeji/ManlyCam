@@ -735,15 +735,29 @@ export async function updateClip(params: {
     throw new AppError('Insufficient role to set public visibility', 'FORBIDDEN', 422);
   }
 
-  if (data.name !== undefined && data.name.length > MAX_NAME_LEN) {
-    throw new AppError(`name must not exceed ${MAX_NAME_LEN} characters`, 'VALIDATION_ERROR', 422);
+  if (data.name !== undefined) {
+    if (data.name.length > MAX_NAME_LEN) {
+      throw new AppError(
+        `name must not exceed ${MAX_NAME_LEN} characters`,
+        'VALIDATION_ERROR',
+        422,
+      );
+    }
+    if (!data.name.trim()) {
+      throw new AppError('name cannot be empty or whitespace only', 'VALIDATION_ERROR', 422);
+    }
   }
-  if (data.description !== undefined && data.description.length > MAX_DESC_LEN) {
-    throw new AppError(
-      `description must not exceed ${MAX_DESC_LEN} characters`,
-      'VALIDATION_ERROR',
-      422,
-    );
+  if (data.description !== undefined) {
+    if (data.description.length > MAX_DESC_LEN) {
+      throw new AppError(
+        `description must not exceed ${MAX_DESC_LEN} characters`,
+        'VALIDATION_ERROR',
+        422,
+      );
+    }
+    if (!data.description.trim()) {
+      throw new AppError('description cannot be empty or whitespace only', 'VALIDATION_ERROR', 422);
+    }
   }
 
   const updateData: Record<string, unknown> = {};

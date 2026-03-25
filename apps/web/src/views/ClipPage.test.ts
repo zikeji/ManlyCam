@@ -351,6 +351,35 @@ describe('ClipPage.vue', () => {
     expect(mockFetchCurrentUser).toHaveBeenCalledOnce();
   });
 
+  it('continues to fetch clip even when fetchCurrentUser throws', async () => {
+    mockFetchCurrentUser.mockRejectedValueOnce(new Error('Auth network error'));
+    mockApiFetch.mockResolvedValue(baseClip);
+    await mountAtClip();
+    expect(mockFetchCurrentUser).toHaveBeenCalledOnce();
+    expect(mockApiFetch).toHaveBeenCalledWith('/api/clips/clip-001');
+    expect(wrapper!.find('[data-testid="clip-page"]').exists()).toBe(true);
+  });
+
+  it('shows video error state when video fails to load', async () => {
+    mockApiFetch.mockResolvedValue(baseClip);
+    await mountAtClip();
+    const video = wrapper!.find('[data-testid="clip-video"]');
+    expect(video.exists()).toBe(true);
+    await video.trigger('error');
+    expect(wrapper!.find('[data-testid="clip-video-error"]').exists()).toBe(true);
+    expect(wrapper!.find('[data-testid="clip-video"]').exists()).toBe(false);
+  });
+
+  it('video error state shows download fallback link', async () => {
+    mockApiFetch.mockResolvedValue(baseClip);
+    await mountAtClip();
+    await wrapper!.find('[data-testid="clip-video"]').trigger('error');
+    const errorState = wrapper!.find('[data-testid="clip-video-error"]');
+    expect(errorState.text()).toContain('Video failed to load');
+    const downloadLink = errorState.find('a');
+    expect(downloadLink.attributes('href')).toBe('/api/clips/clip-001/download');
+  });
+
   it('calls apiFetch with correct clip URL', async () => {
     mockApiFetch.mockResolvedValue(baseClip);
     await mountAtClip('clip-abc');
