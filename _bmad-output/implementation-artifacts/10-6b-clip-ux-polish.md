@@ -1,6 +1,6 @@
 # Story 10-6b: Clip UX Polish
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -48,9 +48,9 @@ So that the clips UI feels complete and polished.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: MyClipsDialog — clipper attribution row** (AC: #1)
-  - [ ] 1.1 Add a computed `isMixedView = computed(() => includeShared.value || showAll.value)` in `MyClipsDialog.vue`
-  - [ ] 1.2 In the card body, below the name/date block, conditionally render the clipper row:
+- [x] **Task 1: MyClipsDialog — clipper attribution row** (AC: #1)
+  - [x] 1.1 Add a computed `isMixedView = computed(() => includeShared.value || showAll.value)` in `MyClipsDialog.vue`
+  - [x] 1.2 In the card body, below the name/date block, conditionally render the clipper row:
     ```html
     <div v-if="isMixedView" class="flex items-center gap-2 text-xs text-muted-foreground" data-testid="clip-owner-row">
       <img v-if="isOwnClip ? user.avatarUrl : clip.clipperAvatarUrlOwner"
@@ -60,32 +60,32 @@ So that the clips UI feels complete and polished.
     </div>
     ```
     where `isOwnClip = clip.userId === user.value?.id`
-  - [ ] 1.3 Add `data-testid="clip-owner-name"` on the name span for test targeting
+  - [x] 1.3 Add `data-testid="clip-owner-name"` on the name span for test targeting
 
-- [ ] **Task 2: ClipEditForm — locked-out Public button** (AC: #2, #3, #4)
-  - [ ] 2.1 Add computed `lockedPublic = computed(() => props.clip.visibility === 'public' && !canSetPublic.value)` in `ClipEditForm.vue`
-  - [ ] 2.2 Add `confirmDialogOpen = ref(false)` and `pendingData = ref<UpdateClipData | null>(null)` for deferred save
-  - [ ] 2.3 In the `visibilityOptions` template block:
+- [x] **Task 2: ClipEditForm — locked-out Public button** (AC: #2, #3, #4)
+  - [x] 2.1 Add computed `lockedPublic = computed(() => props.clip.visibility === 'public' && !canSetPublic.value)` in `ClipEditForm.vue`
+  - [x] 2.2 Add `confirmDialogOpen = ref(false)` and `pendingData = ref<UpdateClipData | null>(null)` for deferred save
+  - [x] 2.3 In the `visibilityOptions` template block:
     - For the Public option: always render it (remove the `v-if="opt.value !== 'public' || canSetPublic"` guard)
     - Apply `disabled` + `opacity-50 cursor-not-allowed pointer-events-none` classes when `!canSetPublic`
     - Keep the active styling when `visibility === 'public'`
-  - [ ] 2.4 Update `submit()`: if `lockedPublic.value` is true **and** `data.visibility` is set (changing away from public), do not emit `save` directly — instead store `data` in `pendingData` and set `confirmDialogOpen = true`
-  - [ ] 2.5 Add `AlertDialog` at bottom of form template with the message from AC #3; Cancel handler reverts `visibility.value = 'public'` and clears `pendingData`; Continue handler emits `save(pendingData)` and clears state
-  - [ ] 2.6 Import `AlertDialog`, `AlertDialogContent`, `AlertDialogHeader`, `AlertDialogTitle`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogCancel`, `AlertDialogAction` from `@/components/ui/alert-dialog`
+  - [x] 2.4 Update `submit()`: if `lockedPublic.value` is true **and** `data.visibility` is set (changing away from public), do not emit `save` directly — instead store `data` in `pendingData` and set `confirmDialogOpen = true`
+  - [x] 2.5 Add `AlertDialog` at bottom of form template with the message from AC #3; Cancel handler reverts `visibility.value = 'public'` and clears `pendingData`; Continue handler emits `save(pendingData)` and clears state
+  - [x] 2.6 Import `AlertDialog`, `AlertDialogContent`, `AlertDialogHeader`, `AlertDialogTitle`, `AlertDialogDescription`, `AlertDialogFooter`, `AlertDialogCancel`, `AlertDialogAction` from `@/components/ui/alert-dialog`
 
-- [ ] **Task 3: ClipEditor — spacebar play/pause** (AC: #5)
-  - [ ] 3.1 In `ClipEditor.vue`, define a named handler function (not inline arrow):
+- [x] **Task 3: ClipEditor — spacebar play/pause** (AC: #5)
+  - [x] 3.1 In `ClipEditor.vue`, define a named handler function (not inline arrow):
     ```ts
-    /* c8 ignore next -- JSDOM does not support requestAnimationFrame; togglePlayback is already c8-ignored */
     function onSpaceKey(e: KeyboardEvent): void {
       if (e.code !== 'Space') return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       e.preventDefault();
+      /* c8 ignore next -- JSDOM does not support requestAnimationFrame; togglePlayback is c8-ignored */
       togglePlayback();
     }
     ```
-  - [ ] 3.2 Add a `watch` on `props.open`:
+  - [x] 3.2 Add a `watch` on `props.open`:
     ```ts
     watch(() => props.open, (isOpen) => {
       if (isOpen) {
@@ -95,22 +95,22 @@ So that the clips UI feels complete and polished.
       }
     });
     ```
-  - [ ] 3.3 Ensure the listener is removed in `onUnmounted` as a safety net (component may unmount while open):
+  - [x] 3.3 Ensure the listener is removed in `onUnmounted` as a safety net (component may unmount while open):
     ```ts
     onUnmounted(() => {
       document.removeEventListener('keydown', onSpaceKey);
     });
     ```
 
-- [ ] **Task 4: Tests** (All ACs)
-  - [ ] 4.1 `MyClipsDialog.test.ts`:
+- [x] **Task 4: Tests** (All ACs)
+  - [x] 4.1 `MyClipsDialog.test.ts`:
     - Clipper row hidden when neither toggle active (own-clips view)
     - Clipper row shows "You" + own avatar on own clip when `includeShared = true`
     - Clipper row shows others' `clipperDisplayName` on non-owned clip when `includeShared = true`
     - Clipper row shows correctly when `showAll = true` (admin mode)
     - Avatar `img` omitted when `clipperAvatarUrlOwner` is null (others' clip)
     - Avatar `img` omitted when `user.avatarUrl` is null (own clip in mixed view)
-  - [ ] 4.2 `ClipEditForm.test.ts`:
+  - [x] 4.2 `ClipEditForm.test.ts`:
     - Locked-out user sees disabled Public button when `clip.visibility === 'public'`
     - Public button has active styling (border-ring bg-accent) when selected but locked
     - Locked-out user does NOT see disabled Public button when `clip.visibility !== 'public'`
@@ -119,7 +119,7 @@ So that the clips UI feels complete and polished.
     - Clicking Cancel in confirmation dialog reverts visibility to 'public', no save emitted
     - Clicking Continue in confirmation dialog emits save with the new visibility
     - No confirmation dialog when Moderator saves (canSetPublic = true)
-  - [ ] 4.3 `ClipEditor.test.ts`:
+  - [x] 4.3 `ClipEditor.test.ts`:
     - Space key calls togglePlayback when editor is open and target is not input/textarea
     - Space key does NOT call togglePlayback when target is INPUT
     - Space key does NOT call togglePlayback when target is TEXTAREA
@@ -197,6 +197,27 @@ The handler must be a **named function reference** (not an inline arrow) so the 
 - `apps/web/src/components/stream/ClipEditor.vue` — `togglePlayback()`, `props.open`, existing `onUnmounted`
 - `apps/web/src/components/ui/alert-dialog/` — AlertDialog component (already in project)
 
+## Dev Agent Record
+
+### Completion Notes
+
+- Task 1 (MyClipsDialog): Added `isMixedView` computed and clipper attribution row below name/date block. Used inline `clip.userId === user?.id` comparison in template (loop variable). Null check for src via `?? undefined` to satisfy TS strict type (null not assignable to string | undefined).
+- Task 2 (ClipEditForm): Locked-out Public button uses `v-if="opt.value !== 'public' || canSetPublic || props.clip.visibility === 'public'"` to show disabled Public only when clip was already public. Added `lockedPublic` computed, deferred save via `pendingData`/`confirmDialogOpen`, `onCancelVisibilityChange` and `onConfirmVisibilityChange` handlers. AlertDialog placed outside the form element to avoid nested form issues.
+- Task 3 (ClipEditor): `onSpaceKey` named function added outside c8-ignored blocks (guards are testable). Watch uses `{ immediate: true }` so listener registers on mount (required because ClipEditor mounts via `v-if` with `props.open === true` already set in StreamPlayer.vue — without immediate, the watch never fires and the listener is never added). `document.removeEventListener` added to existing `onUnmounted` inside c8-ignored lifecycle block as safety net.
+- Post-smoke-test fix: Added `{ immediate: true }` to the `props.open` watch after user confirmed spacebar did nothing in the real app. Added regression test `'Space key calls togglePlayback when component mounts with open=true (immediate watch regression)'` to prevent future regressions.
+- All 21 new tests pass; total 1493 web tests. All quality gates: typecheck ✓, lint ✓, test --coverage ✓.
+
+## File List
+
+- `apps/web/src/components/clips/MyClipsDialog.vue`
+- `apps/web/src/components/clips/MyClipsDialog.test.ts`
+- `apps/web/src/components/clips/ClipEditForm.vue`
+- `apps/web/src/components/clips/ClipEditForm.test.ts`
+- `apps/web/src/components/stream/ClipEditor.vue`
+- `apps/web/src/components/stream/ClipEditor.test.ts`
+
 ## Change Log
 
 - 2026-03-24: Story created via sprint-change-proposal-2026-03-24.md (correct-course on 10-6 review)
+- 2026-03-25: Implementation complete — clipper attribution row, locked-out Public button + confirmation dialog, spacebar play/pause. 20 new tests, 1492 total web tests passing.
+- 2026-03-25: Post-smoke-test fix — spacebar was not working in production. Root cause: ClipEditor mounts via `v-if` in StreamPlayer.vue with `props.open === true` already set, so `watch` without `{ immediate: true }` never fired. Added `{ immediate: true }` to fix. Added regression test for direct-mount-with-open=true scenario. 21 new tests, 1493 total web tests passing.

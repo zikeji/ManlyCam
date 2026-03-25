@@ -402,4 +402,104 @@ describe('ClipEditor', () => {
   });
 
   // isStreamTooNew is tested in useClipCreate.test.ts
+
+  describe('spacebar play/pause (AC #5)', () => {
+    it('Space key calls togglePlayback when component mounts with open=true (immediate watch regression)', async () => {
+      // ClipEditor mounts via v-if with open=true already set in StreamPlayer.vue.
+      // Without { immediate: true } on the watch, the listener is never added.
+      mountEditor({ open: true });
+      await nextTick();
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      await nextTick();
+      expect(mockHlsPlay).toHaveBeenCalled();
+    });
+
+    it('Space key calls togglePlayback (via hlsPlay) when editor is open and target is not input/textarea', async () => {
+      // Mount closed first, then open — triggers watch which adds the listener
+      mountEditor({ open: false });
+      await wrapper!.setProps({ open: true });
+      await nextTick();
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      await nextTick();
+      expect(mockHlsPlay).toHaveBeenCalled();
+    });
+
+    it('Space key does NOT call togglePlayback when target is INPUT', async () => {
+      mountEditor({ open: false });
+      await wrapper!.setProps({ open: true });
+      await nextTick();
+      const input = document.createElement('input');
+      document.body.appendChild(input);
+      input.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      document.body.removeChild(input);
+      await nextTick();
+      expect(mockHlsPlay).not.toHaveBeenCalled();
+    });
+
+    it('Space key does NOT call togglePlayback when target is TEXTAREA', async () => {
+      mountEditor({ open: false });
+      await wrapper!.setProps({ open: true });
+      await nextTick();
+      const ta = document.createElement('textarea');
+      document.body.appendChild(ta);
+      ta.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      document.body.removeChild(ta);
+      await nextTick();
+      expect(mockHlsPlay).not.toHaveBeenCalled();
+    });
+
+    it('Space key does NOT call togglePlayback when editor is closed (open=false)', async () => {
+      // Never transitioned to open=true so listener was never added
+      mountEditor({ open: false });
+      await nextTick();
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      await nextTick();
+      expect(mockHlsPlay).not.toHaveBeenCalled();
+    });
+
+    it('listener removed when editor closes (watch fires with open=false)', async () => {
+      mountEditor({ open: false });
+      await wrapper!.setProps({ open: true });
+      await nextTick();
+      // Space works while open
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      await nextTick();
+      expect(mockHlsPlay).toHaveBeenCalledTimes(1);
+      // Close editor — listener should be removed
+      vi.clearAllMocks();
+      await wrapper!.setProps({ open: false });
+      await nextTick();
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      await nextTick();
+      expect(mockHlsPlay).not.toHaveBeenCalled();
+    });
+
+    it('listener removed on unmount', async () => {
+      mountEditor({ open: false });
+      await wrapper!.setProps({ open: true });
+      await nextTick();
+      wrapper!.unmount();
+      wrapper = null;
+      vi.clearAllMocks();
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { code: 'Space', bubbles: true, cancelable: true }),
+      );
+      await nextTick();
+      expect(mockHlsPlay).not.toHaveBeenCalled();
+    });
+  });
 });

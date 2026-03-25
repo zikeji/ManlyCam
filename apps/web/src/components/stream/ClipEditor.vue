@@ -595,6 +595,24 @@ function handleCancel(): void {
 }
 
 // --- Stream offline detection ---
+// --- Spacebar play/pause ---
+function onSpaceKey(e: KeyboardEvent): void {
+  if (e.code !== 'Space') return;
+  const tag = (e.target as HTMLElement).tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  e.preventDefault();
+  /* c8 ignore next -- JSDOM does not support requestAnimationFrame; togglePlayback is c8-ignored */
+  togglePlayback();
+}
+
+watch(() => props.open, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('keydown', onSpaceKey);
+  } else {
+    document.removeEventListener('keydown', onSpaceKey);
+  }
+}, { immediate: true });
+
 /* c8 ignore start -- watcher requires real polling/timer interactions for live recovery branch */
 watch(
   () => props.streamState,
@@ -668,6 +686,7 @@ onMounted(() => {
 onUnmounted(() => {
   stopPolling();
   destroyHls();
+  document.removeEventListener('keydown', onSpaceKey);
   if (resizeObserver) {
     resizeObserver.disconnect();
     resizeObserver = null;
