@@ -22,6 +22,14 @@ else
   echo "[entrypoint] No placeholder found in $INDEX_HTML, skipping injection"
 fi
 
+MANIFEST_FILE="/repo/apps/web/dist/manifest.webmanifest"
+if [ -f "$MANIFEST_FILE" ] && grep -q "__SITE_NAME__" "$MANIFEST_FILE"; then
+  echo "[entrypoint] Patching SITE_NAME in $MANIFEST_FILE"
+  sed -i "s/__SITE_NAME__/${SITE_NAME:-ManlyCam}/g" "$MANIFEST_FILE"
+else
+  echo "[entrypoint] No placeholder found in $MANIFEST_FILE, skipping injection"
+fi
+
 # Run database migrations
 echo "[entrypoint] Running database migrations..."
 npx prisma migrate deploy --schema ./prisma/schema.prisma

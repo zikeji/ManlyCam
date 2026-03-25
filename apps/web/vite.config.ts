@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import { fileURLToPath, URL } from 'node:url';
 import vue from '@vitejs/plugin-vue';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // Sets long-lived cache headers for /emojis/* in dev server so browsers skip
 // conditional GETs on reload and avoid the SVG loading flash (304 flash).
@@ -33,6 +34,38 @@ export const config = defineConfig({
       ],
     }),
     emojiCacheHeadersPlugin(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      manifest: {
+        name: '__SITE_NAME__',
+        short_name: '__SITE_NAME__',
+        description: 'Live pet camera',
+        theme_color: '#09090b',
+        background_color: '#09090b',
+        display: 'standalone',
+        icons: [
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
+          { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//, /^\/ws/, /^\/whep/],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
+        runtimeCaching: [
+          {
+            urlPattern: /^\/emojis\/.*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'emojis',
+              expiration: { maxAgeSeconds: 2592000, maxEntries: 500 },
+            },
+          },
+        ],
+      },
+    }),
   ],
   resolve: {
     alias: {
