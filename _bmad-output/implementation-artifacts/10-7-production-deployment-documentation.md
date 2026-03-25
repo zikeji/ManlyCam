@@ -1,6 +1,6 @@
 # Story 10.7: Production Deployment Documentation
 
-Status: review
+Status: done
 
 ## Story
 
