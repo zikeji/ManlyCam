@@ -17,6 +17,22 @@ vi.mock('@/components/ui/switch', () => ({
       '<input type="checkbox" :checked="modelValue" @change="$emit(\'update:modelValue\', $event.target.checked)" />',
   },
 }));
+vi.mock('@/components/ui/alert-dialog', () => ({
+  AlertDialog: { props: ['open'], template: '<div v-if="open"><slot /></div>' },
+  AlertDialogContent: { template: '<div><slot /></div>' },
+  AlertDialogHeader: { template: '<div><slot /></div>' },
+  AlertDialogTitle: { template: '<div><slot /></div>' },
+  AlertDialogDescription: { template: '<div><slot /></div>' },
+  AlertDialogFooter: { template: '<div><slot /></div>' },
+  AlertDialogCancel: {
+    template: '<button data-testid="confirm-cancel" @click="$emit(\'click\')"><slot /></button>',
+    emits: ['click'],
+  },
+  AlertDialogAction: {
+    template: '<button data-testid="confirm-continue" @click="$emit(\'click\')"><slot /></button>',
+    emits: ['click'],
+  },
+}));
 
 const baseClip = {
   id: 'clip-001',
@@ -290,5 +306,83 @@ describe('ClipEditForm', () => {
     await wrapper.find('form').trigger('submit');
     const emitted = wrapper.emitted('save')![0][0] as Record<string, unknown>;
     expect(emitted.showClipper).toBe(true);
+  });
+
+  describe('locked-out Public button (AC #2, #3, #4)', () => {
+    const publicClip = { ...baseClip, visibility: 'public' };
+
+    it('locked-out user sees disabled Public button when clip.visibility is public', () => {
+      wrapper = mount(ClipEditForm, { props: { clip: publicClip, userRole: 'ViewerGuest' } });
+      const publicBtn = wrapper.find('[data-testid="clip-visibility-public"]');
+      expect(publicBtn.exists()).toBe(true);
+      expect((publicBtn.element as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('Public button has active styling (border-ring bg-accent) when locked and selected', () => {
+      wrapper = mount(ClipEditForm, { props: { clip: publicClip, userRole: 'ViewerGuest' } });
+      const publicBtn = wrapper.find('[data-testid="clip-visibility-public"]');
+      expect(publicBtn.classes()).toContain('border-ring');
+      expect(publicBtn.classes()).toContain('bg-accent');
+    });
+
+    it('locked-out user does NOT see Public button when clip.visibility is not public', () => {
+      wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+      expect(wrapper.find('[data-testid="clip-visibility-public"]').exists()).toBe(false);
+    });
+
+    it('Moderator sees interactive (non-disabled) Public button', () => {
+      wrapper = mount(ClipEditForm, { props: { clip: publicClip, userRole: 'Moderator' } });
+      const publicBtn = wrapper.find('[data-testid="clip-visibility-public"]');
+      expect(publicBtn.exists()).toBe(true);
+      expect((publicBtn.element as HTMLButtonElement).disabled).toBe(false);
+    });
+
+    it('Save with visibility changed away from public triggers confirmation dialog for locked-out user', async () => {
+      wrapper = mount(ClipEditForm, { props: { clip: publicClip, userRole: 'ViewerGuest' } });
+      await wrapper.find('[data-testid="clip-visibility-shared"]').trigger('click');
+      await nextTick();
+      await wrapper.find('form').trigger('submit');
+      await nextTick();
+      expect(wrapper.find('[data-testid="confirm-visibility-dialog"]').exists()).toBe(true);
+      expect(wrapper.emitted('save')).toBeFalsy();
+    });
+
+    it('Cancel in confirmation dialog reverts visibility to public and no save emitted', async () => {
+      wrapper = mount(ClipEditForm, { props: { clip: publicClip, userRole: 'ViewerGuest' } });
+      await wrapper.find('[data-testid="clip-visibility-shared"]').trigger('click');
+      await nextTick();
+      await wrapper.find('form').trigger('submit');
+      await nextTick();
+      await wrapper.find('[data-testid="confirm-cancel"]').trigger('click');
+      await nextTick();
+      expect(wrapper.emitted('save')).toBeFalsy();
+      expect(wrapper.find('[data-testid="confirm-visibility-dialog"]').exists()).toBe(false);
+      // visibility reverted to public — dialog closed
+      expect(wrapper.find('[data-testid="clip-visibility-public"]').classes()).toContain(
+        'border-ring',
+      );
+    });
+
+    it('Continue in confirmation dialog emits save with new visibility', async () => {
+      wrapper = mount(ClipEditForm, { props: { clip: publicClip, userRole: 'ViewerGuest' } });
+      await wrapper.find('[data-testid="clip-visibility-shared"]').trigger('click');
+      await nextTick();
+      await wrapper.find('form').trigger('submit');
+      await nextTick();
+      await wrapper.find('[data-testid="confirm-continue"]').trigger('click');
+      await nextTick();
+      expect(wrapper.emitted('save')).toBeTruthy();
+      expect((wrapper.emitted('save')![0][0] as Record<string, unknown>).visibility).toBe('shared');
+    });
+
+    it('no confirmation dialog shown when Moderator saves (canSetPublic = true)', async () => {
+      wrapper = mount(ClipEditForm, { props: { clip: publicClip, userRole: 'Moderator' } });
+      await wrapper.find('[data-testid="clip-visibility-shared"]').trigger('click');
+      await nextTick();
+      await wrapper.find('form').trigger('submit');
+      await nextTick();
+      expect(wrapper.find('[data-testid="confirm-visibility-dialog"]').exists()).toBe(false);
+      expect(wrapper.emitted('save')).toBeTruthy();
+    });
   });
 });

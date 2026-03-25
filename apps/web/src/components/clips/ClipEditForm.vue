@@ -4,6 +4,16 @@ import { Role, ROLE_RANK } from '@manlycam/types';
 import type { ClipListItem, UpdateClipData } from '@/composables/useClips';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const props = defineProps<{
   clip: ClipListItem;
@@ -25,6 +35,10 @@ const showClipperAvatar = ref(props.clip.showClipperAvatar);
 const clipperName = ref(props.clip.clipperName ?? props.clip.clipperDisplayName);
 
 const canSetPublic = computed(() => ROLE_RANK[props.userRole] >= ROLE_RANK[Role.Moderator]);
+const lockedPublic = computed(() => props.clip.visibility === 'public' && !canSetPublic.value);
+
+const confirmDialogOpen = ref(false);
+const pendingData = ref<UpdateClipData | null>(null);
 
 const descCount = computed(() => description.value.length);
 const descOverLimit = computed(() => descCount.value > MAX_DESC);
@@ -52,7 +66,24 @@ function submit() {
     if (clipperName.value !== (props.clip.clipperName ?? props.clip.clipperDisplayName))
       data.clipperName = clipperName.value;
   }
+  if (lockedPublic.value && data.visibility !== undefined) {
+    pendingData.value = data;
+    confirmDialogOpen.value = true;
+    return;
+  }
   emit('save', data);
+}
+
+function onCancelVisibilityChange() {
+  visibility.value = 'public';
+  pendingData.value = null;
+  confirmDialogOpen.value = false;
+}
+
+function onConfirmVisibilityChange() {
+  if (pendingData.value) emit('save', pendingData.value);
+  pendingData.value = null;
+  confirmDialogOpen.value = false;
 }
 
 const visibilityOptions = [
@@ -100,14 +131,18 @@ const visibilityOptions = [
       <div class="flex gap-2">
         <template v-for="opt in visibilityOptions" :key="opt.value">
           <button
-            v-if="opt.value !== 'public' || canSetPublic"
+            v-if="opt.value !== 'public' || canSetPublic || props.clip.visibility === 'public'"
             type="button"
+            :disabled="opt.value === 'public' && !canSetPublic"
             :data-testid="`clip-visibility-${opt.value}`"
             :class="[
               'flex flex-1 flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition-colors',
               visibility === opt.value
                 ? 'border-ring bg-accent'
                 : 'border-input hover:bg-accent/50',
+              opt.value === 'public' && !canSetPublic
+                ? 'opacity-50 cursor-not-allowed pointer-events-none'
+                : '',
             ]"
             @click="visibility = opt.value"
           >
@@ -147,4 +182,24 @@ const visibilityOptions = [
       <Button type="submit" :disabled="descOverLimit">Save</Button>
     </div>
   </form>
+
+  <AlertDialog :open="confirmDialogOpen">
+    <AlertDialogContent data-testid="confirm-visibility-dialog">
+      <AlertDialogHeader>
+        <AlertDialogTitle>Change visibility?</AlertDialogTitle>
+        <AlertDialogDescription>
+          This clip is currently public. Changing visibility will make it less visible and only an
+          Admin or Moderator can make it public again.
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel data-testid="confirm-cancel" @click="onCancelVisibilityChange">
+          Cancel
+        </AlertDialogCancel>
+        <AlertDialogAction data-testid="confirm-continue" @click="onConfirmVisibilityChange">
+          Continue
+        </AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
 </template>

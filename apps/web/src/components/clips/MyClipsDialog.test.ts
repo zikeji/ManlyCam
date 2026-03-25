@@ -34,7 +34,12 @@ const {
     mockCopyClipLink: vi.fn().mockResolvedValue(undefined),
     mockDownloadClip: vi.fn(),
     mockGetClipStreamUrl: vi.fn().mockResolvedValue('https://presigned.example.com/stream'),
-    mockUser: vueModule.ref<{ id: string; role: string; mutedAt: string | null } | null>({
+    mockUser: vueModule.ref<{
+      id: string;
+      role: string;
+      mutedAt: string | null;
+      avatarUrl?: string | null;
+    } | null>({
       id: 'user-001',
       role: 'ViewerGuest',
       mutedAt: null,
@@ -508,5 +513,88 @@ describe('MyClipsDialog', () => {
     await vm.onSaveEdit({ name: 'New Name' });
     await flushPromises();
     expect(vi.mocked(toast.error)).toHaveBeenCalledWith('Update failed');
+  });
+
+  describe('clipper attribution row', () => {
+    const ownClip = {
+      ...baseClip,
+      userId: 'user-001',
+      clipperDisplayName: 'Test User',
+      clipperAvatarUrlOwner: null,
+    };
+    const otherClip = {
+      ...baseClip,
+      id: 'clip-002',
+      userId: 'user-999',
+      clipperDisplayName: 'Other Person',
+      clipperAvatarUrlOwner: 'https://cdn.example.com/other-avatar.jpg',
+    };
+
+    it('hides clipper row when neither toggle is active (own-clips-only view)', async () => {
+      mockClips.value = [{ ...ownClip }];
+      wrapper = mountOpen();
+      await nextTick();
+      expect(wrapper.find('[data-testid="clip-owner-row"]').exists()).toBe(false);
+    });
+
+    it('shows "You" label on own clip when includeShared is true', async () => {
+      mockUser.value = { id: 'user-001', role: 'ViewerGuest', mutedAt: null };
+      mockClips.value = [{ ...ownClip }];
+      wrapper = mountOpen();
+      await flushPromises();
+      vi.clearAllMocks();
+      await wrapper.find('[data-testid="include-shared-toggle"]').setValue(true);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="clip-owner-row"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="clip-owner-name"]').text().trim()).toBe('You');
+    });
+
+    it('shows clipperDisplayName on non-owned clip when includeShared is true', async () => {
+      mockUser.value = { id: 'user-001', role: 'ViewerGuest', mutedAt: null };
+      mockClips.value = [{ ...otherClip }];
+      wrapper = mountOpen();
+      await flushPromises();
+      vi.clearAllMocks();
+      await wrapper.find('[data-testid="include-shared-toggle"]').setValue(true);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="clip-owner-row"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="clip-owner-name"]').text().trim()).toBe('Other Person');
+    });
+
+    it('shows clipper row when showAll is true (admin mode)', async () => {
+      mockUser.value = { id: 'user-001', role: 'Admin', mutedAt: null };
+      mockClips.value = [{ ...otherClip }];
+      wrapper = mountOpen();
+      await flushPromises();
+      vi.clearAllMocks();
+      await wrapper.find('[data-testid="show-all-toggle"]').setValue(true);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="clip-owner-row"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="clip-owner-name"]').text().trim()).toBe('Other Person');
+    });
+
+    it("omits avatar img when clipperAvatarUrlOwner is null (others' clip)", async () => {
+      mockUser.value = { id: 'user-001', role: 'ViewerGuest', mutedAt: null };
+      mockClips.value = [{ ...otherClip, clipperAvatarUrlOwner: null }];
+      wrapper = mountOpen();
+      await flushPromises();
+      vi.clearAllMocks();
+      await wrapper.find('[data-testid="include-shared-toggle"]').setValue(true);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="clip-owner-row"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="clip-owner-row"] img').exists()).toBe(false);
+    });
+
+    it('omits avatar img when user.avatarUrl is null (own clip in mixed view)', async () => {
+      mockUser.value = { id: 'user-001', role: 'ViewerGuest', mutedAt: null, avatarUrl: null };
+      mockClips.value = [{ ...ownClip }];
+      wrapper = mountOpen();
+      await flushPromises();
+      vi.clearAllMocks();
+      await wrapper.find('[data-testid="include-shared-toggle"]').setValue(true);
+      await flushPromises();
+      expect(wrapper.find('[data-testid="clip-owner-row"]').exists()).toBe(true);
+      expect(wrapper.find('[data-testid="clip-owner-row"] img').exists()).toBe(false);
+    });
   });
 });

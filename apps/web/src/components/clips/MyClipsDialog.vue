@@ -65,6 +65,7 @@ const watchingClipName = ref<string>('');
 const isAdmin = computed(() => user.value && ROLE_RANK[user.value.role] >= ROLE_RANK[Role.Admin]);
 const isMuted = computed(() => !!user.value?.mutedAt);
 const hasMore = computed(() => clips.value.length < total.value);
+const isMixedView = computed(() => includeShared.value || showAll.value);
 
 function formatDuration(seconds: number | null): string {
   if (seconds == null) return '';
@@ -321,7 +322,7 @@ watch(
                 </div>
 
                 <!-- Ready state actions menu -->
-                <div v-if="clip.status === 'ready'" class="shrink-0">
+                <div v-if="clip.status === 'ready'" class="shrink-0 self-start">
                   <DropdownMenu>
                     <DropdownMenuTrigger as-child>
                       <Button
@@ -371,6 +372,22 @@ watch(
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
+              </div>
+
+              <!-- Clipper attribution row (mixed-ownership views only) -->
+              <div
+                v-if="isMixedView"
+                class="flex items-center gap-2 text-xs text-muted-foreground"
+                data-testid="clip-owner-row"
+              >
+                <img
+                  v-if="clip.userId === user?.id ? user?.avatarUrl : clip.clipperAvatarUrlOwner"
+                  :src="(clip.userId === user?.id ? user?.avatarUrl : clip.clipperAvatarUrlOwner) ?? undefined"
+                  class="h-6 w-6 rounded-full object-cover"
+                />
+                <span data-testid="clip-owner-name">
+                  {{ clip.userId === user?.id ? 'You' : clip.clipperDisplayName }}
+                </span>
               </div>
             </div>
           </div>
