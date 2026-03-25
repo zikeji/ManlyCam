@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { X, Download } from 'lucide-vue-next';
 import { apiFetch } from '@/lib/api';
 import { closeClip, activeClipId } from '@/composables/useClipModal';
+import { renderMarkdown } from '@/lib/markdown';
 
 interface ClipDetail {
   id: string;
@@ -42,6 +43,10 @@ watch(
   { immediate: true },
 );
 
+const renderedDescription = computed(() =>
+  clipData.value?.description ? renderMarkdown(clipData.value.description) : null,
+);
+
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') {
     closeClip();
@@ -60,13 +65,6 @@ function handleDownload() {
   if (activeClipId.value) {
     window.open(`/api/clips/${activeClipId.value}/download`, '_blank');
   }
-}
-
-function formatDuration(secs: number | null): string | null {
-  if (secs == null) return null;
-  const m = Math.floor(secs / 60);
-  const s = Math.floor(secs % 60);
-  return `${m}:${String(s).padStart(2, '0')}`;
 }
 </script>
 
@@ -146,17 +144,19 @@ function formatDuration(secs: number | null): string | null {
 
       <!-- Clip metadata -->
       <div v-if="clipData" class="px-4 py-3 space-y-1">
-        <div class="flex items-center gap-2 text-xs text-muted-foreground">
-          <span v-if="formatDuration(clipData.durationSeconds)" data-modal-duration>
-            {{ formatDuration(clipData.durationSeconds) }}
-          </span>
-          <span v-if="clipData.showClipper && clipData.clipperName" data-modal-clipper>
-            Clipped by {{ clipData.clipperName }}
-          </span>
+        <div
+          v-if="clipData.showClipper && clipData.clipperName"
+          class="text-xs text-muted-foreground"
+          data-modal-clipper
+        >
+          Clipped by {{ clipData.clipperName }}
         </div>
-        <p v-if="clipData.description" class="text-sm text-muted-foreground" data-modal-description>
-          {{ clipData.description }}
-        </p>
+        <div
+          v-if="renderedDescription"
+          class="text-sm text-muted-foreground break-words [&_a]:underline [&_a]:text-primary [&_code]:font-mono [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_pre]:bg-muted [&_pre]:p-3 [&_pre]:rounded [&_pre]:overflow-x-auto [&_pre]:my-1 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-4 [&_blockquote]:border-muted-foreground [&_blockquote]:pl-3 [&_blockquote]:py-1 [&_blockquote]:my-1 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_s]:line-through [&_del]:line-through"
+          data-modal-description
+          v-html="renderedDescription"
+        />
       </div>
     </div>
   </div>

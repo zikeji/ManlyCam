@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { defineComponent } from 'vue';
+import { defineComponent, h } from 'vue';
 import LoginView from '@/views/LoginView.vue';
 import RejectedView from '@/views/RejectedView.vue';
 import BannedView from '@/views/BannedView.vue';
@@ -14,10 +14,17 @@ export function invalidateRouterCache(): void {
 // Placeholder for standalone clip page — Story 10-6 implements the full page.
 // When accessed via history.pushState modal, $route.path doesn't change (pushState bypasses
 // Vue Router), so this component only renders on direct navigation or page refresh.
+// Uses h() render function instead of template string — Vite builds exclude Vue's runtime compiler.
 const ClipStandalonePage = defineComponent({
-  template: `<div class="flex items-center justify-center h-dvh bg-[hsl(var(--background))] text-muted-foreground text-sm">
-    Clip page coming soon
-  </div>`,
+  render: () =>
+    h(
+      'div',
+      {
+        class:
+          'flex items-center justify-center h-dvh bg-[hsl(var(--background))] text-muted-foreground text-sm',
+      },
+      'Clip page coming soon',
+    ),
 });
 
 export const router = createRouter({

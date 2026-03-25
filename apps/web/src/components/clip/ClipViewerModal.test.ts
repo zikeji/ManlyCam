@@ -83,11 +83,11 @@ describe('ClipViewerModal.vue', () => {
     expect(video.attributes('src')).toBe('/api/clips/clip-001/download');
   });
 
-  it('renders duration in metadata', async () => {
+  it('does not render duration in metadata', async () => {
     wrapper = mount(ClipViewerModal);
     await nextTick();
     await nextTick();
-    expect(wrapper.find('[data-modal-duration]').text()).toBe('1:35');
+    expect(wrapper.find('[data-modal-duration]').exists()).toBe(false);
   });
 
   it('renders clipper name when showClipper is true', async () => {
@@ -97,11 +97,22 @@ describe('ClipViewerModal.vue', () => {
     expect(wrapper.find('[data-modal-clipper]').text()).toContain('Alice');
   });
 
-  it('renders description when present', async () => {
+  it('renders description as markdown when present', async () => {
     wrapper = mount(ClipViewerModal);
     await nextTick();
     await nextTick();
-    expect(wrapper.find('[data-modal-description]').text()).toBe('Cute moment');
+    const desc = wrapper.find('[data-modal-description]');
+    expect(desc.exists()).toBe(true);
+    expect(desc.html()).toContain('Cute moment');
+  });
+
+  it('renders bold markdown in description', async () => {
+    mockApiFetch.mockResolvedValue({ ...clipDetailFixture, description: '**bold text**' });
+    wrapper = mount(ClipViewerModal);
+    await nextTick();
+    await nextTick();
+    const desc = wrapper.find('[data-modal-description]');
+    expect(desc.html()).toContain('<strong>bold text</strong>');
   });
 
   it('renders X close button', async () => {

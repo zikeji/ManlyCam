@@ -876,7 +876,7 @@ onUnmounted(() => {
 
       <!-- Share to chat -->
       <div class="flex items-center gap-2">
-        <Switch id="clip-editor-share" v-model:checked="shareToChat" />
+        <Switch id="clip-editor-share" v-model="shareToChat" />
         <label class="text-xs" for="clip-editor-share">Share to chat when ready</label>
       </div>
 

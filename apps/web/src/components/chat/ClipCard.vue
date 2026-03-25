@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { ClipChatMessage } from '@manlycam/types';
-import { Play, Download, VideoOff } from 'lucide-vue-next';
+import { Play, VideoOff } from 'lucide-vue-next';
 import { openClip } from '@/composables/useClipModal';
 
 const props = defineProps<{
   message: ClipChatMessage;
-}>();
-
-const emit = defineEmits<{
-  download: [clipId: string];
 }>();
 
 const durationLabel = computed(() => {
@@ -23,10 +19,6 @@ const durationLabel = computed(() => {
 function handleWatch() {
   openClip(props.message.clipId);
 }
-
-function handleDownload() {
-  emit('download', props.message.clipId);
-}
 </script>
 
 <template>
@@ -35,8 +27,12 @@ function handleDownload() {
     data-clip-card
   >
     <template v-if="!message.tombstone">
-      <!-- Thumbnail area -->
-      <div class="relative w-full aspect-video bg-black/40 flex items-center justify-center">
+      <!-- Thumbnail area — clickable to open viewer -->
+      <div
+        class="relative w-full aspect-video bg-black/40 flex items-center justify-center cursor-pointer"
+        data-thumbnail-area
+        @click="handleWatch"
+      >
         <img
           v-if="message.clipThumbnailUrl"
           :src="message.clipThumbnailUrl"
@@ -58,24 +54,14 @@ function handleDownload() {
         <span class="text-sm font-medium truncate flex-1" data-clip-name>{{
           message.clipName
         }}</span>
-        <div class="flex items-center gap-1 shrink-0">
-          <button
-            class="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90"
-            data-watch-button
-            @click="handleWatch"
-          >
-            <Play class="h-3 w-3" />
-            Watch
-          </button>
-          <button
-            class="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-accent"
-            data-download-button
-            @click="handleDownload"
-          >
-            <Download class="h-3 w-3" />
-            Download
-          </button>
-        </div>
+        <button
+          class="flex items-center gap-1 text-xs px-2 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 shrink-0"
+          data-watch-button
+          @click="handleWatch"
+        >
+          <Play class="h-3 w-3" />
+          <span class="hidden sm:inline">Watch</span>
+        </button>
       </div>
     </template>
     <!-- Tombstone state -->

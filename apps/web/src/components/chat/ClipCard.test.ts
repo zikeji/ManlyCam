@@ -88,9 +88,9 @@ describe('ClipCard.vue', () => {
       expect(wrapper.find('[data-watch-button]').exists()).toBe(true);
     });
 
-    it('renders Download button', () => {
+    it('does not render Download button', () => {
       wrapper = mount(ClipCard, { props: { message: baseClipMessage } });
-      expect(wrapper.find('[data-download-button]').exists()).toBe(true);
+      expect(wrapper.find('[data-download-button]').exists()).toBe(false);
     });
 
     it('calls openClip with clipId when Watch is clicked', async () => {
@@ -99,10 +99,10 @@ describe('ClipCard.vue', () => {
       expect(mockOpenClip).toHaveBeenCalledWith('clip-001');
     });
 
-    it('emits download event with clipId when Download is clicked', async () => {
+    it('calls openClip with clipId when thumbnail area is clicked', async () => {
       wrapper = mount(ClipCard, { props: { message: baseClipMessage } });
-      await wrapper.find('[data-download-button]').trigger('click');
-      expect(wrapper.emitted('download')).toEqual([['clip-001']]);
+      await wrapper.find('[data-thumbnail-area]').trigger('click');
+      expect(mockOpenClip).toHaveBeenCalledWith('clip-001');
     });
 
     it('does not render tombstone when tombstone is not set', () => {
@@ -125,10 +125,9 @@ describe('ClipCard.vue', () => {
       expect(wrapper.find('[data-thumbnail]').exists()).toBe(false);
     });
 
-    it('does not render Watch or Download buttons in tombstone state', () => {
+    it('does not render Watch button in tombstone state', () => {
       wrapper = mount(ClipCard, { props: { message: tombstoneMessage } });
       expect(wrapper.find('[data-watch-button]').exists()).toBe(false);
-      expect(wrapper.find('[data-download-button]').exists()).toBe(false);
     });
 
     it('renders the outer card container (identical dimensions) in tombstone state', () => {

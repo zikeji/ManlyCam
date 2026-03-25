@@ -90,13 +90,13 @@ function submit() {
     <template v-if="showAttribution">
       <div class="flex items-center justify-between rounded-md border p-3">
         <label class="text-sm font-medium">Show clipper</label>
-        <Switch v-model:checked="showClipper" data-testid="show-clipper-switch" />
+        <Switch v-model="showClipper" data-testid="show-clipper-switch" />
       </div>
 
       <template v-if="showClipper">
         <div class="flex items-center justify-between rounded-md border p-3">
           <label class="text-sm font-medium">Show clipper avatar</label>
-          <Switch v-model:checked="showClipperAvatar" data-testid="show-clipper-avatar-switch" />
+          <Switch v-model="showClipperAvatar" data-testid="show-clipper-avatar-switch" />
         </div>
 
         <div class="flex flex-col gap-1">
