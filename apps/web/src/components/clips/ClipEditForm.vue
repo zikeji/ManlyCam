@@ -15,6 +15,8 @@ const emit = defineEmits<{
   (e: 'cancel'): void;
 }>();
 
+const MAX_DESC = 500;
+
 const name = ref(props.clip.name);
 const description = ref(props.clip.description ?? '');
 const visibility = ref(props.clip.visibility);
@@ -23,6 +25,9 @@ const showClipperAvatar = ref(props.clip.showClipperAvatar);
 const clipperName = ref(props.clip.clipperName ?? props.clip.clipperDisplayName);
 
 const canSetPublic = computed(() => ROLE_RANK[props.userRole] >= ROLE_RANK[Role.Moderator]);
+
+const descCount = computed(() => description.value.length);
+const descOverLimit = computed(() => descCount.value > MAX_DESC);
 
 // Reset attribution fields when visibility leaves 'public'
 watch(visibility, (val) => {
@@ -49,6 +54,12 @@ function submit() {
   }
   emit('save', data);
 }
+
+const visibilityOptions = [
+  { value: 'private', label: 'Private', description: 'Only you can see this clip' },
+  { value: 'shared', label: 'Shared', description: 'Any signed-in user can view' },
+  { value: 'public', label: 'Public', description: 'Anyone with the link, no sign-in required' },
+] as const;
 </script>
 
 <template>
@@ -69,22 +80,42 @@ function submit() {
       <textarea
         v-model="description"
         rows="3"
-        class="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring align-top"
+        :class="[
+          'rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring align-top',
+          descOverLimit ? 'border-destructive focus:ring-destructive' : 'border-input',
+        ]"
         data-testid="clip-description-input"
       />
+      <div
+        class="flex justify-end text-xs"
+        :class="descOverLimit ? 'text-destructive' : 'text-muted-foreground'"
+        data-testid="clip-description-counter"
+      >
+        {{ descCount }}/{{ MAX_DESC }}
+      </div>
     </div>
 
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-col gap-1.5">
       <label class="text-sm font-medium">Visibility</label>
-      <select
-        v-model="visibility"
-        class="rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-        data-testid="clip-visibility-select"
-      >
-        <option value="private">Private</option>
-        <option value="shared">Shared</option>
-        <option v-if="canSetPublic" value="public">Public</option>
-      </select>
+      <div class="flex gap-2">
+        <template v-for="opt in visibilityOptions" :key="opt.value">
+          <button
+            v-if="opt.value !== 'public' || canSetPublic"
+            type="button"
+            :data-testid="`clip-visibility-${opt.value}`"
+            :class="[
+              'flex flex-1 flex-col items-start gap-0.5 rounded-md border px-3 py-2 text-left text-sm transition-colors',
+              visibility === opt.value
+                ? 'border-ring bg-accent'
+                : 'border-input hover:bg-accent/50',
+            ]"
+            @click="visibility = opt.value"
+          >
+            <span class="font-medium">{{ opt.label }}</span>
+            <span class="text-xs text-muted-foreground">{{ opt.description }}</span>
+          </button>
+        </template>
+      </div>
     </div>
 
     <template v-if="showAttribution">
@@ -112,8 +143,8 @@ function submit() {
     </template>
 
     <div class="flex justify-end gap-2">
-      <Button type="button" variant="outline" @click="emit('cancel')">Cancel</Button>
-      <Button type="submit">Save</Button>
+      <Button type="button" variant="outline" data-testid="clip-cancel-btn" @click="emit('cancel')">Cancel</Button>
+      <Button type="submit" :disabled="descOverLimit">Save</Button>
     </div>
   </form>
 </template>

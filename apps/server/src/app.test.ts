@@ -7,7 +7,9 @@ vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
   return {
     ...actual,
-    readFileSync: vi.fn(() => '<html>mocked</html>'),
+    readFileSync: vi.fn(
+      () => '<html><head><title>ManlyCam</title></head><body>mocked</body></html>',
+    ),
   };
 });
 
@@ -26,7 +28,10 @@ vi.mock('./env.js', () => ({
   },
 }));
 
-vi.mock('./db/client.js', () => ({ prisma: {} }));
+const { mockFindFirst } = vi.hoisted(() => ({ mockFindFirst: vi.fn() }));
+vi.mock('./db/client.js', () => ({
+  prisma: { clip: { findFirst: mockFindFirst } },
+}));
 vi.mock('./lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid') }));
 vi.mock('./middleware/auth.js', () => ({
   authMiddleware: vi.fn(async (_c: unknown, next: () => Promise<void>) => next()),
@@ -87,9 +92,135 @@ describe('createApp() global error handler', () => {
     const spaRes = await app.request('/some-random-path');
     expect(spaRes.status).toBe(200);
     const text = await spaRes.text();
-    expect(text).toBe('<html>mocked</html>');
+    expect(text).toBe('<html><head><title>ManlyCam</title></head><body>mocked</body></html>');
     expect(readFileSync).toHaveBeenCalled();
 
     env.NODE_ENV = originalEnv;
+  });
+});
+
+describe('GET /clips/:id — OG injection route', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns plain index.html when clip is not public (private)', async () => {
+    mockFindFirst.mockResolvedValue({
+      visibility: 'private',
+      name: 'My Clip',
+      description: null,
+      thumbnailKey: null,
+    });
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-001');
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe('<html><head><title>ManlyCam</title></head><body>mocked</body></html>');
+    expect(text).not.toContain('og:title');
+  });
+
+  it('returns plain index.html when clip is shared (not public)', async () => {
+    mockFindFirst.mockResolvedValue({
+      visibility: 'shared',
+      name: 'Shared Clip',
+      description: null,
+      thumbnailKey: null,
+    });
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-002');
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('og:title');
+  });
+
+  it('returns plain index.html when clip is not found (null)', async () => {
+    mockFindFirst.mockResolvedValue(null);
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-missing');
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain('og:title');
+  });
+
+  it('injects OG meta tags when clip is public', async () => {
+    mockFindFirst.mockResolvedValue({
+      visibility: 'public',
+      name: 'Awesome Clip',
+      description: 'A great moment',
+      thumbnailKey: 'thumb.jpg',
+    });
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-001');
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('og:title');
+    expect(text).toContain('content="Awesome Clip"');
+    expect(text).toContain('og:description');
+    expect(text).toContain('content="A great moment"');
+    expect(text).toContain('og:image');
+    expect(text).toContain('/api/clips/clip-001/thumbnail');
+    expect(text).toContain('og:url');
+    expect(text).toContain('http://localhost:3000/clips/clip-001');
+    expect(text).toContain('<title>Awesome Clip</title>');
+  });
+
+  it('uses default description when clip.description is null', async () => {
+    mockFindFirst.mockResolvedValue({
+      visibility: 'public',
+      name: 'No Desc Clip',
+      description: null,
+      thumbnailKey: null,
+    });
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-nodesc');
+    const text = await res.text();
+    expect(text).toContain('Watch this clip');
+  });
+
+  it('escapes HTML special characters in OG content', async () => {
+    mockFindFirst.mockResolvedValue({
+      visibility: 'public',
+      name: 'Clip <script> & "test"',
+      description: 'Desc with <b>html</b> & "quotes"',
+      thumbnailKey: null,
+    });
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-escape');
+    const text = await res.text();
+    expect(text).toContain('Clip &lt;script&gt; &amp; &quot;test&quot;');
+    expect(text).toContain('Desc with &lt;b&gt;html&lt;/b&gt; &amp; &quot;quotes&quot;');
+    expect(text).not.toContain('<script>');
+  });
+
+  it('falls through to plain index.html on DB error', async () => {
+    mockFindFirst.mockRejectedValue(new Error('DB connection failed'));
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-dberror');
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe('<html><head><title>ManlyCam</title></head><body>mocked</body></html>');
+    expect(text).not.toContain('og:title');
+  });
+
+  it('returns minimal placeholder when index.html does not exist (dev without build)', async () => {
+    vi.mocked(readFileSync).mockImplementationOnce(() => {
+      throw new Error('ENOENT: no such file or directory');
+    });
+    const { app } = createApp();
+    const res = await app.request('/clips/clip-nofile');
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('<html>');
+    expect(text).not.toContain('og:title');
+  });
+
+  it('queries prisma.clip.findFirst with id and deletedAt: null filter', async () => {
+    mockFindFirst.mockResolvedValue(null);
+    const { app } = createApp();
+    await app.request('/clips/clip-querycheck');
+    expect(mockFindFirst).toHaveBeenCalledWith({
+      where: { id: 'clip-querycheck', deletedAt: null },
+      select: { visibility: true, name: true, description: true, thumbnailKey: true },
+    });
   });
 });

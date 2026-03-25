@@ -779,10 +779,20 @@ describe('getClipDownloadUrl', () => {
     vi.mocked(presignGetObject).mockResolvedValue('https://presigned.example.com/video');
   });
 
-  it('throws 401 when unauthenticated', async () => {
+  it('throws 401 when unauthenticated and clip is not public', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(clip as never);
     await expect(getClipDownloadUrl({ clipId: 'clip-001' })).rejects.toMatchObject({
       statusCode: 401,
     });
+  });
+
+  it('returns presigned URL when unauthenticated and clip is public', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...clip,
+      visibility: 'public',
+    } as never);
+    const url = await getClipDownloadUrl({ clipId: 'clip-001' });
+    expect(url).toBe('https://presigned.example.com/video');
   });
 
   it('throws 404 when clip not found', async () => {
@@ -913,7 +923,8 @@ describe('getClipStreamUrl', () => {
     );
   });
 
-  it('throws 401 when unauthenticated', async () => {
+  it('throws 401 when unauthenticated and clip is not public', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(clip as never);
     await expect(getClipStreamUrl({ clipId: 'clip-001' })).rejects.toMatchObject({
       statusCode: 401,
     });
@@ -955,10 +966,18 @@ describe('getClipThumbnail', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('throws 401 when unauthenticated', async () => {
+  it('throws 401 when unauthenticated and clip is not public', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue(clip as never);
     await expect(getClipThumbnail({ clipId: 'clip-001' })).rejects.toMatchObject({
       statusCode: 401,
     });
+  });
+
+  it('returns thumbnail when unauthenticated and clip is public', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({ ...clip, visibility: 'public' } as never);
+    const result = await getClipThumbnail({ clipId: 'clip-001' });
+    expect(getS3Object).toHaveBeenCalledWith('clips/clip-001/thumbnail.jpg');
+    expect(result.contentType).toBe('image/jpeg');
   });
 });
 
@@ -1331,6 +1350,18 @@ describe('updateClip', () => {
     await expect(
       updateClip({ clipId: 'clip-001', actor: { id: 'other', role: 'Moderator' }, data: {} }),
     ).rejects.toMatchObject({ statusCode: 404 });
+  });
+
+  it('throws 422 when name exceeds 200 characters', async () => {
+    await expect(
+      updateClip({ clipId: 'clip-001', actor, data: { name: 'a'.repeat(201) } }),
+    ).rejects.toMatchObject({ statusCode: 422, code: 'VALIDATION_ERROR' });
+  });
+
+  it('throws 422 when description exceeds 500 characters', async () => {
+    await expect(
+      updateClip({ clipId: 'clip-001', actor, data: { description: 'a'.repeat(501) } }),
+    ).rejects.toMatchObject({ statusCode: 422, code: 'VALIDATION_ERROR' });
   });
 
   it('throws 422 when ViewerGuest tries to set public visibility', async () => {

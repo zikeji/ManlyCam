@@ -1,6 +1,6 @@
 # Story 10.6: Public Clip Pages
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -32,42 +32,42 @@ So that I can watch shared moments without requiring stream access.
 
 ## Tasks / Subtasks
 
-- [ ] **Task 1: Server — Hoist `distPath` and register OG injection route** (AC: #1, #2, #3, #4)
-  - [ ] 1.1 Move `const distPath = join(__dirname, '../../web/dist')` out of the `if (env.NODE_ENV === 'production')` block in `app.ts`
-  - [ ] 1.2 Register `GET /clips/:id` route handler **before** the production `serveStatic` block and **outside** the production guard
-  - [ ] 1.3 In the route handler: query `prisma.clip.findFirst({ where: { id: params.id, deletedAt: null } })` — select `visibility`, `name`, `description`, `thumbnailKey`
-  - [ ] 1.4 If clip is public: read `index.html` from `distPath`, inject OG meta tags into `<head>` (`og:title`, `og:description`, `og:image`, `og:url`), return modified HTML
-  - [ ] 1.5 If clip is non-public, missing, or DB error: serve plain `index.html` with no injection; log DB errors via `logger.error`
-  - [ ] 1.6 Handle `distPath` not existing (dev without build): return a minimal HTML response or 404 gracefully
+- [x] **Task 1: Server — Hoist `distPath` and register OG injection route** (AC: #1, #2, #3, #4)
+  - [x] 1.1 Move `const distPath = join(__dirname, '../../web/dist')` out of the `if (env.NODE_ENV === 'production')` block in `app.ts`
+  - [x] 1.2 Register `GET /clips/:id` route handler **before** the production `serveStatic` block and **outside** the production guard
+  - [x] 1.3 In the route handler: query `prisma.clip.findFirst({ where: { id: params.id, deletedAt: null } })` — select `visibility`, `name`, `description`, `thumbnailKey`
+  - [x] 1.4 If clip is public: read `index.html` from `distPath`, inject OG meta tags into `<head>` (`og:title`, `og:description`, `og:image`, `og:url`), return modified HTML
+  - [x] 1.5 If clip is non-public, missing, or DB error: serve plain `index.html` with no injection; log DB errors via `logger.error`
+  - [x] 1.6 Handle `distPath` not existing (dev without build): return a minimal HTML response or 404 gracefully
 
-- [ ] **Task 2: Vue Router — Add `/clips/:id` route** (AC: #8)
-  - [ ] 2.1 Add route `{ path: '/clips/:id', component: ClipPage }` to `router/index.ts`
-  - [ ] 2.2 Ensure the route is excluded from the banned/rejected redirect logic (clip pages should be accessible without full auth for public clips)
-  - [ ] 2.3 Allow the route to pass through router guard without requiring authentication
+- [x] **Task 2: Vue Router — Add `/clips/:id` route** (AC: #8)
+  - [x] 2.1 Add route `{ path: '/clips/:id', component: ClipPage }` to `router/index.ts`
+  - [x] 2.2 Ensure the route is excluded from the banned/rejected redirect logic (clip pages should be accessible without full auth for public clips)
+  - [x] 2.3 Allow the route to pass through router guard without requiring authentication
 
-- [ ] **Task 3: Create `ClipPage.vue` standalone page** (AC: #5, #6, #7, #9, #10)
-  - [ ] 3.1 Create `apps/web/src/views/ClipPage.vue`
-  - [ ] 3.2 On mount, check `history.state?.clipModal === true && history.state?.fromRoute === '/'` — if true, emit/signal to render modal overlay instead (defer to Story 10-5's modal system)
-  - [ ] 3.3 Fetch clip data via `GET /api/clips/:id` — handle 401, 404, and success responses
-  - [ ] 3.4 Unauthenticated + public clip: render video player (video source via `GET /api/clips/:id/download` presigned redirect), clip name, description, clipper attribution block (conditional on `showClipper`/`showClipperAvatar`), download button (calls `GET /api/clips/:id/download`)
-  - [ ] 3.5 Unauthenticated + shared clip (401 response): render "Sign in to view this clip" with login link
-  - [ ] 3.6 Missing/private clip (404 response): render "Clip not found"
-  - [ ] 3.7 Authenticated + accessible clip: render full clip page with stream-status CTA and API download button
+- [x] **Task 3: Create `ClipPage.vue` standalone page** (AC: #5, #6, #7, #9, #10)
+  - [x] 3.1 Create `apps/web/src/views/ClipPage.vue`
+  - [x] 3.2 On mount, check `history.state?.clipModal === true && history.state?.fromRoute === '/'` — if true, emit/signal to render modal overlay instead (defer to Story 10-5's modal system)
+  - [x] 3.3 Fetch clip data via `GET /api/clips/:id` — handle 401, 404, and success responses
+  - [x] 3.4 Unauthenticated + public clip: render video player (video source via `GET /api/clips/:id/download` presigned redirect), clip name, description, clipper attribution block (conditional on `showClipper`/`showClipperAvatar`), download button (calls `GET /api/clips/:id/download`)
+  - [x] 3.5 Unauthenticated + shared clip (401 response): render "Sign in to view this clip" with login link
+  - [x] 3.6 Missing/private clip (404 response): render "Clip not found"
+  - [x] 3.7 Authenticated + accessible clip: render full clip page with stream-status CTA and API download button
 
-- [ ] **Task 4: Stream-status CTA for authenticated users** (AC: #6)
-  - [ ] 4.1 Use `useStream` composable's `streamState` to determine CTA text
-  - [ ] 4.2 "Watch Live" link when `streamState === 'online'`; "Go to Stream" when offline/connecting/unknown
-  - [ ] 4.3 CTA links to `/` (the stream page)
+- [x] **Task 4: Stream-status CTA for authenticated users** (AC: #6)
+  - [x] 4.1 Use `useStream` composable's `streamState` to determine CTA text
+  - [x] 4.2 "Watch Live" link when `streamState === 'live'`; "Go to Stream" when other states
+  - [x] 4.3 CTA links to `/` (the stream page)
 
-- [ ] **Task 5: Clipper attribution block** (AC: #5)
-  - [ ] 5.1 Conditional rendering: show attribution only when clip's `showClipper` is `true`
-  - [ ] 5.2 Display `clipperName` text
-  - [ ] 5.3 Show `clipperAvatarUrl` image only when `showClipperAvatar` is `true` and `clipperAvatarUrl` is present
+- [x] **Task 5: Clipper attribution block** (AC: #5)
+  - [x] 5.1 Conditional rendering: show attribution only when clip's `showClipper` is `true`
+  - [x] 5.2 Display `clipperName` text
+  - [x] 5.3 Show `clipperAvatarUrl` image only when `showClipperAvatar` is `true` and `clipperAvatarUrl` is present
 
-- [ ] **Task 6: Tests** (All ACs)
-  - [ ] 6.1 Server tests: OG injection for public clips, plain HTML for non-public/missing/DB-error, `distPath` hoisting
-  - [ ] 6.2 `ClipPage.vue` tests: unauthenticated public view, unauthenticated shared (sign-in prompt), missing/private (not found), authenticated with stream CTA, download button bifurcation, clipper attribution rendering, modal detection logic
-  - [ ] 6.3 Router tests: `/clips/:id` route registration, guard behavior for unauthenticated clip access
+- [x] **Task 6: Tests** (All ACs)
+  - [x] 6.1 Server tests: OG injection for public clips, plain HTML for non-public/missing/DB-error, `distPath` hoisting
+  - [x] 6.2 `ClipPage.vue` tests: unauthenticated public view, unauthenticated shared (sign-in prompt), missing/private (not found), authenticated with stream CTA, download button bifurcation, clipper attribution rendering, modal detection logic
+  - [x] 6.3 Router tests: `/clips/:id` route registration, guard behavior for unauthenticated clip access (route guard returns true immediately for `/clips/` paths — tested in ClipPage.test.ts via real router mount)
 
 ## Dev Notes
 
@@ -131,8 +131,32 @@ So that I can watch shared moments without requiring stream access.
 
 ### Agent Model Used
 
+claude-sonnet-4-6
+
 ### Debug Log References
+
+- vi.hoisted required for all mock state in both app.test.ts and ClipPage.test.ts — vitest hoists vi.mock() calls to top of file so any variables referenced in factory functions must also be hoisted
+- `ApiFetchError` class must be shared between mock factory and test code (via vi.hoisted) to make `instanceof` checks in the component pass in tests
+- `resolveClipForAccess` had unconditional `if (!requestingUserId) throw 401` before DB lookup — this caused all unauthenticated requests (including public clips) to return 401. Fixed by moving DB lookup first and only throwing 401 for unauthenticated + non-public clips.
 
 ### Completion Notes List
 
+- **Task 1**: `distPath` hoisted to module level in `app.ts`. Added `escapeHtmlAttr()` helper. `GET /clips/:id` route registered before production SPA catch-all. Tries `readFileSync` on `index.html` — if missing (dev without build) returns minimal placeholder. DB lookup via `prisma.clip.findFirst` with `deletedAt: null` filter. Public clips get OG injection; others get plain HTML. DB errors logged and fallen through to plain HTML.
+- **Task 2**: Router already had `/clips/:id` route with `ClipStandalonePage` placeholder from Story 10-5 setup. Replaced placeholder with real `ClipPage` import. `defineComponent`/`h()` placeholder and `import { defineComponent, h }` removed. Router guard already had `startsWith('/clips/')` early-return for unauthenticated access.
+- **Task 3–5**: `ClipPage.vue` created with: loading state, modal-mode detection (returns empty div, skips API fetch), 401 → sign-in prompt, 404/error → not-found, success → full clip page. Download button uses `/api/clips/:id/download` for all users. Authenticated users see stream CTA. Clipper attribution block conditional on `showClipper`.
+- **Task 6**: 9 server tests (OG injection scenarios + HTML escaping + DB error + missing file). 24 web component tests (all states, attribution, modal detection, CTA text). Router guard behavior tested via real router mount in component tests. 100% coverage on ClipPage.vue.
+
 ### File List
+
+- `apps/server/src/app.ts`
+- `apps/server/src/app.test.ts`
+- `apps/server/src/services/clipService.ts`
+- `apps/server/src/services/clipService.test.ts`
+- `apps/web/src/router/index.ts`
+- `apps/web/src/views/ClipPage.vue`
+- `apps/web/src/views/ClipPage.test.ts`
+
+## Change Log
+
+- 2026-03-24: Story implemented — server OG injection route, ClipPage.vue standalone page, router placeholder replaced. 752 server tests + 1461 web tests passing. All quality gates green.
+- 2026-03-24: Smoke test fixes — (1) `resolveClipForAccess` in clipService.ts fixed to allow unauthenticated access to public clips (was unconditionally throwing 401 before DB lookup); (2) description now renders as markdown via `renderMarkdown`; (3) landscape two-column layout (video left, content right at `sm:` breakpoint). 754 server tests + 1461 web tests passing. All quality gates green.

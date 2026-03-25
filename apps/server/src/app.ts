@@ -8,6 +8,7 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { env } from './env.js';
 import { AppError } from './lib/errors.js';
 import { logger } from './lib/logger.js';
+import { prisma } from './db/client.js';
 import type { AppEnv } from './lib/types.js';
 import { requestLogger } from './middleware/logger.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -24,6 +25,17 @@ import { createReactionsRouter } from './routes/reactions.js';
 import { createClipsRouter } from './routes/clips.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Hoisted so both the OG injection route and production static block share it
+const distPath = join(__dirname, '../../web/dist');
+
+function escapeHtmlAttr(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 export function createApp() {
   const app = new Hono<AppEnv>();
@@ -51,10 +63,49 @@ export function createApp() {
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
   app.route('/', createWsRouter(upgradeWebSocket));
 
+  // OG injection route for public clips — must be before SPA catch-all
+  app.get('/clips/:id', async (c) => {
+    const { id } = c.req.param();
+    const indexHtmlPath = join(distPath, 'index.html');
+
+    let indexHtml: string;
+    try {
+      indexHtml = readFileSync(indexHtmlPath, 'utf-8');
+    } catch {
+      // Dev environment without a built SPA — serve minimal placeholder
+      return c.html('<!doctype html><html><head></head><body></body></html>');
+    }
+
+    try {
+      const clip = await prisma.clip.findFirst({
+        where: { id, deletedAt: null },
+        select: { visibility: true, name: true, description: true, thumbnailKey: true },
+      });
+
+      if (clip?.visibility === 'public') {
+        const ogTitle = escapeHtmlAttr(clip.name);
+        const ogDesc = escapeHtmlAttr(clip.description ?? 'Watch this clip');
+        const ogImage = `${env.BASE_URL}/api/clips/${id}/thumbnail`;
+        const ogUrl = `${env.BASE_URL}/clips/${id}`;
+        const ogTags =
+          `<meta property="og:title" content="${ogTitle}" />\n` +
+          `    <meta property="og:description" content="${ogDesc}" />\n` +
+          `    <meta property="og:image" content="${ogImage}" />\n` +
+          `    <meta property="og:url" content="${ogUrl}" />`;
+        const withOg = indexHtml.replace('</head>', `${ogTags}\n  </head>`);
+        const modified = withOg.replace(/<title>[^<]*<\/title>/, `<title>${ogTitle}</title>`);
+        return c.html(modified);
+      }
+    } catch (err) {
+      logger.error({ err }, 'OG injection DB lookup failed');
+    }
+
+    return c.html(indexHtml);
+  });
+
   // SPA catch-all: serve Vue dist in production
   /* c8 ignore next -- production-only SPA serving, env is mocked as test in all test runs */
   if (env.NODE_ENV === 'production') {
-    const distPath = join(__dirname, '../../web/dist');
     // Emoji SVGs are content-addressed (npm package version) — cache aggressively.
     app.use('/emojis/*', async (c, next) => {
       await next();

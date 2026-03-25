@@ -4,7 +4,10 @@ import { nextTick } from 'vue';
 import ClipEditForm from './ClipEditForm.vue';
 
 vi.mock('@/components/ui/button', () => ({
-  Button: { template: '<button type="submit"><slot /></button>' },
+  Button: {
+    props: ['disabled'],
+    template: '<button :type="$attrs.type ?? \'submit\'" :disabled="disabled"><slot /></button>',
+  },
 }));
 vi.mock('@/components/ui/switch', () => ({
   Switch: {
@@ -66,30 +69,89 @@ describe('ClipEditForm', () => {
     expect((ta.element as HTMLTextAreaElement).value).toBe('A description');
   });
 
-  it('shows private and shared options but not public for ViewerGuest', () => {
+  it('shows description counter as 0/500 initially', () => {
     wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
-    const select = wrapper.find('[data-testid="clip-visibility-select"]');
-    expect(select.find('option[value="private"]').exists()).toBe(true);
-    expect(select.find('option[value="shared"]').exists()).toBe(true);
-    expect(select.find('option[value="public"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="clip-description-counter"]').text()).toBe('0/500');
   });
 
-  it('shows public option for Moderator', () => {
+  it('updates counter as description is typed', async () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    await wrapper.find('[data-testid="clip-description-input"]').setValue('hello');
+    expect(wrapper.find('[data-testid="clip-description-counter"]').text()).toBe('5/500');
+  });
+
+  it('counter has destructive class when description exceeds 500 chars', async () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    await wrapper.find('[data-testid="clip-description-input"]').setValue('a'.repeat(501));
+    const counter = wrapper.find('[data-testid="clip-description-counter"]');
+    expect(counter.classes()).toContain('text-destructive');
+  });
+
+  it('Save button disabled when description exceeds 500 chars', async () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    await wrapper.find('[data-testid="clip-description-input"]').setValue('a'.repeat(501));
+    const saveBtn = wrapper.find('button[type="submit"]');
+    expect((saveBtn.element as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('Save button enabled when description is at limit (500 chars)', async () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    await wrapper.find('[data-testid="clip-description-input"]').setValue('a'.repeat(500));
+    const saveBtn = wrapper.find('button[type="submit"]');
+    expect((saveBtn.element as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('shows private and shared visibility buttons but not public for ViewerGuest', () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    expect(wrapper.find('[data-testid="clip-visibility-private"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="clip-visibility-shared"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="clip-visibility-public"]').exists()).toBe(false);
+  });
+
+  it('shows public visibility button for Moderator', () => {
     wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'Moderator' } });
-    const select = wrapper.find('[data-testid="clip-visibility-select"]');
-    expect(select.find('option[value="public"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="clip-visibility-public"]').exists()).toBe(true);
   });
 
-  it('shows public option for Admin', () => {
+  it('shows public visibility button for Admin', () => {
     wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'Admin' } });
-    const select = wrapper.find('[data-testid="clip-visibility-select"]');
-    expect(select.find('option[value="public"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="clip-visibility-public"]').exists()).toBe(true);
   });
 
-  it('does not show public option for ViewerCompany', () => {
+  it('does not show public visibility button for ViewerCompany', () => {
     wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerCompany' } });
-    const select = wrapper.find('[data-testid="clip-visibility-select"]');
-    expect(select.find('option[value="public"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="clip-visibility-public"]').exists()).toBe(false);
+  });
+
+  it('visibility buttons show label and description text', () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    const privateBtn = wrapper.find('[data-testid="clip-visibility-private"]');
+    expect(privateBtn.text()).toContain('Private');
+    expect(privateBtn.text()).toContain('Only you can see this clip');
+    const sharedBtn = wrapper.find('[data-testid="clip-visibility-shared"]');
+    expect(sharedBtn.text()).toContain('Shared');
+    expect(sharedBtn.text()).toContain('Any signed-in user can view');
+  });
+
+  it('active visibility button has border-ring class', () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    expect(wrapper.find('[data-testid="clip-visibility-private"]').classes()).toContain(
+      'border-ring',
+    );
+    expect(wrapper.find('[data-testid="clip-visibility-shared"]').classes()).not.toContain(
+      'border-ring',
+    );
+  });
+
+  it('clicking a visibility button updates selection', async () => {
+    wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
+    await wrapper.find('[data-testid="clip-visibility-shared"]').trigger('click');
+    expect(wrapper.find('[data-testid="clip-visibility-shared"]').classes()).toContain(
+      'border-ring',
+    );
+    expect(wrapper.find('[data-testid="clip-visibility-private"]').classes()).not.toContain(
+      'border-ring',
+    );
   });
 
   it('does not show attribution controls when visibility is private', () => {
@@ -154,7 +216,7 @@ describe('ClipEditForm', () => {
 
   it('emits cancel when cancel button clicked', async () => {
     wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'ViewerGuest' } });
-    await wrapper.find('button[type="button"]').trigger('click');
+    await wrapper.find('[data-testid="clip-cancel-btn"]').trigger('click');
     expect(wrapper.emitted('cancel')).toBeTruthy();
   });
 
@@ -166,8 +228,8 @@ describe('ClipEditForm', () => {
       },
     });
     await nextTick();
-    // Change to shared
-    await wrapper.find('[data-testid="clip-visibility-select"]').setValue('shared');
+    // Change to shared via button click
+    await wrapper.find('[data-testid="clip-visibility-shared"]').trigger('click');
     await nextTick();
     // Submit — attribution fields should be omitted (showAttribution is now false)
     await wrapper.find('form').trigger('submit');
@@ -185,9 +247,9 @@ describe('ClipEditForm', () => {
     expect(wrapper.emitted('save')![0][0]).toMatchObject({ description: 'new description' });
   });
 
-  it('includes visibility in save when changed', async () => {
+  it('includes visibility in save when changed via button click', async () => {
     wrapper = mount(ClipEditForm, { props: { clip: baseClip, userRole: 'Moderator' } });
-    await wrapper.find('[data-testid="clip-visibility-select"]').setValue('shared');
+    await wrapper.find('[data-testid="clip-visibility-shared"]').trigger('click');
     await wrapper.find('form').trigger('submit');
     expect(wrapper.emitted('save')![0][0]).toMatchObject({ visibility: 'shared' });
   });

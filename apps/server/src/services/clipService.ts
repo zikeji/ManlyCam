@@ -735,6 +735,17 @@ export async function updateClip(params: {
     throw new AppError('Insufficient role to set public visibility', 'FORBIDDEN', 422);
   }
 
+  if (data.name !== undefined && data.name.length > MAX_NAME_LEN) {
+    throw new AppError(`name must not exceed ${MAX_NAME_LEN} characters`, 'VALIDATION_ERROR', 422);
+  }
+  if (data.description !== undefined && data.description.length > MAX_DESC_LEN) {
+    throw new AppError(
+      `description must not exceed ${MAX_DESC_LEN} characters`,
+      'VALIDATION_ERROR',
+      422,
+    );
+  }
+
   const updateData: Record<string, unknown> = {};
   const auditCategories: string[] = [];
 
@@ -976,23 +987,27 @@ async function resolveClipForAccess(params: {
 }) {
   const { clipId, requestingUserId, requestingUserRole } = params;
 
-  if (!requestingUserId) throw new AppError('Unauthorized', 'UNAUTHORIZED', 401);
-
   const clip = await prisma.clip.findUnique({ where: { id: clipId } });
   if (!clip || clip.deletedAt !== null) throw new AppError('Not found', 'NOT_FOUND', 404);
 
   const role = requestingUserRole as Role | undefined;
-  const isOwner = requestingUserId === clip.userId;
-  const isAdmin = role === 'Admin';
-  const isModerator = role === 'Moderator';
 
-  const hasAccess =
-    isOwner ||
-    isAdmin ||
-    (isModerator && clip.visibility !== 'private') ||
-    clip.visibility === 'public' ||
-    clip.visibility === 'shared';
-  if (!hasAccess) throw new AppError('Not found', 'NOT_FOUND', 404);
+  if (!requestingUserId) {
+    // Unauthenticated: only public clips are accessible
+    if (clip.visibility !== 'public') throw new AppError('Unauthorized', 'UNAUTHORIZED', 401);
+  } else {
+    const isOwner = requestingUserId === clip.userId;
+    const isAdmin = role === 'Admin';
+    const isModerator = role === 'Moderator';
+
+    const hasAccess =
+      isOwner ||
+      isAdmin ||
+      (isModerator && clip.visibility !== 'private') ||
+      clip.visibility === 'public' ||
+      clip.visibility === 'shared';
+    if (!hasAccess) throw new AppError('Not found', 'NOT_FOUND', 404);
+  }
 
   if (clip.status !== 'ready') throw new AppError('Clip not ready', 'CLIP_NOT_READY', 409);
   if (!clip.s3Key) throw new AppError('Not found', 'NOT_FOUND', 404);
