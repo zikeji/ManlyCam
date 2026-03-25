@@ -175,6 +175,42 @@ describe('AtmosphericVoid', () => {
       expect(hlsVideo.removeEventListener).toHaveBeenCalledWith('playing', expect.any(Function));
     });
 
+    it('does not reset canvas dimensions on repeated playing events (flash regression)', async () => {
+      const hlsVideo = document.createElement('video');
+
+      wrapper = mount(AtmosphericVoid, {
+        props: { videoRef: hlsVideo },
+      });
+      await wrapper.vm.$nextTick();
+
+      const canvas = wrapper.find('canvas').element as HTMLCanvasElement;
+      // Set canvas to initialized dimensions (CANVAS_W=64, CANVAS_H=36) to simulate
+      // the post-init state — JSDOM may not have run startCanvasLoop yet due to rAF timing
+      canvas.width = 64;
+      canvas.height = 36;
+
+      // Spy on width setter at the instance level so we detect any reset
+      let widthResetCount = 0;
+      const origDescriptor = Object.getOwnPropertyDescriptor(HTMLCanvasElement.prototype, 'width')!;
+      Object.defineProperty(canvas, 'width', {
+        get() {
+          return origDescriptor.get!.call(this);
+        },
+        set(v: number) {
+          widthResetCount++;
+          origDescriptor.set!.call(this, v);
+        },
+        configurable: true,
+      });
+
+      // Fire playing event — what HLS fires each time play() is called
+      hlsVideo.dispatchEvent(new Event('playing'));
+      await wrapper.vm.$nextTick();
+
+      // canvas.width must NOT be reset: resetting clears the canvas, causing a one-frame flash
+      expect(widthResetCount).toBe(0);
+    });
+
     it('sets useCanvas false when switching to WebRTC source', async () => {
       const hlsVideo = document.createElement('video');
 

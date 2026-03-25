@@ -34,8 +34,12 @@ function startCanvasLoop(): void {
   const ctx = canvas?.getContext('2d');
   if (!canvas || !ctx) return;
 
-  canvas.width = CANVAS_W;
-  canvas.height = CANVAS_H;
+  // Only set dimensions when needed — resetting canvas.width/height clears the canvas,
+  // which causes a one-frame flash to the background colour on every 'playing' event.
+  if (canvas.width !== CANVAS_W || canvas.height !== CANVAS_H) {
+    canvas.width = CANVAS_W;
+    canvas.height = CANVAS_H;
+  }
 
   let lastDraw = 0;
   const interval = 1000 / CANVAS_FPS;
