@@ -24,7 +24,7 @@ flowchart LR
   end
 ```
 
-**How it works:** The Pi captures video via its camera module and serves it as an RTSP stream through mediamtx. frpc on the Pi tunnels the RTSP stream (port 8554) and mediamtx API (port 9997) to the server's frps on ports 11935 and 11936. On the server, a second mediamtx instance pulls the RTSP stream from frps and re-publishes it as WebRTC WHEP. The Hono application server proxies WHEP signaling to authenticated browsers and polls the mediamtx API for Pi reachability status.
+**How it works:** The Pi captures video via its camera module and serves it as an RTSP stream through mediamtx. frpc on the Pi tunnels the RTSP stream (port 8554) and mediamtx API (port 9997) to the server's frps on ports 11935 and 11936. On the server, a second mediamtx instance pulls the RTSP stream from frps and re-publishes it as WebRTC WHEP. The Hono application server proxies WHEP signaling to authenticated browsers and polls the mediamtx API for Pi reachability status. For clip recording, mediamtx also maintains an HLS rolling buffer served at `:8090` (internal only); Hono accesses this via `MTX_HLS_URL` to extract footage when a clip is requested.
 
 ## Required Ports
 
@@ -86,21 +86,26 @@ cp apps/server/.env.example .env
 
 ### Clipping/S3 variables (required for clip recording)
 
-| Variable             | Description                    | Dev (RustFS)            | Production (Backblaze B2)             |
-| -------------------- | ------------------------------ | ----------------------- | ------------------------------------- |
-| `S3_ENDPOINT`        | S3-compatible endpoint URL     | `http://localhost:9000` | `https://s3.{region}.backblazeb2.com` |
-| `S3_BUCKET`          | Bucket name for clip storage   | _(your bucket)_         | _(your B2 bucket)_                    |
-| `S3_ACCESS_KEY`      | S3 access key                  | `manlycam`              | _(your B2 key)_                       |
-| `S3_SECRET_KEY`      | S3 secret key                  | `manlycam`              | _(your B2 secret)_                    |
-| `S3_REGION`          | S3 region identifier           | `us-east-1`             | _(your B2 region)_                    |
-| `S3_PUBLIC_BASE_URL` | Public URL base for thumbnails | `http://rustfs:9000`    | `https://f{n}.backblazeb2.com/file`   |
-| `MTX_HLS_URL`        | mediamtx HLS server base URL   | `http://mediamtx:8090`  | `http://mediamtx:8090`                |
+| Variable              | Description                   | Dev (RustFS)            | Production (Backblaze B2)               |
+| --------------------- | ----------------------------- | ----------------------- | --------------------------------------- |
+| `S3_ENDPOINT`         | S3-compatible endpoint URL    | `http://localhost:9000` | `https://s3.{region}.backblazeb2.com`   |
+| `S3_BUCKET`           | Bucket name for clip storage  | _(your bucket)_         | _(your B2 bucket)_                      |
+| `S3_ACCESS_KEY`       | S3 access key / keyID         | `manlycam`              | _(B2 keyID from app key)_               |
+| `S3_SECRET_KEY`       | S3 secret / applicationKey   | `manlycam`              | _(B2 applicationKey)_                   |
+| `S3_REGION`           | S3 region identifier          | `us-east-1`             | _(B2 region, e.g. `us-west-004`)_       |
+| `S3_FORCE_PATH_STYLE`          | Use path-style S3 URLs              | `true`  | `false`                    |
+| `MTX_HLS_URL`                  | mediamtx HLS server base URL        | `http://localhost:8090` | `http://mediamtx:8090` |
+| `CLIP_MIN_DURATION_SECONDS`    | Minimum clip duration in seconds    | `10` (default)          | `10` (default)         |
+| `CLIP_MAX_DURATION_SECONDS`    | Maximum clip duration in seconds    | `120` (default)         | `120` (default)        |
 
-**S3_PUBLIC_BASE_URL notes:**
+**`S3_FORCE_PATH_STYLE` notes:**
 
-- **Docker (RustFS):** Use `http://rustfs:9000` so the server can generate presigned URLs that resolve within the Docker network
-- **Bare-metal (RustFS):** Use `http://localhost:9000` when running RustFS directly on the host
-- **Production (B2):** Use your B2 CDN URL
+- **Dev (RustFS):** Set `true` — RustFS uses path-style URLs (`http://host/bucket/key`)
+- **Production (B2):** Set `false` — B2 uses virtual-hosted style URLs (`http://bucket.s3.region.backblazeb2.com/key`)
+
+> **Thumbnail proxy:** Clip thumbnails are served through the backend endpoint `/api/clips/:clipId/thumbnail` (responds with `Cache-Control: public, max-age=86400`) — thumbnails are **never served directly from S3/B2**. Access control is enforced at the proxy: thumbnails of private or deleted clips are not served to unauthorised callers. Operators may configure Traefik or Caddy to cache this endpoint for up to 24 h to reduce origin load.
+
+> **B2 egress notice:** B2 egress charges apply to clip playback via presigned download URLs (`GET /api/clips/:id/download`) and to public clip page views. Thumbnail egress is from the backend (not B2 directly) since thumbnails are always proxied. Review [Backblaze B2 pricing](https://www.backblaze.com/cloud-storage/pricing) before enabling public clips at scale.
 
 ### Container image
 
@@ -123,6 +128,53 @@ ManlyCam uses Google OAuth for sign-in. You'll need to create an OAuth 2.0 clien
 5. Copy the **Client ID** and **Client Secret** into your `.env` as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
 
 > **Note:** If you change your `BASE_URL` later (e.g. switching domains), you must update both the JavaScript origin and redirect URI in the Google Cloud Console to match.
+
+## Backblaze B2 Setup (Production Clip Storage)
+
+For production deployments, ManlyCam stores clips and thumbnails in a Backblaze B2 private bucket. For local development, use RustFS instead — see [Clipping Infrastructure — Development](#clipping-infrastructure-development) for the dev setup.
+
+> **Verify locally first:** Before configuring production B2, confirm the clipping stack works with the dev RustFS setup. This catches configuration issues without incurring B2 egress costs.
+
+### 1. Create a private B2 bucket
+
+1. Log in to [Backblaze B2 Cloud Storage](https://www.backblaze.com/sign-up/cloud-storage)
+2. Under **Buckets**, click **Create a Bucket**
+3. Name your bucket (e.g., `manlycam-clips`)
+4. Set **Files in Bucket** to **Private** — the bucket must remain fully private
+
+> **Important:** B2 does **NOT** support per-object ACLs (`PutObjectAcl` is not available). ManlyCam is designed for this — the bucket stays fully private at all times:
+>
+> - Video clips are served via presigned URLs from `GET /api/clips/:id/download`
+> - Thumbnails are proxied through the backend at `/api/clips/:clipId/thumbnail` — never served directly from B2
+> - No `PutObjectAcl` calls are made at any point
+
+### 2. Create an application key
+
+1. Under **App Keys**, click **Add a New Application Key**
+2. Set **Name of Key** (e.g., `manlycam-prod`)
+3. Under **Allow access to Bucket(s)**, select the bucket you created
+4. Set **Type of Access** to **Read and Write**
+5. Click **Create New Key** — copy the **keyID** and **applicationKey** immediately (the key secret is shown only once)
+
+### 3. Map B2 values to environment variables
+
+| B2 Dashboard Value | Environment Variable  | Example value                            |
+| ------------------ | --------------------- | ---------------------------------------- |
+| Endpoint (region)  | `S3_ENDPOINT`         | `https://s3.us-west-004.backblazeb2.com` |
+| Bucket Name        | `S3_BUCKET`           | `manlycam-clips`                         |
+| keyID              | `S3_ACCESS_KEY`       | _(from app key creation)_                |
+| applicationKey     | `S3_SECRET_KEY`       | _(shown once — save immediately)_        |
+| Region             | `S3_REGION`           | `us-west-004` _(from endpoint URL)_      |
+
+Also set `S3_FORCE_PATH_STYLE=false` in your `.env` (B2 uses virtual-hosted style URLs, not path style).
+
+### Soft-delete and S3 orphan notice
+
+`DELETE /api/clips/:id` soft-deletes the clip record and then attempts best-effort S3 deletion. If S3 deletion fails (network error, permission issue), the S3 object is orphaned until manual cleanup. To identify orphaned objects, run the following query against your database and cross-reference the results with your B2 bucket contents:
+
+```sql
+SELECT id, s3_key, thumbnail_key FROM clips WHERE deleted_at IS NOT NULL;
+```
 
 ## Docker Compose — Simple (External TLS)
 
@@ -164,14 +216,30 @@ Use this variant when you already have a reverse proxy (Caddy, nginx, etc.) hand
 
 ### Services
 
-The simple variant runs 4 services:
+The simple variant runs 5 services:
 
-| Service    | Image                         | Purpose                             |
-| ---------- | ----------------------------- | ----------------------------------- |
-| `server`   | `ghcr.io/.../manlycam:latest` | Hono application server (port 3000) |
-| `mediamtx` | `bluenviron/mediamtx:latest`  | RTSP-to-WebRTC relay                |
-| `frps`     | `snowdreamtech/frps:latest`   | frp tunnel server (port 7000)       |
-| `postgres` | `postgres:16-alpine`          | PostgreSQL database                 |
+| Service    | Image                         | Purpose                                     |
+| ---------- | ----------------------------- | ------------------------------------------- |
+| `server`   | `ghcr.io/.../manlycam:latest` | Hono application server (port 3000)         |
+| `mediamtx` | `bluenviron/mediamtx:latest`  | RTSP-to-WebRTC relay + HLS segment writer   |
+| `frps`     | `snowdreamtech/frps:latest`   | frp tunnel server (port 7000)               |
+| `postgres` | `postgres:16-alpine`          | PostgreSQL database                         |
+| `rustfs`   | `rustfs/rustfs:latest`        | S3-compatible storage (dev — swap B2 in prod) |
+
+### HLS Access
+
+mediamtx serves HLS segments over HTTP at port 8090 (internal only — not published to the host). The server accesses this endpoint via the `MTX_HLS_URL` environment variable (default: `http://mediamtx:8090`). No shared filesystem volume is required; ffmpeg fetches segments over HTTP during clip extraction.
+
+**Verify HLS is active (after the Pi stream starts):**
+
+```bash
+# Check that mediamtx is serving the HLS playlist (from within the server container)
+docker compose exec server curl -s http://mediamtx:8090/cam/index.m3u8 | head -5
+# Expected: #EXTM3U header and segment entries
+# If empty or 404: verify the Pi camera stream is active and HLS is enabled in mediamtx-server.yml
+```
+
+> **Production note:** For production deployments using Backblaze B2, remove the `rustfs` service block from `docker-compose.yml` and also remove `rustfs` from the `server.depends_on` section. Set the B2 env vars in your `.env` file. See [Backblaze B2 Setup](#backblaze-b2-setup-production-clip-storage) above.
 
 ## Docker Compose — Traefik (Docker-Native TLS)
 
@@ -204,15 +272,25 @@ Use this variant for a fully self-contained deployment where Traefik manages Let
 
 ### Services
 
-The Traefik variant runs 5 services (same 4 as simple, plus Traefik):
+The Traefik variant runs 6 services:
 
 | Service    | Purpose                                                        |
 | ---------- | -------------------------------------------------------------- |
 | `traefik`  | Reverse proxy with automatic Let's Encrypt TLS (ports 80, 443) |
 | `server`   | Hono application server                                        |
-| `mediamtx` | RTSP-to-WebRTC relay                                           |
+| `mediamtx` | RTSP-to-WebRTC relay + HLS segment writer                      |
 | `frps`     | frp tunnel server (port 7000)                                  |
 | `postgres` | PostgreSQL database                                            |
+| `rustfs`   | S3-compatible storage (dev — swap B2 in prod)                  |
+
+### HLS Access
+
+Same as the simple variant — mediamtx serves HLS segments over HTTP at port 8090 (internal only). The server accesses it via `MTX_HLS_URL` (`http://mediamtx:8090`). Verify with:
+
+```bash
+docker compose exec server curl -s http://mediamtx:8090/cam/index.m3u8 | head -5
+# Expected: #EXTM3U header and segment entries when the Pi camera is active
+```
 
 ## Bare-Metal / Non-Docker
 
@@ -266,6 +344,20 @@ sudo systemctl enable --now mediamtx
 
 Ensure port `8189/UDP` is open on the host firewall for WebRTC media transport.
 
+### 3a. Verify HLS access (required for clip recording)
+
+The clipping feature requires mediamtx's HLS HTTP server to be reachable by the Hono server. mediamtx stores HLS segments internally and serves them via HTTP at port 8090. No filesystem directory configuration is needed — the server accesses HLS exclusively via `MTX_HLS_URL`.
+
+**Verify HLS is serving (after starting mediamtx and the Pi stream):**
+
+```bash
+curl -s http://127.0.0.1:8090/cam/index.m3u8 | head -5
+# Expected: #EXTM3U header and segment entries
+# If 404: verify the Pi stream is active and HLS is enabled in /etc/mediamtx/mediamtx.yml
+```
+
+**Systemd service ordering:** The Hono server must start after mediamtx so the HLS endpoint is available when the server first receives clip requests. The reference unit `docs/deploy/manlycam-server.service` includes `After=mediamtx.service` for this ordering. If you wrote a custom unit, add the same dependency.
+
 ### 4. Install and configure frps
 
 Download frps for your platform from [frp releases](https://github.com/fatedier/frp/releases) (e.g. `frp_0.61.0_linux_amd64.tar.gz` for x86-64 servers):
@@ -317,12 +409,13 @@ Set these environment variables for the Hono server process:
 ```bash
 MTX_API_URL=http://127.0.0.1:9997
 MTX_WEBRTC_URL=http://127.0.0.1:8888
+MTX_HLS_URL=http://127.0.0.1:8090  # mediamtx HLS server — used for clip extraction
 FRP_HOST=localhost        # or wherever frps is running
 FRP_RTSP_PORT=11935
 FRP_API_PORT=11936
 ```
 
-A reference systemd unit for the Hono server is available at `docs/deploy/manlycam-server.service`.
+A reference systemd unit for the Hono server is available at `docs/deploy/manlycam-server.service`. It includes `After=mediamtx.service` so the server starts only after mediamtx is running.
 
 ### 6. Install ffmpeg (required for clip recording)
 
@@ -402,7 +495,8 @@ S3_BUCKET=manlycam-clips
 S3_ACCESS_KEY=manlycam
 S3_SECRET_KEY=manlycam
 S3_REGION=us-east-1
-S3_PUBLIC_BASE_URL=http://localhost:9000
+S3_FORCE_PATH_STYLE=true
+MTX_HLS_URL=http://127.0.0.1:8090
 ```
 
 ## First-Run Admin Steps
@@ -501,10 +595,15 @@ Use this to verify the entire ManlyCam stack is operational:
 4. **Hono server:** health check passes — `curl http://localhost:3000/api/health`
 5. **Browser:** navigate to your `BASE_URL`, sign in with Google, and confirm the live stream loads
 6. **Pi:** camera streaming — see [`pi/README.md`](../../pi/README.md) for Pi-side troubleshooting
+7. **HLS buffer (Docker):** `docker compose exec server curl -s http://mediamtx:8090/cam/index.m3u8 | head -3` — `#EXTM3U` header should appear while the Pi is streaming
+8. **Clip recording:** navigate to the live stream page and record a short clip — it should appear in the clips list within ~30 s
+9. **S3/B2:** check your B2 bucket (or the RustFS console at `http://localhost:9001`) — a `.mp4` and `.jpg` object should appear after the first clip is created
 
 ## Clipping Infrastructure (Development)
 
-This section covers the additional infrastructure required for the clip recording and sharing feature. In production, clips are stored in Backblaze B2. For local development, use RustFS (an S3-compatible object storage server) instead of requiring a B2 account.
+This section covers the local development setup for the clip recording and sharing feature. For production, see [Backblaze B2 Setup](#backblaze-b2-setup-production-clip-storage) above.
+
+> **Tip:** Verify the clipping stack works locally with RustFS before deploying with Backblaze B2 to confirm your configuration without incurring egress costs.
 
 ### Overview
 
@@ -545,27 +644,39 @@ volumes:
 After starting the stack for the first time:
 
 1. **Open the RustFS web console** at `http://localhost:9001`
-2. **Log in** with default credentials: `minioadmin` / `minioadmin`
+2. **Log in** with default credentials: `manlycam` / `manlycam`
 3. **Create a bucket** (e.g., `manlycam-clips`)
-
-The clip visibility toggle uses `PutObjectAcl` to switch video objects between private and public-read ACLs. This is supported by RustFS at the object level.
 
 ### mediamtx HLS Configuration
 
 The `mediamtx-server.yml` includes HLS output settings for the clipping buffer:
 
 ```yaml
-hls: true # Enable HLS output
-hlsAddress: ':8090' # HLS output (internal-only, not exposed to browsers)
-hlsSegmentDuration: '2s' # Segment length
-hlsSegmentCount: 450 # Rolling buffer depth
-hlsVariant: mpegts # Use MPEG-TS format for better clip extraction compatibility
-hlsAlwaysRemux: true # Generate HLS segments continuously
+hls: true                  # Enable HLS output
+hlsAddress: ':8090'        # HLS HTTP server — internal only, not published to host
+hlsSegmentDuration: '2s'   # Segment length (recommended: 2s for precise clipping)
+hlsSegmentCount: 450       # Rolling buffer depth
+hlsVariant: mpegts         # Use MPEG-TS format for better clip extraction compatibility
+hlsAlwaysRemux: true       # Generate HLS segments continuously
 ```
 
-**Clip Duration Limit:** With 450 segments at 2-second intervals, the maximum clip duration is **15 minutes**. Requests for longer clips will be rejected.
+**Rolling buffer formula:**
 
-**HLS Access:** The HLS playlist is served via HTTP at `{MTX_HLS_URL}/cam/video1_stream.m3u8` (internal network only). The server container accesses this URL directly for clip extraction. No shared volume is required.
+```
+hlsSegmentCount = desired_buffer_minutes × 60 / hlsSegmentDuration_seconds
+```
+
+Example: 15-minute buffer with 2-second segments = `15 × 60 / 2 = 450` segments. This is the default rolling buffer depth — 15 minutes of footage is available for extraction. Note: the application-enforced clip length limit is separate and controlled by `CLIP_MAX_DURATION_SECONDS` (default: `120` seconds / 2 minutes). Requests for clips longer than `CLIP_MAX_DURATION_SECONDS` are rejected at the application layer regardless of HLS buffer depth.
+
+**Disk space guidance:**
+
+```
+disk_space_MB ≈ bitrate_mbps × buffer_minutes × 7.5
+```
+
+Example: 2 Mbps stream × 15-minute buffer ≈ **225 MB**. mediamtx manages segment storage internally and automatically removes the oldest segments as new ones arrive, so the buffer stays within this bound.
+
+**HLS Access:** The HLS playlist is served via HTTP at `{MTX_HLS_URL}/cam/index.m3u8` (internal network only). The server uses ffmpeg to fetch segments over HTTP from this endpoint during clip extraction — no shared filesystem volume is needed.
 
 **Timestamp synchronization:** The path configuration includes `useAbsoluteTimestamp: true` which preserves the original frame timestamps from the RTSP stream. This ensures accurate time alignment between the UI and extracted clips.
 
@@ -573,16 +684,18 @@ The HLS path is flushed when the stream goes offline using the existing `MTX_API
 
 ### Environment Variables
 
-Add these to your `.env` file for clipping support:
+Add these to your `.env` file for clipping support (dev defaults shown; see [Clipping/S3 variables](#clippings3-variables-required-for-clip-recording) for the full table):
 
-| Variable             | Dev Default             | Production (B2)                       | Description                    |
-| -------------------- | ----------------------- | ------------------------------------- | ------------------------------ |
-| `S3_ENDPOINT`        | `http://localhost:9000` | `https://s3.{region}.backblazeb2.com` | S3-compatible endpoint URL     |
-| `S3_BUCKET`          | _(required)_            | _(required)_                          | Bucket name for clip storage   |
-| `S3_ACCESS_KEY`      | `minioadmin`            | _(your B2 key)_                       | S3 access key                  |
-| `S3_SECRET_KEY`      | `minioadmin`            | _(your B2 secret)_                    | S3 secret key                  |
-| `S3_REGION`          | `us-east-1`             | _(your B2 region)_                    | S3 region identifier           |
-| `S3_PUBLIC_BASE_URL` | `http://localhost:9000` | `https://f{n}.backblazeb2.com/file`   | Public URL base for thumbnails |
-| `MTX_HLS_URL`        | `http://mediamtx:8090`  | `http://mediamtx:8090`                | mediamtx HLS server base URL   |
+| Variable              | Dev Default             | Description                   |
+| --------------------- | ----------------------- | ----------------------------- |
+| `S3_ENDPOINT`         | `http://localhost:9000` | S3-compatible endpoint URL    |
+| `S3_BUCKET`           | _(required)_            | Bucket name for clip storage  |
+| `S3_ACCESS_KEY`       | `manlycam`              | RustFS root user              |
+| `S3_SECRET_KEY`       | `manlycam`              | RustFS root password          |
+| `S3_REGION`           | `us-east-1`             | S3 region identifier          |
+| `S3_FORCE_PATH_STYLE`       | `true`                  | Path-style URLs (RustFS)              |
+| `MTX_HLS_URL`               | `http://localhost:8090` | mediamtx HLS server base URL          |
+| `CLIP_MIN_DURATION_SECONDS` | `10`                    | Minimum clip length in seconds        |
+| `CLIP_MAX_DURATION_SECONDS` | `120`                   | Maximum clip length in seconds (2 min)|
 
-The `MTX_HLS_URL` is the base URL for the mediamtx HLS server (e.g., `http://mediamtx:8090`). The server constructs the full playlist URL as `{MTX_HLS_URL}/cam/video1_stream.m3u8` for ffmpeg clip extraction.
+The server constructs the full playlist URL as `{MTX_HLS_URL}/cam/video1_stream.m3u8` for ffmpeg clip extraction.

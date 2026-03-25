@@ -15,9 +15,11 @@ webrtcAddress: ':8888' # WebRTC WHEP — Hono proxies this to authenticated brow
 
 # HLS output for clip recording (internal-only, not exposed to browsers)
 hls: true # Enable HLS output
-hlsAddress: ':0' # HLS HTTP server disabled for external access — segments written to volume only
+hlsAddress: ':8090' # HLS HTTP server — internal only, not published to host
 hlsSegmentDuration: '2s' # Segment length — shorter = more frequent keyframes for precise clipping
-hlsSegmentCount: 450 # Rolling buffer depth — 450 × 2s = ~15 min max clip duration
+# Rolling buffer depth: desired_buffer_minutes × 60 / hlsSegmentDuration
+# Example: 15 min buffer with 2s segments = 450 segments
+hlsSegmentCount: 450 # 450 × 2s = ~15 min rolling buffer
 hlsVariant: mpegts # Use MPEG-TS format for better clip extraction compatibility
 hlsAlwaysRemux: true # Generate HLS segments continuously (not just when clients are connected)
 

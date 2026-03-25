@@ -14,7 +14,7 @@
 [Unit]
 Description=ManlyCam Server (Hono + ffmpeg)
 Documentation=https://github.com/zikeji/ManlyCam
-After=network-online.target postgresql.service
+After=network-online.target postgresql.service mediamtx.service
 Wants=network-online.target
 
 [Service]

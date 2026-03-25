@@ -65,7 +65,7 @@ services:
       S3_ACCESS_KEY: '${S3_ACCESS_KEY:-manlycam}'
       S3_SECRET_KEY: '${S3_SECRET_KEY:-manlycam}'
       S3_REGION: '${S3_REGION:-us-east-1}'
-      S3_PUBLIC_BASE_URL: '${S3_PUBLIC_BASE_URL:-http://rustfs:9000}'
+      # true = path-style (RustFS dev); false = virtual-hosted (B2 production)
       S3_FORCE_PATH_STYLE: '${S3_FORCE_PATH_STYLE:-true}'
     labels:
       # Enable Traefik routing for this container
@@ -94,7 +94,7 @@ services:
     ports:
       - '8554:8554' # RTSP — frpc on Pi pushes stream here via frps tunnel
       - '8189:8189/udp' # WebRTC ICE/STUN — browsers negotiate media transport over UDP
-      # 8888 (WebRTC WHEP signaling) and 9997 (API) are internal-only — server reaches via Docker bridge
+      # 8888 (WebRTC WHEP signaling), 8090 (HLS), and 9997 (API) are internal-only
     volumes:
       # Copy mediamtx-server.yml alongside this compose file and substitute FRP_HOST/FRP_RTSP_PORT
       - ./mediamtx-server.yml:/mediamtx.yml:ro
@@ -159,5 +159,5 @@ volumes:
   pgdata:
   # Named volume for Let's Encrypt certificate storage — do not delete
   letsencrypt:
-  # RustFS data persistence for S3-compatible object storage
+  # RustFS data persistence for S3-compatible object storage (dev only — use B2 in production)
   rustfsdata:

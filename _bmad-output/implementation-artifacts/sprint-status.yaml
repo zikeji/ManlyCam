@@ -142,7 +142,7 @@ development_status:
   10-5-chat-clip-integration: done # Code review complete 2026-03-24: 6 patch findings fixed (tombstone restore, escape guard, forward nav, chronological sort, modal reset, dead code). Spec amended for download button location. 1437 web tests passing.
   10-6-public-clip-pages: done # Code review complete 2026-03-25: 4 patch findings fixed (video error handler, fetchCurrentUser try/catch, index.html caching, whitespace-only validation tests). 760 server + 1473 web tests passing.
   10-6b-clip-ux-polish: done # Clipper attribution, locked-out public button + confirmation dialog, spacebar play/pause. Post-smoke fixes: immediate watch for v-if mount, atmospheric void flash on play. 1494 web tests passing.
-  10-7-production-deployment-documentation: ready-for-dev
+  10-7-production-deployment-documentation: review
   epic-10-retrospective: optional
 
   # Post-MVP / Phase 2 (Deferred)
