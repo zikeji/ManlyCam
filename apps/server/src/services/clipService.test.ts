@@ -247,6 +247,7 @@ describe('createClip', () => {
   const validParams = {
     userId: 'user-001',
     userRole: 'ViewerGuest' as const,
+    mutedAt: null,
     startTime: '2026-03-22T10:00:01.000Z',
     endTime: '2026-03-22T10:00:11.000Z', // 10s = min duration
     name: 'Test Clip',
@@ -300,6 +301,12 @@ describe('createClip', () => {
     vi.mocked(prisma.clip.count).mockResolvedValue(5);
     const result = await createClip({ ...validParams, userRole: 'Admin' });
     expect(result.status).toBe('pending');
+  });
+
+  it('throws 403 when muted user creates clip with shareToChat', async () => {
+    await expect(
+      createClip({ ...validParams, mutedAt: new Date(), shareToChat: true }),
+    ).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it('throws 422 when stream has not started', async () => {
@@ -1215,14 +1222,14 @@ describe('deleteClip', () => {
     ).rejects.toMatchObject({ statusCode: 404 });
   });
 
-  it('throws 409 when clip is pending', async () => {
+  it('soft-deletes pending clip', async () => {
     vi.mocked(prisma.clip.findUnique).mockResolvedValue({
       ...baseClip,
       status: 'pending',
+      s3Key: null,
     } as never);
-    await expect(deleteClip({ clipId: 'clip-001', actor })).rejects.toMatchObject({
-      statusCode: 409,
-    });
+    await deleteClip({ clipId: 'clip-001', actor });
+    expect(prisma.$transaction).toHaveBeenCalled();
   });
 
   it('hard-deletes failed clip with no S3 cleanup and no broadcast', async () => {

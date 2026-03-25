@@ -155,7 +155,7 @@ export async function processClip({
   const thumbnailKey = `clips/${clipId}-thumb.jpg`;
 
   const clip = await prisma.clip.findUnique({ where: { id: clipId } });
-  if (!clip) {
+  if (!clip || clip.deletedAt !== null) {
     await unlink(playlistSnapshot).catch(() => undefined);
     return;
   }
@@ -255,6 +255,14 @@ export async function processClip({
 
   await cleanup();
 
+  // Re-check deletedAt: if the clip was deleted while ffmpeg was running, skip S3 + DB update.
+  const clipBeforeUpload = await prisma.clip.findUnique({
+    where: { id: clipId },
+    select: { deletedAt: true, status: true },
+  });
+  if (!clipBeforeUpload || clipBeforeUpload.deletedAt !== null)
+    return; /* c8 ignore next -- defensive: clip record cannot be missing at this point; the deletedAt guard handles concurrent deletes */
+
   // Update clip record
   const updatedClip = await prisma.clip.update({
     where: { id: clipId },
@@ -298,10 +306,10 @@ export async function processClip({
       userTag,
     };
 
-    // Atomic: update visibility + create message
+    // Atomic: update visibility + create message — only promote if still private
     await prisma.$transaction(async (tx) => {
       await tx.clip.update({
-        where: { id: clipId },
+        where: { id: clipId, visibility: 'private' },
         data: { visibility: 'shared' },
       });
       await tx.message.create({
@@ -363,13 +371,27 @@ export async function getSegmentRange(): Promise<{
 export async function createClip(params: {
   userId: string;
   userRole: Role;
+  mutedAt: Date | null;
   startTime: string;
   endTime: string;
   name: string;
   description?: string;
   shareToChat?: boolean;
 }): Promise<{ id: string; status: string }> {
-  const { userId, userRole, startTime, endTime, name, description, shareToChat = false } = params;
+  const {
+    userId,
+    userRole,
+    mutedAt,
+    startTime,
+    endTime,
+    name,
+    description,
+    shareToChat = false,
+  } = params;
+
+  if (shareToChat && mutedAt !== null) {
+    throw new AppError('Muted users cannot create clips shared to chat', 'FORBIDDEN', 403);
+  }
 
   // Rate limit: Viewer and ViewerGuest roles
   if (ROLE_RANK[userRole] < ROLE_RANK['Moderator']) {
@@ -653,10 +675,6 @@ export async function deleteClip(params: {
     throw new AppError('Not found', 'NOT_FOUND', 404);
   }
 
-  if (clip.status === 'pending') {
-    throw new AppError('Cannot delete a clip that is still processing', 'CONFLICT', 409);
-  }
-
   if (clip.status === 'failed') {
     await prisma.clip.delete({ where: { id: clipId } });
     return;
@@ -932,6 +950,9 @@ export async function shareClipToChat(params: {
   if (!clip || clip.deletedAt !== null) throw new AppError('Not found', 'NOT_FOUND', 404);
   if (clip.status !== 'ready') throw new AppError('Clip not ready', 'CLIP_NOT_READY', 409);
 
+  const prevVisibility = clip.visibility;
+  const newVisibility = prevVisibility === 'private' ? 'shared' : prevVisibility;
+
   const messageId = ulid();
   const userTag = computeUserTag({
     role: actor.role,
@@ -958,12 +979,12 @@ export async function shareClipToChat(params: {
     userTag,
   };
 
-  const prevVisibility = clip.visibility;
-  const newVisibility = prevVisibility === 'private' ? 'shared' : prevVisibility;
-
   await prisma.$transaction(async (tx) => {
     if (prevVisibility === 'private') {
-      await tx.clip.update({ where: { id: clipId }, data: { visibility: 'shared' } });
+      await tx.clip.update({
+        where: { id: clipId, deletedAt: null },
+        data: { visibility: 'shared' },
+      });
     }
     await tx.message.create({
       data: {

@@ -57,6 +57,7 @@ export function createClipsRouter() {
     const result = await createClip({
       userId: user.id,
       userRole: user.role as Role,
+      mutedAt: user.mutedAt,
       startTime,
       endTime,
       name: name.trim(),
