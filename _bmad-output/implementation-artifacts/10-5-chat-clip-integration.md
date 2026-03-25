@@ -200,6 +200,26 @@ claude-sonnet-4-6
 
 7. **router/index.ts defineComponent import**: Added `import { defineComponent } from 'vue'` (separate from `vue-router` import) for the `ClipStandalonePage` placeholder. The initial implementation incorrectly imported from `vue-router`.
 
+### Smoke Test Fixes (post-review, commit f46539b)
+
+The following issues were found during smoke testing and fixed:
+
+8. **Share-to-chat toggle broken**: `v-model:checked="shareToChat"` in `ClipEditor.vue` was incorrect — reka-ui `Switch` uses `modelValue`/`update:modelValue`, not `checked`/`update:checked`. Fixed to `v-model="shareToChat"`. Same bug fixed in `ClipEditForm.vue` for both `showClipper` and `showClipperAvatar` switches.
+
+9. **ClipEditForm Switch mock updated**: `ClipEditForm.test.ts` mocked Switch with `props: ['checked'], emits: ['update:checked']` to match the broken `v-model:checked` binding. After fixing to `v-model`, the mock was updated to `props: ['modelValue'], emits: ['update:modelValue']` to stay consistent.
+
+10. **Download button removed from ClipCard**: Redundant with the modal's download button; caused layout issues in mobile landscape. Download remains available in `ClipViewerModal` only.
+
+11. **Thumbnail click opens viewer modal**: Added `cursor-pointer` + `@click="handleWatch"` to the thumbnail container div in `ClipCard.vue`.
+
+12. **Watch button text hidden on mobile**: Changed to `<span class="hidden sm:inline">Watch</span>` — icon-only below `sm` breakpoint (640px).
+
+13. **Duration removed from ClipViewerModal**: Redundant with video player controls. Removed `formatDuration` function and `data-modal-duration` element.
+
+14. **Description renders as markdown in ClipViewerModal**: Added `renderMarkdown` computed property and `v-html` binding on `data-modal-description` with the same rich markdown CSS classes used elsewhere.
+
+15. **Standalone clip page blank (runtime compiler error)**: `defineComponent({ template: '...' })` requires Vue's runtime compiler, excluded from Vite production builds. Replaced with `defineComponent({ render: () => h('div', ...) })` using the `h()` render function.
+
 ### File List
 
 - `apps/web/src/components/chat/ClipCard.vue` (NEW)
@@ -216,3 +236,6 @@ claude-sonnet-4-6
 - `apps/web/src/composables/useWebSocket.test.ts` (MODIFIED)
 - `apps/web/src/router/index.ts` (MODIFIED)
 - `apps/web/src/views/WatchView.vue` (MODIFIED)
+- `apps/web/src/components/stream/ClipEditor.vue` (MODIFIED — smoke test fix: v-model:checked → v-model on share-to-chat switch)
+- `apps/web/src/components/clips/ClipEditForm.vue` (MODIFIED — smoke test fix: v-model:checked → v-model on both attribution switches)
+- `apps/web/src/components/clips/ClipEditForm.test.ts` (MODIFIED — smoke test fix: Switch mock updated to modelValue/update:modelValue)
