@@ -1,6 +1,6 @@
 # Story 10.5: Chat Clip Integration
 
-Status: ready-for-review
+Status: done
 
 ## Story
 
@@ -10,7 +10,7 @@ So that I can watch, download, and interact with clips without leaving the strea
 
 ## Acceptance Criteria
 
-1. **Given** a `chat:message` WsMessage is received with `messageType: 'clip'`, **When** it renders in the chat timeline, **Then** a clip card displays: thumbnail image, clip name, duration badge, and Watch + Download action buttons; standard message metadata (sender avatar, display name, timestamp) appears as with text messages.
+1. **Given** a `chat:message` WsMessage is received with `messageType: 'clip'`, **When** it renders in the chat timeline, **Then** a clip card displays: thumbnail image, clip name, duration badge, and Watch action button (download available in ClipViewerModal); standard message metadata (sender avatar, display name, timestamp) appears as with text messages.
 
 2. **Given** a user clicks Watch on a clip card, **When** the modal opens, **Then** a clip viewer modal overlays the current page; the stream and chat continue behind it; the browser URL is updated to `/clips/{id}` via `history.pushState({ clipModal: true, fromRoute: '/' }, '', '/clips/{id}')`. If `isClipModalOpen.value === true` when Watch is clicked, use `history.replaceState` instead to prevent stacking multiple clip entries in browser history. The modal can be closed via an X button or Escape key, which calls `history.back()`.
 
@@ -18,7 +18,7 @@ So that I can watch, download, and interact with clips without leaving the strea
 
 4. **Given** a user refreshes the browser while at `/clips/{id}` with no `history.state`, **When** the page loads, **Then** Vue Router detects the absence of `history.state.clipModal` and renders the standalone clip page (Story 10-6) rather than the modal-over-stream.
 
-5. **Given** a user clicks Download on a clip card in chat, **When** the action completes, **Then** the browser calls `GET /api/clips/:id/download` and the file downloads with the clip's slugified name.
+5. **Given** a user clicks Download on a clip card in chat or in the ClipViewerModal, **When** the action completes, **Then** the browser calls `GET /api/clips/:id/download` and the file downloads with the clip's slugified name.
 
 6. **Given** a clip referenced in the chat timeline is set to `private` or is deleted, **When** a user's chat history is next fetched (page load or pagination scroll), **Then** the clip card renders as "This clip is no longer available" with identical card dimensions (tombstone).
 
@@ -136,6 +136,7 @@ Key files that will be modified (not exhaustive — Story 10-2 creates infrastru
 - `apps/web/src/views/WatchView.vue` — mount `ClipViewerModal`
 
 New files:
+
 - `apps/web/src/components/chat/ClipCard.vue`
 - `apps/web/src/components/chat/ClipCard.test.ts`
 - `apps/web/src/components/clip/ClipViewerModal.vue`
@@ -180,7 +181,7 @@ New files:
 
 ### Agent Model Used
 
-claude-sonnet-4-6
+claude-sonnet-4-6, glm-5 (code review)
 
 ### Debug Log References
 
@@ -245,3 +246,31 @@ The following issues were found during smoke testing and fixed:
 - `apps/web/src/components/clips/ClipEditForm.test.ts` (MODIFIED — smoke test fix: Switch mock updated to modelValue/update:modelValue)
 - `apps/server/src/services/clipService.ts` (MODIFIED — real-time tombstone + title update broadcast)
 - `apps/server/src/services/clipService.test.ts` (MODIFIED — tests for new broadcast behavior)
+
+### Post-Implementation Code Review (2026-03-24)
+
+Branch: `story/10-5-chat-clip-integration` reviewed against `epic/10-clipping`
+
+**Review Layers:** Blind Hunter, Edge Case Hunter, Acceptance Auditor
+
+#### Findings
+
+| #   | Severity | Category  | Issue                                                                                  | Resolution                                                                                |
+| --- | -------- | --------- | -------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1   | patch    | bug       | `mergeMessages` didn't restore tombstoned clips when incoming version is live          | Added un-tombstone logic in `useChat.ts`                                                  |
+| 2   | patch    | bug       | `closeClip()` could call `history.back()` multiple times (holding Escape)              | Added guard `if (!isClipModalOpen.value) return;` in `useClipModal.ts`                    |
+| 3   | patch    | bug       | Forward navigation (browser forward button) didn't restore modal                       | Added `clipId` to history state, updated `handlePopState` to restore modal on forward nav |
+| 4   | patch    | bug       | `mergeMessages` didn't sort chronologically (ULID order)                               | Added `.sort((a, b) => a.id.localeCompare(b.id))`                                         |
+| 5   | patch    | bug       | Modal state persisted after `WatchView` unmount                                        | Added `onUnmounted` with `resetClipModalState()` in `WatchView.vue`                       |
+| 6   | patch    | dead-code | `handleClipDownload` in `ChatMessage.vue` was unused after smoke test removal          | Removed function and all `@download` bindings                                             |
+| 7   | bad_spec | spec      | AC #1 and #5 referenced Download button on ClipCard, but it was removed in smoke tests | Amended AC to reflect download only in ClipViewerModal                                    |
+| 8   | defer    | low-risk  | 100 message limit in `useChat.ts` could cause issues with heavy clip sharing           | Deferred — low probability, high edge case                                                |
+
+#### Files Modified in Review Fix
+
+- `apps/web/src/composables/useChat.ts` — tombstone restore + chronological sort
+- `apps/web/src/composables/useChat.test.ts` — tests for new mergeMessages behavior
+- `apps/web/src/composables/useClipModal.ts` — closeClip guard, forward nav restore, resetClipModalState export
+- `apps/web/src/composables/useClipModal.test.ts` — updated tests for new state structure
+- `apps/web/src/views/WatchView.vue` — onUnmounted reset
+- `apps/web/src/components/chat/ChatMessage.vue` — removed dead handleClipDownload code

@@ -22,6 +22,7 @@ import type {
   ChatEdit,
   UserProfile,
   ClipChatMessage,
+  TextChatMessage,
   ClipVisibilityChangedPayload,
 } from '@manlycam/types';
 
@@ -615,6 +616,88 @@ describe('useChat', () => {
       await loadMoreHistory();
 
       expect((messages.value[0] as ClipChatMessage).tombstone).toBeUndefined();
+    });
+
+    it('restores tombstoned clip when incoming version is live', async () => {
+      const baseClip: ClipChatMessage = {
+        id: 'msg-clip-003',
+        userId: 'user-001',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany',
+        messageType: 'clip',
+        content: '',
+        editHistory: null,
+        updatedAt: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: '2026-03-08T09:00:00.000Z',
+        userTag: null,
+        clipId: 'clip-003',
+        clipName: 'My Clip',
+        clipDurationSeconds: 30,
+        clipperName: 'Alice',
+      };
+      const tombstonedClip: ClipChatMessage = {
+        ...baseClip,
+        tombstone: true as const,
+      };
+      const { messages, loadMoreHistory } = useChat();
+      messages.value = [tombstonedClip];
+
+      const restoredClip: ClipChatMessage = {
+        ...baseClip,
+        clipName: 'Updated Name',
+      };
+      vi.mocked(apiFetch).mockResolvedValue({ messages: [restoredClip], hasMore: false });
+
+      await loadMoreHistory();
+
+      const result = messages.value[0] as ClipChatMessage;
+      expect(result.tombstone).toBeUndefined();
+      expect(result.clipName).toBe('Updated Name');
+    });
+
+    it('sorts messages by ID for chronological order', async () => {
+      const olderMsg: TextChatMessage = {
+        id: 'msg-001',
+        userId: 'user-001',
+        displayName: 'Alice',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany',
+        messageType: 'text',
+        content: 'Older message',
+        editHistory: null,
+        updatedAt: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: '2026-03-08T08:00:00.000Z',
+        userTag: null,
+      };
+      const newerMsg: TextChatMessage = {
+        id: 'msg-002',
+        userId: 'user-002',
+        displayName: 'Bob',
+        avatarUrl: null,
+        authorRole: 'ViewerCompany',
+        messageType: 'text',
+        content: 'Newer message',
+        editHistory: null,
+        updatedAt: null,
+        deletedAt: null,
+        deletedBy: null,
+        createdAt: '2026-03-08T10:00:00.000Z',
+        userTag: null,
+      };
+      const { messages, initHistory } = useChat();
+      messages.value = [newerMsg];
+
+      vi.mocked(apiFetch).mockResolvedValue({ messages: [olderMsg, newerMsg], hasMore: false });
+
+      await initHistory();
+
+      expect(messages.value[0].id).toBe('msg-001');
+      expect(messages.value[1].id).toBe('msg-002');
     });
   });
 });

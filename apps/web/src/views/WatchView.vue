@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, computed } from 'vue';
+import { onMounted, onUnmounted, ref, watch, computed } from 'vue';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import { useAuth } from '@/composables/useAuth';
 import { useStream } from '@/composables/useStream';
@@ -19,7 +19,7 @@ import {
   incrementUnread,
   isLoadingHistory,
 } from '@/composables/useChat';
-import { useClipModal, isClipModalOpen } from '@/composables/useClipModal';
+import { useClipModal, isClipModalOpen, resetClipModalState } from '@/composables/useClipModal';
 
 const { user } = useAuth();
 const { streamState, piReachableWhileOffline, initStream } = useStream();
@@ -186,6 +186,12 @@ onMounted(() => {
   } catch {
     /* ignore */
   }
+});
+
+onUnmounted(() => {
+  // Reset clip modal state when navigating away (e.g., router.push('/banned'))
+  // popstate doesn't fire for programmatic Vue Router navigations
+  resetClipModalState();
 });
 </script>
 

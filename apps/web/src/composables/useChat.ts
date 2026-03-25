@@ -93,23 +93,32 @@ export const handleClipTombstoneRestore = (payload: ClipVisibilityChangedPayload
 
 // Merges incoming messages into the existing list:
 // - Prepends messages with new IDs
-// - Updates existing messages if the incoming version has tombstone: true
+// - Applies tombstone from incoming to existing
+// - Restores tombstoned clips when incoming version is live
+// - Sorts by ID (ULIDs are chronologically sortable) for correct order
 function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
   const incomingMap = new Map(incoming.map((m) => [m.id, m]));
   const existingIds = new Set(existing.map((m) => m.id));
 
-  // Apply tombstone updates to existing messages
+  // Apply updates to existing messages
   const existingUpdated = existing.map((msg) => {
     const incomingVersion = incomingMap.get(msg.id);
-    if (incomingVersion?.messageType === 'clip' && incomingVersion.tombstone) {
-      return { ...msg, tombstone: true } as ClipChatMessage;
+    if (incomingVersion?.messageType === 'clip') {
+      if (incomingVersion.tombstone) {
+        // Incoming is tombstoned — apply to existing
+        return { ...msg, tombstone: true } as ClipChatMessage;
+      } else if ((msg as ClipChatMessage).tombstone) {
+        // Incoming is live, existing is tombstoned — restore with fresh data
+        return { ...msg, ...incomingVersion, tombstone: undefined } as ClipChatMessage;
+      }
     }
     return msg;
   });
 
   // Prepend only messages that are not already in the existing list
   const newMessages = incoming.filter((m) => !existingIds.has(m.id));
-  return [...newMessages, ...existingUpdated];
+  // Sort by ID (ULIDs are chronologically sortable) to ensure correct order
+  return [...newMessages, ...existingUpdated].sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export const useChat = () => {

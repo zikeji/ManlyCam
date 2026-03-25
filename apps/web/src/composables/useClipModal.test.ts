@@ -52,7 +52,7 @@ describe('useClipModal', () => {
     it('calls history.pushState when modal is closed', () => {
       openClip('clip-001');
       expect(mockPushState).toHaveBeenCalledWith(
-        { clipModal: true, fromRoute: '/' },
+        { clipModal: true, fromRoute: '/', clipId: 'clip-001' },
         '',
         '/clips/clip-001',
       );
@@ -63,7 +63,7 @@ describe('useClipModal', () => {
       isClipModalOpen.value = true;
       openClip('clip-002');
       expect(mockReplaceState).toHaveBeenCalledWith(
-        { clipModal: true, fromRoute: '/' },
+        { clipModal: true, fromRoute: '/', clipId: 'clip-002' },
         '',
         '/clips/clip-002',
       );
@@ -95,12 +95,14 @@ describe('useClipModal', () => {
     });
 
     it('sets activeClipId to null', () => {
+      isClipModalOpen.value = true;
       activeClipId.value = 'clip-001';
       closeClip();
       expect(activeClipId.value).toBeNull();
     });
 
     it('calls history.back()', () => {
+      isClipModalOpen.value = true;
       closeClip();
       expect(mockBack).toHaveBeenCalled();
     });
@@ -133,8 +135,12 @@ describe('useClipModal', () => {
     it('does not close modal when popstate fires with clipModal state', async () => {
       isClipModalOpen.value = true;
       activeClipId.value = 'clip-001';
-      setHistoryState({ clipModal: true });
-      window.dispatchEvent(new PopStateEvent('popstate', { state: { clipModal: true } }));
+      setHistoryState({ clipModal: true, fromRoute: '/', clipId: 'clip-001' });
+      window.dispatchEvent(
+        new PopStateEvent('popstate', {
+          state: { clipModal: true, fromRoute: '/', clipId: 'clip-001' },
+        }),
+      );
       await nextTick();
       expect(isClipModalOpen.value).toBe(true);
       expect(activeClipId.value).toBe('clip-001');
