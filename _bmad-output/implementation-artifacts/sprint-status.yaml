@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-06
-last_updated: 2026-03-24 # Story 10-5 chat clip integration done (code review findings fixed)
+last_updated: 2026-03-25 # Epics 9 and 10 marked done; 4 clip service security patches applied
 project: ManlyCam
 project_key: NOKEY
 tracking_system: file-system
@@ -123,7 +123,7 @@ development_status:
   admin-stream-preview: done # admin preview button when explicit-offline but Pi reachable. Code review: zero critical/high issues. AC4 design deviation documented (interactive button vs static badge). All 7 ACs implemented. 876 tests passing. Done 2026-03-16
   slash-command-cjs-extension: done # Bugfix: changed slash command extension from .js to .cjs for CommonJS compatibility. Code review: zero critical/high issues. 390 tests passing. Done 2026-03-16
 
-  epic-9: in-progress
+  epic-9: done
   9-1-camera-settings-enhancements: done
   9-2-allowlist-management-web-ui: done # Code review: findings resolved (spec updated for toast.info pattern, error handling verified). Smoke tests passed. All ACs implemented.
   9-3-audit-log-viewer: done # Code review findings fixed (default sort state, NaN handling, error handling, type guards). All ACs implemented. 480 server tests, 1098+ web tests passing.
@@ -133,9 +133,9 @@ development_status:
   epic-9-retrospective: optional
 
   # Epic 10: Clipping Feature
-  epic-10: in-progress
+  epic-10: done
   10-1-dev-environment-documentation-clipping-infrastructure: done
-  10-2-clipping-infrastructure: done # Code review complete 2026-03-22: specs updated to match implementation (S3 keys derived from clipId, MTX_HLS_URL env var). All quality gates passing (538 server tests, 1202 web tests).
+  10-2-clipping-infrastructure: done # Code review complete 2026-03-22: specs updated to match implementation (S3 keys derived from clipId, MTX_HLS_URL env var). Security patches applied 2026-03-25: muted user bypass, pending clip deletion, TOCTOU race, visibility overwrite. All quality gates passing (759 server tests, 1494 web tests).
   10-3-clip-creation-pipeline: done # Code review complete 2026-03-23. Fixed: chatClipIds in broadcast, pending clips TTL cleanup, ffmpeg 5-min timeout, S3 cleanup logging, HLS cache validation. 628 server tests passing.
   10-3b-clip-editor-ui: done # Code review complete 2026-03-23: 5 findings fixed (animation suppression, AtmosphericVoid dual-mode canvas for HLS, timeline tick marks, buffer-start selection shrink, auto-advance duration shrink). All quality gates passing.
   10-4-my-clips-page: done
