@@ -60,7 +60,7 @@ function handleWatch() {
           @click="handleWatch"
         >
           <Play class="h-3 w-3" />
-          <span class="hidden md:inline">Watch</span>
+          <span class="hidden lg:inline">Watch</span>
         </button>
       </div>
     </template>

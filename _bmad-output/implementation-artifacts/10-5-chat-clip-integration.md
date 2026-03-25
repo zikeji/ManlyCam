@@ -24,7 +24,7 @@ So that I can watch, download, and interact with clips without leaving the strea
 
 7. **Given** a clip is currently displayed as a tombstone in an active session, **When** a `clip:visibility-changed` WsMessage is received with `visibility` of `shared` or `public` AND the payload includes `chatClipIds` containing rendered tombstone message IDs, **Then** ALL matching tombstones are immediately replaced with live clip cards using the card data from the WS payload.
 
-8. **Given** the reverse (going private), **Then** active sessions are NOT disrupted; tombstone only appears on the next history fetch. No immediate real-time tombstoning occurs. A rapid `private -> public -> private` sequence leaves active sessions showing the clip card as live until the next page load.
+8. **Given** the reverse (going private or deleted), **Then** active sessions tombstone the clip card immediately in real-time. A rapid `private -> public -> private` sequence leaves the card tombstoned after the final state settles.
 
 9. **Given** a user scroll-back paginates and re-fetches a page of messages that already contains rendered clip cards, **When** the paginated response returns tombstone flags for some of those messages, **Then** the frontend merges tombstone state into the existing rendered message list (not merely appending).
 
@@ -220,6 +220,10 @@ The following issues were found during smoke testing and fixed:
 
 15. **Standalone clip page blank (runtime compiler error)**: `defineComponent({ template: '...' })` requires Vue's runtime compiler, excluded from Vite production builds. Replaced with `defineComponent({ render: () => h('div', ...) })` using the `h()` render function.
 
+16. **AC #8 spec corrected — real-time tombstone on private**: Original spec said active sessions should NOT be tombstoned when a clip goes private. This was wrong UX — the poster gets no feedback that the clip is inaccessible, and other users clicking it see a confusing error state. AC #8 updated: going private NOW tombstones immediately. Server now broadcasts `clip:visibility-changed` after any `updateClip` call (not just on visibility change), and the client `handleClipTombstoneRestore` now handles `private`/`deleted` visibility by tombstoning matching messages. This also fixes real-time title/thumbnail updates for live clip cards.
+
+17. **Watch button breakpoint corrected**: Changed `hidden sm:inline` to `hidden md:inline` (768px) so Watch text is hidden on phones in both portrait and landscape.
+
 ### File List
 
 - `apps/web/src/components/chat/ClipCard.vue` (NEW)
@@ -239,3 +243,5 @@ The following issues were found during smoke testing and fixed:
 - `apps/web/src/components/stream/ClipEditor.vue` (MODIFIED — smoke test fix: v-model:checked → v-model on share-to-chat switch)
 - `apps/web/src/components/clips/ClipEditForm.vue` (MODIFIED — smoke test fix: v-model:checked → v-model on both attribution switches)
 - `apps/web/src/components/clips/ClipEditForm.test.ts` (MODIFIED — smoke test fix: Switch mock updated to modelValue/update:modelValue)
+- `apps/server/src/services/clipService.ts` (MODIFIED — real-time tombstone + title update broadcast)
+- `apps/server/src/services/clipService.test.ts` (MODIFIED — tests for new broadcast behavior)
