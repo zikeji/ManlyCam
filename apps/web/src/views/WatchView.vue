@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch, computed } from 'vue';
+import { onMounted, onUnmounted, ref, watch, computed } from 'vue';
 import { SplitterGroup, SplitterPanel, SplitterResizeHandle } from 'reka-ui';
 import { useAuth } from '@/composables/useAuth';
 import { useStream } from '@/composables/useStream';
@@ -10,6 +10,7 @@ import AtmosphericVoid from '@/components/stream/AtmosphericVoid.vue';
 import CameraControlsPanel from '@/components/admin/CameraControlsPanel.vue';
 import AdminDialog from '@/components/admin/AdminDialog.vue';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
+import ClipViewerModal from '@/components/clip/ClipViewerModal.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import {
   messages,
@@ -18,9 +19,13 @@ import {
   incrementUnread,
   isLoadingHistory,
 } from '@/composables/useChat';
+import { useClipModal, isClipModalOpen, resetClipModalState } from '@/composables/useClipModal';
 
 const { user } = useAuth();
 const { streamState, piReachableWhileOffline, initStream } = useStream();
+
+// Register popstate listener for clip modal history navigation
+useClipModal();
 
 const isDesktop = ref(false);
 const isMobilePortrait = ref(false);
@@ -32,6 +37,11 @@ const adminDialogOpen = ref(false);
 
 const streamPlayerRef = ref<InstanceType<typeof StreamPlayer> | null>(null);
 const streamVideoRef = computed(() => streamPlayerRef.value?.videoRef ?? null);
+const hlsVideoRef = computed(() => streamPlayerRef.value?.hlsVideoRef ?? null);
+// Switch atmospheric blur to HLS video when clip editor is open
+const voidVideoRef = computed(() =>
+  clipEditorOpen.value && hlsVideoRef.value ? hlsVideoRef.value : streamVideoRef.value,
+);
 
 const chatPanelRef = ref<InstanceType<typeof SplitterPanel> | null>(null);
 const splitterAnimating = ref(false);
@@ -80,6 +90,16 @@ watch(
 const isAdmin = computed(() => user.value?.role === Role.Admin);
 
 const adminPreviewActive = ref(false);
+const clipEditorOpen = ref(false);
+const clipSegmentRange = ref<import('@/composables/useClipCreate').SegmentRange | null>(null);
+
+const handleClipEditorOpen = (range: import('@/composables/useClipCreate').SegmentRange) => {
+  clipSegmentRange.value = range;
+  clipEditorOpen.value = true;
+};
+const handleClipEditorClose = () => {
+  clipEditorOpen.value = false;
+};
 const showPreviewButton = computed(() => isAdmin.value && piReachableWhileOffline.value);
 
 // Reset preview when the stream is no longer explicit-offline
@@ -167,6 +187,12 @@ onMounted(() => {
     /* ignore */
   }
 });
+
+onUnmounted(() => {
+  // Reset clip modal state when navigating away (e.g., router.push('/banned'))
+  // popstate doesn't fire for programmatic Vue Router navigations
+  resetClipModalState();
+});
 </script>
 
 <template>
@@ -198,7 +224,7 @@ onMounted(() => {
       <!-- Panel 1: Main column (stream + console + void) -->
       <SplitterPanel class="flex flex-col bg-black overflow-hidden relative">
         <div class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden">
-          <AtmosphericVoid class="absolute inset-0" :video-ref="streamVideoRef" />
+          <AtmosphericVoid class="absolute inset-0" :video-ref="voidVideoRef" />
           <StreamPlayer
             ref="streamPlayerRef"
             class="relative z-10 w-full"
@@ -208,9 +234,12 @@ onMounted(() => {
             :showLandscapeTapToggle="false"
             :showPreviewButton="showPreviewButton"
             :adminPreview="adminPreviewActive"
+            :clipEditorOpen="clipEditorOpen"
+            :clipSegmentRange="clipSegmentRange"
             @toggle-chat-sidebar="handleToggleChatSidebar"
             @start-preview="handleStartPreview"
             @stop-preview="handleStopPreview"
+            @clip-editor-close="handleClipEditorClose"
           />
         </div>
         <BroadcastConsole
@@ -222,9 +251,11 @@ onMounted(() => {
           :isDesktop="isDesktop"
           :showChatToggle="true"
           :videoRef="streamVideoRef"
+          :clipEditorOpen="clipEditorOpen"
           @toggle-controls-panel="handleToggleControlsPanel"
           @toggle-chat-sidebar="handleToggleChatSidebar"
           @open-admin-dialog="adminDialogOpen = true"
+          @clip-editor-open="handleClipEditorOpen"
         />
       </SplitterPanel>
 
@@ -263,7 +294,7 @@ onMounted(() => {
         v-if="!isMobilePortrait"
         class="flex-1 min-h-0 relative flex items-center justify-center overflow-hidden"
       >
-        <AtmosphericVoid class="absolute inset-0" :video-ref="streamVideoRef" />
+        <AtmosphericVoid class="absolute inset-0" :video-ref="voidVideoRef" />
         <StreamPlayer
           ref="streamPlayerRef"
           class="relative z-10 w-full"
@@ -361,6 +392,9 @@ onMounted(() => {
     </Sheet>
 
     <AdminDialog v-if="isAdmin" v-model:open="adminDialogOpen" />
+
+    <!-- Clip viewer modal — fixed overlay, stream + chat continue behind it -->
+    <ClipViewerModal v-if="isClipModalOpen" />
   </div>
 </template>
 

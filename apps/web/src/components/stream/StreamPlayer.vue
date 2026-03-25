@@ -7,6 +7,8 @@ import { useStreamZoom } from '@/composables/useStreamZoom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import StateOverlay from './StateOverlay.vue';
+import ClipEditor from './ClipEditor.vue';
+import type { SegmentRange } from '@/composables/useClipCreate';
 
 import { getPetName } from '@/lib/env';
 
@@ -17,16 +19,29 @@ const props = defineProps<{
   showLandscapeTapToggle?: boolean;
   showPreviewButton?: boolean;
   adminPreview?: boolean;
+  clipEditorOpen?: boolean;
+  clipSegmentRange?: SegmentRange | null;
 }>();
 
 const emit = defineEmits<{
   toggleChatSidebar: [];
   startPreview: [];
   stopPreview: [];
+  'clip-editor-close': [];
 }>();
+
+// Lazy-mount: once opened, keep in DOM
+const hasClipEditorBeenOpened = ref(false);
+watch(
+  () => props.clipEditorOpen,
+  (open) => {
+    if (open) hasClipEditorBeenOpened.value = true;
+  },
+);
 
 const petName = getPetName();
 const videoRef = ref<HTMLVideoElement | null>(null);
+const hlsVideoRef = ref<HTMLVideoElement | null>(null);
 const tapOverlayVisible = ref(false);
 let tapTimer: ReturnType<typeof setTimeout> | null = null;
 const { startWhep, stopWhep, isHealthy, clientFrozen } = useWhep();
@@ -87,108 +102,140 @@ onUnmounted(() => {
   if (tapTimer) clearTimeout(tapTimer);
 });
 
-defineExpose({ videoRef });
+defineExpose({ videoRef, hlsVideoRef });
 </script>
 
 <template>
   <div
     data-stream-container
     :ref="assignContainerRef"
-    class="relative isolate w-full portrait:aspect-video landscape:h-full overflow-hidden touch-none"
+    class="relative isolate w-full portrait:aspect-video landscape:h-full overflow-hidden touch-none flex flex-col"
     :class="{
       'cursor-grab': scale > 1 && !isDragging,
       'cursor-grabbing': isDragging,
     }"
     @click="handleTap"
   >
-    <!-- Connecting: Skeleton -->
-    <div
-      v-if="effectiveStreamState === 'connecting'"
-      data-skeleton
-      class="absolute inset-0 animate-pulse bg-[hsl(var(--surface))]"
-    />
+    <!-- Video area (flex-1 shrinks when controls appear) -->
+    <div class="flex-1 min-h-0 relative flex items-center justify-center">
+      <!-- Connecting: Skeleton -->
+      <div
+        v-if="effectiveStreamState === 'connecting'"
+        data-skeleton
+        class="absolute inset-0 animate-pulse bg-[hsl(var(--surface))]"
+      />
 
-    <!-- Video element -->
-    <video
-      ref="videoRef"
-      class="w-full h-full object-contain transform-gpu will-change-transform"
-      role="img"
-      :aria-label="`Live stream of ${petName}`"
-      :style="{
-        transform: zoomTransform,
-        transformOrigin: 'center center',
-        transition: isResetting ? 'transform 0.3s ease-out' : 'none',
-      }"
-      autoplay
-      muted
-      playsinline
-    />
+      <!-- WHEP Video element -->
+      <video
+        ref="videoRef"
+        data-whep-video
+        class="w-full h-full object-contain transform-gpu will-change-transform"
+        role="img"
+        :aria-label="`Live stream of ${petName}`"
+        :style="{
+          transform: zoomTransform,
+          transformOrigin: 'center center',
+          transition: isResetting ? 'transform 0.3s ease-out' : 'none',
+        }"
+        autoplay
+        muted
+        playsinline
+      />
 
-    <!-- Server-reported state overlays, plus while transitioning back from offline to live -->
-    <StateOverlay
-      v-if="effectiveStreamState === 'unreachable' || effectiveStreamState === 'explicit-offline' || (effectiveStreamState === 'live' && !isHealthy && prevStateWasOffline)"
-      :variant="effectiveStreamState === 'explicit-offline' ? 'explicit-offline' : 'unreachable'"
-      :show-preview-button="showPreviewButton"
-      @preview="emit('startPreview')"
-    />
+      <!-- HLS Video element (clip preview, overlays WHEP when clip editor is open) -->
+      <video
+        v-if="hasClipEditorBeenOpened"
+        v-show="clipEditorOpen"
+        ref="hlsVideoRef"
+        data-hls-video
+        class="absolute inset-0 w-full h-full object-contain z-20"
+        muted
+        playsinline
+      />
 
-    <!-- Admin preview mode: Stop Preview button -->
-    <Button
-      v-if="adminPreview && streamState === 'explicit-offline'"
-      data-preview-badge
-      variant="outline"
-      size="sm"
-      class="absolute top-2 right-2 z-20 border-white/40 text-white/80 bg-black/50 hover:bg-black/70 hover:text-white"
-      @click.stop="emit('stopPreview')"
-    >
-      Stop Preview
-    </Button>
+      <!-- Server-reported state overlays, plus while transitioning back from offline to live -->
+      <StateOverlay
+        v-if="effectiveStreamState === 'unreachable' || effectiveStreamState === 'explicit-offline' || (effectiveStreamState === 'live' && !isHealthy && prevStateWasOffline)"
+        :variant="effectiveStreamState === 'explicit-offline' ? 'explicit-offline' : 'unreachable'"
+        :show-preview-button="showPreviewButton"
+        @preview="emit('startPreview')"
+      />
 
-    <!-- Client-side loading/reconnecting overlay: initial connect or mid-session drop.
-         Not shown when coming back from a server-reported offline state (prevStateWasOffline),
-         since the server overlay stays until healthy in that case. -->
-    <div
-      v-if="effectiveStreamState === 'live' && !isHealthy && !prevStateWasOffline"
-      data-client-overlay
-      class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90"
-    >
-      <svg
-        class="h-8 w-8 animate-spin text-white/40"
-        xmlns="http://www.w3.org/2000/svg"
-        fill="none"
-        viewBox="0 0 24 24"
-        aria-hidden="true"
+      <!-- Admin preview mode: Stop Preview button -->
+      <Button
+        v-if="adminPreview && streamState === 'explicit-offline'"
+        data-preview-badge
+        variant="outline"
+        size="sm"
+        class="absolute top-2 right-2 z-20 border-white/40 text-white/80 bg-black/50 hover:bg-black/70 hover:text-white"
+        @click.stop="emit('stopPreview')"
       >
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-      </svg>
-      <p v-if="clientFrozen" class="text-sm text-white/60">Reconnecting...</p>
-    </div>
+        Stop Preview
+      </Button>
 
-    <!-- Landscape-only tap-to-reveal chat toggle (touch only, 3s auto-hide) -->
-    <div
-      v-if="showLandscapeTapToggle"
-      class="absolute inset-y-0 right-3 flex items-center pointer-events-auto transition-opacity duration-300"
-      :class="tapOverlayVisible ? 'opacity-100' : 'opacity-0'"
-    >
-      <div class="relative">
-        <Button
-          variant="ghost"
-          size="icon"
-          class="w-11 h-11 text-white hover:bg-white/20"
-          :aria-label="(unreadCount ?? 0) > 0 ? `Open chat (${unreadCount} unread)` : 'Open chat'"
-          @click.stop="emit('toggleChatSidebar')"
-        >
-          <ChevronLeft class="w-5 h-5" />
-        </Button>
-        <Badge
-          v-if="(unreadCount ?? 0) > 0"
-          class="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[10px] border-2 border-black/60 pointer-events-none"
+      <!-- Client-side loading/reconnecting overlay: initial connect or mid-session drop.
+           Not shown when coming back from a server-reported offline state (prevStateWasOffline),
+           since the server overlay stays until healthy in that case. -->
+      <div
+        v-if="effectiveStreamState === 'live' && !isHealthy && !prevStateWasOffline"
+        data-client-overlay
+        class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/90"
+      >
+        <svg
+          class="h-8 w-8 animate-spin text-white/40"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
           aria-hidden="true"
         >
-          {{ (unreadCount ?? 0) > 99 ? '99+' : unreadCount }}
-        </Badge>
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" />
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <p v-if="clientFrozen" class="text-sm text-white/60">Reconnecting...</p>
       </div>
+
+      <!-- Landscape-only tap-to-reveal chat toggle (touch only, 3s auto-hide) -->
+      <div
+        v-if="showLandscapeTapToggle"
+        class="absolute inset-y-0 right-3 flex items-center pointer-events-auto transition-opacity duration-300"
+        :class="tapOverlayVisible ? 'opacity-100' : 'opacity-0'"
+      >
+        <div class="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            class="w-11 h-11 text-white hover:bg-white/20"
+            :aria-label="(unreadCount ?? 0) > 0 ? `Open chat (${unreadCount} unread)` : 'Open chat'"
+            @click.stop="emit('toggleChatSidebar')"
+          >
+            <ChevronLeft class="w-5 h-5" />
+          </Button>
+          <Badge
+            v-if="(unreadCount ?? 0) > 0"
+            class="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 text-[10px] border-2 border-black/60 pointer-events-none"
+            aria-hidden="true"
+          >
+            {{ (unreadCount ?? 0) > 99 ? '99+' : unreadCount }}
+          </Badge>
+        </div>
+      </div>
+    </div>
+
+    <!-- Clip editor controls (slides up via max-height transition).
+         600px is well above actual content height (~350px); overflow-hidden clips
+         during transition only — content is never truncated when fully open. -->
+    <div
+      class="overflow-hidden transition-[max-height] duration-300 ease-out"
+      :style="{ maxHeight: clipEditorOpen ? '600px' : '0px' }"
+    >
+      <ClipEditor
+        v-if="hasClipEditorBeenOpened && clipSegmentRange"
+        :segment-range="clipSegmentRange"
+        :stream-state="streamState"
+        :open="!!clipEditorOpen"
+        :hls-video-el="hlsVideoRef"
+        @close="emit('clip-editor-close')"
+      />
     </div>
   </div>
 </template>

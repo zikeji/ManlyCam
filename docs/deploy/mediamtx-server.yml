@@ -1,6 +1,6 @@
 # ManlyCam server-side mediamtx configuration
 # Role: ingest RTSP from the Pi (via frp tunnel) → publish as WebRTC WHEP for browsers.
-# All protocols except WebRTC and API are disabled to minimise attack surface.
+# HLS output is enabled for clip recording (served via HTTP on port 8090).
 #
 # Setup:
 #   1. Copy this file to the deploy directory as mediamtx-server.yml
@@ -8,14 +8,23 @@
 #      (FRP_HOST is typically "frps" in Docker Compose; FRP_RTSP_PORT defaults to 11935)
 #   3. The compose file mounts this as /mediamtx.yml inside the mediamtx container
 
-rtspAddress: ":0"       # disabled — mediamtx pulls RTSP from frps as a client, not a listener
-rtmpAddress: ":0"       # disabled
-hlsAddress: ":0"        # disabled
-srtAddress: ":0"        # disabled
-webrtcAddress: ":8888"  # WebRTC WHEP — Hono proxies this to authenticated browsers
+rtspAddress: ':0' # disabled — mediamtx pulls RTSP from frps as a client, not a listener
+rtmpAddress: ':0' # disabled
+srtAddress: ':0' # disabled
+webrtcAddress: ':8888' # WebRTC WHEP — Hono proxies this to authenticated browsers
+
+# HLS output for clip recording (internal-only, not exposed to browsers)
+hls: true # Enable HLS output
+hlsAddress: ':8090' # HLS HTTP server — internal only, not published to host
+hlsSegmentDuration: '2s' # Segment length — shorter = more frequent keyframes for precise clipping
+# Rolling buffer depth: desired_buffer_minutes × 60 / hlsSegmentDuration
+# Example: 15 min buffer with 2s segments = 450 segments
+hlsSegmentCount: 450 # 450 × 2s = ~15 min rolling buffer
+hlsVariant: mpegts # Use MPEG-TS format for better clip extraction compatibility
+hlsAlwaysRemux: true # Generate HLS segments continuously (not just when clients are connected)
 
 api: yes
-apiAddress: ":9997"     # HTTP API — server polls for Pi reachability
+apiAddress: ':9997' # HTTP API — server polls for Pi reachability
 
 # Required for Docker: allow Hono container to poll API and read streams without authentication
 # (Since MediaMTX ports 8888/9997 are not exposed to the host, this is safe)
@@ -37,3 +46,5 @@ paths:
     rtspTransport: automatic
     # Improve stability through tunnels
     readTimeout: 10s
+    # Preserve original frame timestamps for accurate clip/UI synchronization
+    useAbsoluteTimestamp: true

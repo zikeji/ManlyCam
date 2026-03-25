@@ -1,6 +1,12 @@
 import { ref, computed } from 'vue';
 import { apiFetch } from '@/lib/api';
-import type { ChatMessage, ChatEdit, UserProfile } from '@manlycam/types';
+import type {
+  ChatMessage,
+  ChatEdit,
+  ClipChatMessage,
+  ClipVisibilityChangedPayload,
+  UserProfile,
+} from '@manlycam/types';
 
 // Module-level singletons — all callers share the same refs (same pattern as useStream)
 // Exported directly for test reset (do not access via useChat factory in tests)
@@ -52,6 +58,69 @@ export const dismissEphemeral = (id: string): void => {
   ephemeralMessages.value = ephemeralMessages.value.filter((m) => m.id !== id);
 };
 
+// Updates chat clip cards when a clip:visibility-changed WS message arrives.
+// - private/deleted: tombstones matching cards immediately in active sessions
+// - shared/public: restores tombstones to live cards AND updates live cards with latest clip data
+export const handleClipTombstoneRestore = (payload: ClipVisibilityChangedPayload): void => {
+  if (!payload.chatClipIds?.length) return;
+
+  const ids = new Set(payload.chatClipIds);
+  const isVisible = payload.visibility === 'shared' || payload.visibility === 'public';
+
+  messages.value = messages.value.map((msg) => {
+    if (msg.messageType !== 'clip' || !ids.has(msg.id)) return msg;
+
+    if (!isVisible) {
+      return { ...msg, tombstone: true } as ClipChatMessage;
+    }
+
+    if (!payload.clip) return msg;
+
+    const clipData = payload.clip;
+    const updated: ClipChatMessage = {
+      ...(msg as ClipChatMessage),
+      clipId: clipData.clipId,
+      clipName: clipData.clipName,
+      clipDurationSeconds: clipData.clipDurationSeconds,
+      clipThumbnailUrl: clipData.clipThumbnailUrl,
+      clipperName: clipData.clipperName,
+      clipperAvatarUrl: clipData.clipperAvatarUrl,
+      tombstone: undefined,
+    };
+    return updated;
+  });
+};
+
+// Merges incoming messages into the existing list:
+// - Prepends messages with new IDs
+// - Applies tombstone from incoming to existing
+// - Restores tombstoned clips when incoming version is live
+// - Sorts by ID (ULIDs are chronologically sortable) for correct order
+function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]): ChatMessage[] {
+  const incomingMap = new Map(incoming.map((m) => [m.id, m]));
+  const existingIds = new Set(existing.map((m) => m.id));
+
+  // Apply updates to existing messages
+  const existingUpdated = existing.map((msg) => {
+    const incomingVersion = incomingMap.get(msg.id);
+    if (incomingVersion?.messageType === 'clip') {
+      if (incomingVersion.tombstone) {
+        // Incoming is tombstoned — apply to existing
+        return { ...msg, tombstone: true } as ClipChatMessage;
+      } else if ((msg as ClipChatMessage).tombstone) {
+        // Incoming is live, existing is tombstoned — restore with fresh data
+        return { ...msg, ...incomingVersion, tombstone: undefined } as ClipChatMessage;
+      }
+    }
+    return msg;
+  });
+
+  // Prepend only messages that are not already in the existing list
+  const newMessages = incoming.filter((m) => !existingIds.has(m.id));
+  // Sort by ID (ULIDs are chronologically sortable) to ensure correct order
+  return [...newMessages, ...existingUpdated].sort((a, b) => a.id.localeCompare(b.id));
+}
+
 export const useChat = () => {
   const sendChatMessage = async (content: string): Promise<void> => {
     await apiFetch<{ message: ChatMessage }>('/api/chat/messages', {
@@ -71,7 +140,7 @@ export const useChat = () => {
     const data = await apiFetch<{ messages: ChatMessage[]; hasMore: boolean }>(
       '/api/chat/history?limit=50',
     );
-    messages.value = [...data.messages, ...messages.value];
+    messages.value = mergeMessages(messages.value, data.messages);
     hasMore.value = data.hasMore;
     isLoadingHistory.value = false;
   };
@@ -84,7 +153,7 @@ export const useChat = () => {
       ? `/api/chat/history?limit=50&before=${before}`
       : '/api/chat/history?limit=50';
     const data = await apiFetch<{ messages: ChatMessage[]; hasMore: boolean }>(url);
-    messages.value = [...data.messages, ...messages.value];
+    messages.value = mergeMessages(messages.value, data.messages);
     hasMore.value = data.hasMore;
     isLoadingHistory.value = false;
   };

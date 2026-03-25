@@ -7,11 +7,32 @@ import { computeUserTag } from '../lib/user-tag.js';
 import { executeCommand } from './slashCommands.js';
 import { getReactionsForMessages } from './reactionsService.js';
 import { SYSTEM_USER_ID } from '@manlycam/types';
-import type { ChatMessage, ChatEdit, Reaction, Role, WsMessage } from '@manlycam/types';
+import type {
+  TextChatMessage,
+  ClipChatMessage,
+  ChatMessage,
+  ChatEdit,
+  Reaction,
+  Role,
+  WsMessage,
+} from '@manlycam/types';
 import { ROLE_RANK } from '@manlycam/types';
 import type { User } from '@prisma/client';
 
 type EditHistoryEntry = { content: string; editedAt: string };
+
+type ClipRow = {
+  id: string;
+  name: string;
+  visibility: string;
+  deletedAt: Date | null;
+  thumbnailKey: string | null;
+  durationSeconds: number | null;
+  showClipper: boolean;
+  showClipperAvatar: boolean;
+  clipperName: string | null;
+  clipperAvatarUrl: string | null;
+};
 
 type MessageRow = {
   id: string;
@@ -23,16 +44,34 @@ type MessageRow = {
   deletedBy: string | null;
   createdAt: Date;
   user: User;
+  clipId?: string | null;
+  messageType?: string;
+  clip?: ClipRow | null;
 };
 
-function toApiChatMessage(row: MessageRow, reactions?: Reaction[]): ChatMessage {
-  return {
+const CLIP_SELECT = {
+  id: true,
+  name: true,
+  visibility: true,
+  deletedAt: true,
+  thumbnailKey: true,
+  durationSeconds: true,
+  showClipper: true,
+  showClipperAvatar: true,
+  clipperName: true,
+  clipperAvatarUrl: true,
+} as const;
+
+function toApiChatMessage(
+  row: MessageRow,
+  reactions?: Reaction[],
+): TextChatMessage | ClipChatMessage {
+  const base = {
     id: row.id,
     userId: row.userId,
     displayName: row.user.displayName,
     avatarUrl: row.user.avatarUrl,
     authorRole: row.user.role as Role,
-    content: row.content,
     editHistory: (row.editHistory as { content: string; editedAt: string }[] | null) ?? null,
     updatedAt: row.updatedAt?.toISOString() ?? null,
     deletedAt: null,
@@ -40,6 +79,34 @@ function toApiChatMessage(row: MessageRow, reactions?: Reaction[]): ChatMessage 
     createdAt: row.createdAt.toISOString(),
     userTag: computeUserTag(row.user),
     reactions: reactions ?? [],
+  };
+
+  if (row.messageType === 'clip') {
+    const clip = row.clip ?? null;
+    const isTombstone = !clip || clip.visibility === 'private' || clip.deletedAt !== null;
+
+    const msg: ClipChatMessage = {
+      ...base,
+      messageType: 'clip',
+      content: row.content,
+      clipId: row.clipId ?? '',
+      clipName: clip?.name ?? '',
+      clipDurationSeconds: clip?.durationSeconds ?? null,
+    };
+
+    if (isTombstone) msg.tombstone = true;
+    if (clip?.thumbnailKey) msg.clipThumbnailUrl = `/api/clips/${clip.id}/thumbnail`;
+    if (clip?.showClipper && clip.clipperName) msg.clipperName = clip.clipperName;
+    if (clip?.showClipperAvatar && clip.clipperAvatarUrl)
+      msg.clipperAvatarUrl = clip.clipperAvatarUrl;
+
+    return msg;
+  }
+
+  return {
+    ...base,
+    messageType: 'text',
+    content: row.content,
   };
 }
 
@@ -67,12 +134,13 @@ export async function createMessage(params: {
     });
     if (result !== null) {
       if (result.response.ephemeral) {
-        const ephemeralMsg: ChatMessage = {
+        const ephemeralMsg: TextChatMessage = {
           id: ulid(),
           userId: SYSTEM_USER_ID,
           displayName: 'System',
           avatarUrl: null,
           authorRole: 'System' as Role,
+          messageType: 'text',
           content: result.response.content,
           editHistory: null,
           updatedAt: null,
@@ -93,7 +161,7 @@ export async function createMessage(params: {
   const id = ulid();
   const message = await prisma.message.create({
     data: { id, userId: messageAuthorId, content },
-    include: { user: true },
+    include: { user: true, clip: { select: CLIP_SELECT } },
   });
 
   const chatMessage = toApiChatMessage(message as MessageRow);
@@ -118,7 +186,7 @@ export async function getHistory(params: {
     },
     orderBy: { id: 'desc' },
     take: fetchLimit + 1,
-    include: { user: true },
+    include: { user: true, clip: { select: CLIP_SELECT } },
   });
 
   const hasMore = rows.length > fetchLimit;

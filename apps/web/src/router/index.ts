@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import LoginView from '@/views/LoginView.vue';
 import RejectedView from '@/views/RejectedView.vue';
 import BannedView from '@/views/BannedView.vue';
+import ClipPage from '@/views/ClipPage.vue';
 import { user, authLoading, fetchCurrentUser } from '@/composables/useAuth';
 
 // Called by useAuth.logout() to signal that auth state has been invalidated.
@@ -16,11 +17,13 @@ export const router = createRouter({
     { path: '/', component: LoginView }, // App.vue switches to WatchView when authenticated
     { path: '/rejected', component: RejectedView },
     { path: '/banned', component: BannedView },
+    { path: '/clips/:id', component: ClipPage },
   ],
 });
 
 router.beforeEach(async (to) => {
   if (to.path === '/rejected' || to.path === '/banned') return true;
+  if (to.path.startsWith('/clips/')) return true;
 
   // Fetch user if not yet loaded (authLoading resets to true after logout)
   if (authLoading.value) {
@@ -28,5 +31,6 @@ router.beforeEach(async (to) => {
   }
 
   if (user.value?.bannedAt) return '/banned';
+
   return true;
 });

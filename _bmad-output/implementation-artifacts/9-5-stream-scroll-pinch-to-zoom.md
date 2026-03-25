@@ -1,6 +1,6 @@
 # Story 9-5: Stream Scroll/Pinch-to-Zoom
 
-Status: ready-for-review
+Status: done
 
 ## Story
 
@@ -94,6 +94,7 @@ Apply the CSS transform (`scale` + `translate`) to the `<video>` element itself,
 ### `transform-origin` for Cursor-Centered Zoom
 
 When the user scrolls at a cursor position `(cx, cy)` relative to the container:
+
 1. Compute cursor offset from container center: `offsetX = cx - containerWidth/2`, `offsetY = cy - containerHeight/2`
 2. New translate: `translateX = (translateX - offsetX) * (newScale / oldScale) + offsetX`, same for Y
 3. Clamp translate after computing (see pan clamp section below)
@@ -136,6 +137,7 @@ Without `{ passive: false }`, Chrome ignores `event.preventDefault()` on wheel e
 ### Pinch Gesture Implementation
 
 Use the Pointer Events API (not Touch Events) for cross-device compatibility:
+
 - `pointerdown`: if `event.pointerType === 'touch'`, add pointer to active map and call `event.target.setPointerCapture(event.pointerId)`
 - `pointermove`: if 2 pointers in active map, compute distance = `Math.hypot(dx, dy)` between them; if `|newDistance - prevDistance| < 2px`, skip (jitter threshold — prevents noisy micro-scale changes on touch); otherwise derive `scaleMultiplier = newDistance / prevDistance`, apply to current scale, update prevDistance, clamp
 - `pointerup`/`pointercancel`: remove from active map
@@ -147,6 +149,7 @@ Do NOT import `usePointerSwipe` from VueUse for this — it does not support pin
 Only enable drag-pan when `scale > 1` and the active pointer count is 1 (not mid-pinch). Use `setPointerCapture` on `pointerdown` so `pointermove` fires even if pointer leaves the element.
 
 Cursor classes on `data-stream-container`:
+
 - `scale === 1`: `cursor-zoom-in` (indicates scroll/pinch zoom is available)
 - `scale > 1`, not dragging: `cursor-grab`
 - dragging: `cursor-grabbing`
@@ -196,6 +199,7 @@ No `export default`.
 ### Coverage Thresholds
 
 Current web coverage thresholds (from `vite.config.ts`):
+
 - lines: 90%, functions: 64%, branches: 90%, statements: 90%
 
 Do not lower thresholds. The new composable must be fully covered or have explicit `/* istanbul ignore */` annotations on untestable branches.

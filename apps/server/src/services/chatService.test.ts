@@ -59,6 +59,22 @@ const mockMessageRow = {
   deletedBy: null,
   createdAt: new Date('2026-03-08T10:00:00.000Z'),
   user: mockUser,
+  clipId: null,
+  messageType: 'text',
+  clip: null,
+};
+
+const CLIP_SELECT = {
+  id: true,
+  name: true,
+  visibility: true,
+  deletedAt: true,
+  thumbnailKey: true,
+  durationSeconds: true,
+  showClipper: true,
+  showClipperAvatar: true,
+  clipperName: true,
+  clipperAvatarUrl: true,
 };
 
 describe('chatService.createMessage — slash commands', () => {
@@ -107,7 +123,7 @@ describe('chatService.createMessage — slash commands', () => {
         userId: SYSTEM_USER_ID,
         content: 'Modified content',
       },
-      include: { user: true },
+      include: { user: true, clip: { select: CLIP_SELECT } },
     });
     expect(result).not.toBeNull();
     expect(wsHub.broadcast).toHaveBeenCalledWith(expect.objectContaining({ type: 'chat:message' }));
@@ -134,11 +150,11 @@ describe('chatService.createMessage', () => {
         userId: 'user-001',
         content: 'Hello world',
       },
-      include: { user: true },
+      include: { user: true, clip: { select: CLIP_SELECT } },
     });
   });
 
-  it('returns a ChatMessage shape with correct fields', async () => {
+  it('returns a TextChatMessage shape with correct fields', async () => {
     const result = await createMessage({
       userId: 'user-001',
       userDisplayName: 'Test User',
@@ -152,6 +168,7 @@ describe('chatService.createMessage', () => {
       displayName: 'Test User',
       avatarUrl: null,
       authorRole: 'ViewerCompany',
+      messageType: 'text',
       content: 'Hello world',
       editHistory: null,
       updatedAt: null,
@@ -251,7 +268,7 @@ describe('chatService.getHistory', () => {
       where: { deletedAt: null },
       orderBy: { id: 'desc' },
       take: 51,
-      include: { user: true },
+      include: { user: true, clip: { select: CLIP_SELECT } },
     });
   });
 
@@ -264,7 +281,7 @@ describe('chatService.getHistory', () => {
       where: { deletedAt: null, id: { lt: 'CURSOR001' } },
       orderBy: { id: 'desc' },
       take: 51,
-      include: { user: true },
+      include: { user: true, clip: { select: CLIP_SELECT } },
     });
   });
 
@@ -328,7 +345,7 @@ describe('chatService.getHistory', () => {
     expect(prisma.message.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 51 }));
   });
 
-  it('maps rows to ChatMessage shape', async () => {
+  it('maps rows to TextChatMessage shape', async () => {
     vi.mocked(prisma.message.findMany).mockResolvedValue([mockMessageRow] as never);
 
     const result = await getHistory({});
@@ -339,6 +356,7 @@ describe('chatService.getHistory', () => {
       displayName: 'Test User',
       avatarUrl: null,
       authorRole: 'ViewerCompany',
+      messageType: 'text',
       content: 'Hello world',
       editHistory: null,
       updatedAt: null,
@@ -640,5 +658,194 @@ describe('chatService.deleteMessage', () => {
     await expect(
       deleteMessage({ messageId: 'msg-001', userId: 'user-001', callerRole: 'Moderator' }),
     ).rejects.toMatchObject({ statusCode: 403, code: 'INSUFFICIENT_ROLE' });
+  });
+});
+
+describe('chatService.toApiChatMessage — clip messages', () => {
+  const baseClip = {
+    id: 'clip-001',
+    name: 'My Clip',
+    visibility: 'shared',
+    deletedAt: null,
+    thumbnailKey: 'clips/clip-001/thumbnail.jpg',
+    durationSeconds: 42,
+    showClipper: false,
+    showClipperAvatar: false,
+    clipperName: null,
+    clipperAvatarUrl: null,
+  };
+
+  const clipMessageRow = {
+    ...mockMessageRow,
+    messageType: 'clip',
+    clipId: 'clip-001',
+    content: '',
+    clip: baseClip,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns ClipChatMessage for messageType=clip with clip data', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([clipMessageRow] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.clipId).toBe('clip-001');
+      expect(msg.clipName).toBe('My Clip');
+      expect(msg.clipDurationSeconds).toBe(42);
+      expect(msg.clipThumbnailUrl).toBe('/api/clips/clip-001/thumbnail');
+      expect(msg.tombstone).toBeUndefined();
+    }
+  });
+
+  it('tombstone=true when clip is null (cascade-nulled)', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { ...clipMessageRow, clip: null, clipId: null },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.tombstone).toBe(true);
+    }
+  });
+
+  it('tombstone=true when clip visibility is private', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { ...clipMessageRow, clip: { ...baseClip, visibility: 'private' } },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.tombstone).toBe(true);
+    }
+  });
+
+  it('tombstone=true when clip.deletedAt is set', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { ...clipMessageRow, clip: { ...baseClip, deletedAt: new Date() } },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.tombstone).toBe(true);
+    }
+  });
+
+  it('omits clipThumbnailUrl when thumbnailKey is null', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { ...clipMessageRow, clip: { ...baseClip, thumbnailKey: null } },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.clipThumbnailUrl).toBeUndefined();
+    }
+  });
+
+  it('includes clipperName when showClipper=true and clipperName is set', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      {
+        ...clipMessageRow,
+        clip: { ...baseClip, showClipper: true, clipperName: 'Alice' },
+      },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.clipperName).toBe('Alice');
+    }
+  });
+
+  it('omits clipperName when showClipper=false', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      {
+        ...clipMessageRow,
+        clip: { ...baseClip, showClipper: false, clipperName: 'Alice' },
+      },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.clipperName).toBeUndefined();
+    }
+  });
+
+  it('includes clipperAvatarUrl when showClipperAvatar=true and url is set', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      {
+        ...clipMessageRow,
+        clip: {
+          ...baseClip,
+          showClipperAvatar: true,
+          clipperAvatarUrl: 'http://example.com/avatar.jpg',
+        },
+      },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.clipperAvatarUrl).toBe('http://example.com/avatar.jpg');
+    }
+  });
+
+  it('omits clipperAvatarUrl when showClipperAvatar=false', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      {
+        ...clipMessageRow,
+        clip: {
+          ...baseClip,
+          showClipperAvatar: false,
+          clipperAvatarUrl: 'http://example.com/avatar.jpg',
+        },
+      },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.clipperAvatarUrl).toBeUndefined();
+    }
+  });
+
+  it('clipId falls back to empty string when null (cascade-nulled tombstone)', async () => {
+    vi.mocked(prisma.message.findMany).mockResolvedValue([
+      { ...clipMessageRow, clip: null, clipId: null },
+    ] as never);
+
+    const result = await getHistory({});
+    const msg = result.messages[0];
+
+    expect(msg.messageType).toBe('clip');
+    if (msg.messageType === 'clip') {
+      expect(msg.clipId).toBe('');
+    }
   });
 });

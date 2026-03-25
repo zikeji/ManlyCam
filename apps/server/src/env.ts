@@ -17,6 +17,18 @@ const envSchema = z.object({
   PET_NAME: z.string().min(1),
   SITE_NAME: z.string().min(1),
   FRP_PISUGAR_PORT: z.coerce.number().optional(),
+  S3_ENDPOINT: z.string().min(1),
+  S3_BUCKET: z.string().min(1),
+  S3_ACCESS_KEY: z.string().min(1),
+  S3_SECRET_KEY: z.string().min(1),
+  S3_REGION: z.string().min(1),
+  S3_FORCE_PATH_STYLE: z
+    .string()
+    .transform((v) => v !== 'false')
+    .default('true'),
+  MTX_HLS_URL: z.string().url().default('http://127.0.0.1:8090'),
+  CLIP_MIN_DURATION_SECONDS: z.coerce.number().min(1).default(10),
+  CLIP_MAX_DURATION_SECONDS: z.coerce.number().min(1).default(120),
 });
 
 const result = envSchema.safeParse(process.env);

@@ -35,6 +35,9 @@ export class StreamService {
     this.adminToggle = toggle;
     await prisma.$transaction(async (tx) => {
       await streamConfig.setWithClient(tx, 'adminToggle', toggle);
+      if (toggle === 'live') {
+        await streamConfig.setWithClient(tx, 'stream_started_at', new Date().toISOString());
+      }
       await tx.auditLog.create({
         data: {
           id: ulid(),
@@ -43,7 +46,50 @@ export class StreamService {
         },
       });
     });
+    if (toggle === 'live') {
+      this.cacheHlsPlaylistName().catch((err) => {
+        logger.warn(
+          { err },
+          'stream: failed to cache HLS playlist name on live toggle (will retry on first clip)',
+        );
+      });
+    }
+    if (toggle === 'offline') {
+      this.flushHlsPath().catch((err) => {
+        logger.error({ err }, 'stream: failed to flush HLS path on offline toggle');
+      });
+    }
     this.broadcastState();
+  }
+
+  async cacheHlsPlaylistName(): Promise<void> {
+    const indexUrl = `${env.MTX_HLS_URL}/cam/index.m3u8`;
+    const res = await fetch(indexUrl);
+    if (!res.ok) {
+      logger.warn({ status: res.status }, 'stream: failed to fetch HLS master playlist');
+      return;
+    }
+    const text = await res.text();
+    const match = text.match(/^([^\s#][^\s]*\.m3u8)$/m);
+    if (!match) {
+      logger.warn(
+        { text },
+        'stream: could not parse stream playlist filename from master playlist',
+      );
+      return;
+    }
+    const playlistName = match[1];
+    await streamConfig.set('hls_stream_playlist', playlistName);
+    logger.info({ playlistName }, 'stream: cached HLS stream playlist name');
+  }
+
+  async flushHlsPath(): Promise<void> {
+    const res = await fetch(`${env.MTX_API_URL}/v3/hlsmuxers/delete/cam`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      logger.warn({ status: res.status }, 'stream: HLS path flush returned non-ok status');
+    }
   }
 
   async start(): Promise<void> {

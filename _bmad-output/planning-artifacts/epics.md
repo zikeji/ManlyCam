@@ -111,6 +111,17 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 - FR64: Browser Notifications — chat message, @mention, and stream state change notifications with granular per-type user preferences; scoped to active browser tabs only (no service worker/push API)
 - FR65: Programmable Slash Commands — admin-defined JavaScript commands with name, description, placeholder, handler, and role-based visibility gate; ephemeral response option; built-in text expansions (`/shrug`, `/tableflip`)
 
+**Clipping & Clip Sharing (Epic 10)**
+
+- FR66: Clip Creation — Any authenticated user (all roles including ViewerGuest) can clip a segment from the server-side HLS rolling buffer; preset duration options (30s, 1min, 2min) preselect a range in the clip scrubber UI which can be manually adjusted; all authenticated users are rate-limited (5 clips/hour) except Moderator and Admin who are exempt
+- FR67: Clip Processing Pipeline — Server-side ffmpeg extracts clips from HLS segments using stream copy (no re-encoding), uploads to configured S3-compatible storage (Backblaze B2 in production, RustFS container in development); clips carry `pending`/`ready`/`failed` status; a persistent Sonner toast tracks processing progress without disrupting stream visibility; a thumbnail is captured and stored for each clip
+- FR68: Clip Visibility Tiers — Three states: `private` (owner + Admin only), `shared` (accessible by all authenticated users via direct link and visible in the shared clips view), `public` (accessible by unauthenticated users via direct link and shareable externally); only Admin or Moderator can set visibility to `public`; a clip made private after being shared in chat tombstones the chat card on the next history load; a clip made shared/public while referenced in chat restores its live preview to all connected clients in real-time
+- FR69: My Clips Dialog — Authenticated users open a dialog from the profile popover (above Preferences) to view and manage their own clips (edit title, description, visibility); a toggle reveals shared clips from all other users; Admin users can additionally toggle to view all clips regardless of visibility; each clip card exposes Copy Link and Share to Chat actions
+- FR70: Chat Clip Sharing — Clips can be shared to chat at creation time via a "Share to chat when ready" checkbox, or manually from My Clips; shared clips appear as a distinct clip message type in the chat timeline with thumbnail, title, duration, and a Watch action; clicking Watch opens a modal overlay so the stream continues behind it; the browser URL updates to `/clips/[id]` while the modal is open enabling direct-link copying; refreshing while in this state renders the standalone clip page
+- FR71: Chat Clip Tombstone — When a clip referenced in the chat timeline is set to private, subsequent message history loads replace the clip card with a "This clip is private" placeholder of identical dimensions; currently connected viewers are not disrupted but will see the placeholder on their next history fetch; no information about the original clip content is exposed in the placeholder
+- FR72: Public Clip Pages — Public clips are accessible at `/clips/[id]` without authentication; the page renders a video player, title, description, and optional clipper attribution; no stream link, chat, or application navigation is shown to unauthenticated visitors; authenticated users see a stream-status-aware CTA ("Watch Live →" when stream is online, "Go to Stream →" when offline); the Hono backend injects OG meta tags (`og:title`, `og:description`, `og:image`) server-side before serving `index.html` enabling social unfurling without SSR; non-public clips return 403 to unauthenticated requests
+- FR73: Clipper Attribution — When a clip is set to public, Admin or Moderator can enable per-clip clipper attribution; controls include a "Show clipper" toggle, a conditional "Show clipper avatar" toggle, and a "Clipper name" text field (pre-filled with the user's display name, editable); attribution fields are stored on the clip record
+
 ### NonFunctional Requirements
 
 **Performance**
@@ -223,73 +234,81 @@ This document provides the complete epic and story breakdown for ManlyCam, decom
 
 ### FR Coverage Map
 
-| FR   | Epic   | Description                                                                                                             |
-| ---- | ------ | ----------------------------------------------------------------------------------------------------------------------- |
-| FR1  | Epic 2 | Unauthenticated landing page                                                                                            |
-| FR2  | Epic 2 | Google OAuth sign-in                                                                                                    |
-| FR3  | Epic 2 | Domain allowlist enforcement                                                                                            |
-| FR4  | Epic 2 | Individual email allowlist enforcement                                                                                  |
-| FR5  | Epic 2 | Rejection state post-OAuth                                                                                              |
-| FR6  | Epic 2 | No ghost accounts for rejected users                                                                                    |
-| FR7  | Epic 2 | Persistent session across visits                                                                                        |
-| FR8  | Epic 2 | Avatar from Google OAuth / Gravatar fallback                                                                            |
-| FR9  | Epic 3 | Authenticated live stream access                                                                                        |
-| FR10 | Epic 3 | 4-state stream UI (live / offline / unreachable-live / unreachable-offline)                                             |
-| FR11 | Epic 3 | Admin stream start/stop from web UI                                                                                     |
-| FR12 | Epic 3 | "Check back soon" state when Pi unreachable + toggle live                                                               |
-| FR13 | Epic 3 | Real-time state broadcast to all viewers on admin toggle                                                                |
-| FR14 | Epic 3 | Camera settings controls with real-time v4l2-ctl effect                                                                 |
-| FR15 | Epic 3 | Collapsible camera settings sidebar (admin only)                                                                        |
-| FR16 | Epic 4 | Real-time chat via WebSocket                                                                                            |
-| FR17 | Epic 4 | Markdown formatting in chat messages                                                                                    |
-| FR18 | Epic 4 | Avatar + display name with each message                                                                                 |
-| FR19 | Epic 4 | Load last 200 messages on page load                                                                                     |
-| FR20 | Epic 4 | Auto-collapse on small screens, auto-expand on large                                                                    |
-| FR21 | Epic 4 | Unread message count indicator on collapsed sidebar                                                                     |
-| FR22 | Epic 4 | Manual expand/collapse of chat sidebar                                                                                  |
-| FR23 | Epic 4 | Edit/delete own messages; revision history; soft-delete                                                                 |
-| FR24 | Epic 4 | Viewer presence list (all authenticated users)                                                                          |
-| FR25 | Epic 4 | Infinite scroll with day-boundary delineators                                                                           |
-| FR26 | Epic 5 | Moderator/Admin delete any message; soft-delete                                                                         |
-| FR27 | Epic 5 | Moderator/Admin mute user (chat-silenced, stream retained)                                                              |
-| FR28 | Epic 5 | Moderator/Admin ban user (access revoked + immediate session termination)                                               |
-| FR29 | Epic 5 | Moderator/Admin unmute user                                                                                             |
-| FR30 | Epic 5 | Audit log for all moderation actions                                                                                    |
-| FR31 | Epic 5 | Non-privileged users see no elevated options                                                                            |
-| FR32 | Epic 5 | Four-tier role hierarchy: Admin > Moderator > Viewer Company > Viewer Guest                                             |
-| FR33 | Epic 5 | Auto-assign base viewer tier on first login from allowlist match                                                        |
-| FR34 | Epic 5 | Admin role CLI-only assignment                                                                                          |
-| FR35 | Epic 5 | Admin promote/demote Moderator via web UI                                                                               |
-| FR36 | Epic 5 | Admin promote/demote any role via CLI                                                                                   |
-| FR37 | Epic 5 | Admin view all users with first-seen / last-seen timestamps                                                             |
-| FR38 | Epic 5 | Server-computed UserTag on all user profiles; default Guest UserTag for ViewerGuest                                     |
-| FR39 | Epic 5 | Admin set custom UserTag text on any user                                                                               |
-| FR40 | Epic 5 | Admin set custom UserTag color on any user                                                                              |
-| FR41 | Epic 2 | CLI add/remove domain allowlist entries                                                                                 |
-| FR42 | Epic 2 | CLI add/remove individual email allowlist entries                                                                       |
-| FR43 | Epic 2 | CLI ban/unban user accounts                                                                                             |
-| FR44 | Epic 2 | Immediate active session enforcement on allowlist/blocklist change                                                      |
-| FR45 | Epic 6 | frpc systemd service: stream proxy tunnel on boot                                                                       |
-| FR46 | Epic 6 | frpc systemd service: API proxy tunnel on boot (camera control)                                                         |
-| FR47 | Epic 6 | frpc + mediamtx systemd restart-on-failure                                                                              |
-| FR48 | Epic 6 | frpc.toml + mediamtx.yml: sensitive config in native config files                                                       |
-| FR49 | N/A    | REMOVED — no Go binary; no self-update mechanism                                                                        |
-| FR50 | Epic 6 | Install script + operator README: OS flash → camera verify → frpc/mediamtx setup                                        |
-| FR51 | Epic 6 | WiFi config: operator's choice; wifi-connect optionally documented in README                                            |
-| FR52 | Epic 3 | Single-page application constraint                                                                                      |
-| FR53 | Epic 3 | Graceful Pi tunnel-drop handling (no server crash, state broadcast)                                                     |
-| FR54 | Epic 1 | GitHub Actions CI/CD: server + web Docker images; agent CI removed                                                      |
-| FR55 | Epic 1 | Deploy-time config: pet name, site name, OAuth creds, DB URL                                                            |
-| FR56 | Epic 7 | Editable stream title in Broadcast Console (Admin/Mod); changes broadcast via WS                                        |
-| FR57 | Epic 7 | Snapshot button in Broadcast Console; client-side JPEG frame capture + download                                         |
-| FR58 | Epic 7 | PiSugar battery monitor: server TCP poller + admin-only WS broadcast + UI indicator                                     |
-| FR59 | Epic 7 | Resizable chat sidebar (desktop drag handle); width persisted to localStorage                                           |
-| FR60 | Epic 8 | Chat Emojis & Emoji Picker — full emoji picker with search and categories; `:emoji_name:` shortcuts with autocomplete   |
-| FR61 | Epic 8 | Message Reactions — react to messages with emojis; mod/admin can remove; muted users see disabled controls              |
-| FR62 | Epic 8 | Expanded Markdown — code blocks with syntax highlighting, blockquotes, links, italics, strikethrough, images, multiline |
-| FR63 | Epic 8 | @Mentions — `@Full Name` with autocomplete, highlighted messages, titlebar flash on mention                             |
-| FR64 | Epic 8 | Browser Notifications — chat, mention, stream state notifications with granular preferences                             |
-| FR65 | Epic 8 | Programmable Slash Commands — admin-defined JS commands with role-based visibility, ephemeral option                    |
+| FR   | Epic    | Description                                                                                                                                 |
+| ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| FR1  | Epic 2  | Unauthenticated landing page                                                                                                                |
+| FR2  | Epic 2  | Google OAuth sign-in                                                                                                                        |
+| FR3  | Epic 2  | Domain allowlist enforcement                                                                                                                |
+| FR4  | Epic 2  | Individual email allowlist enforcement                                                                                                      |
+| FR5  | Epic 2  | Rejection state post-OAuth                                                                                                                  |
+| FR6  | Epic 2  | No ghost accounts for rejected users                                                                                                        |
+| FR7  | Epic 2  | Persistent session across visits                                                                                                            |
+| FR8  | Epic 2  | Avatar from Google OAuth / Gravatar fallback                                                                                                |
+| FR9  | Epic 3  | Authenticated live stream access                                                                                                            |
+| FR10 | Epic 3  | 4-state stream UI (live / offline / unreachable-live / unreachable-offline)                                                                 |
+| FR11 | Epic 3  | Admin stream start/stop from web UI                                                                                                         |
+| FR12 | Epic 3  | "Check back soon" state when Pi unreachable + toggle live                                                                                   |
+| FR13 | Epic 3  | Real-time state broadcast to all viewers on admin toggle                                                                                    |
+| FR14 | Epic 3  | Camera settings controls with real-time v4l2-ctl effect                                                                                     |
+| FR15 | Epic 3  | Collapsible camera settings sidebar (admin only)                                                                                            |
+| FR16 | Epic 4  | Real-time chat via WebSocket                                                                                                                |
+| FR17 | Epic 4  | Markdown formatting in chat messages                                                                                                        |
+| FR18 | Epic 4  | Avatar + display name with each message                                                                                                     |
+| FR19 | Epic 4  | Load last 200 messages on page load                                                                                                         |
+| FR20 | Epic 4  | Auto-collapse on small screens, auto-expand on large                                                                                        |
+| FR21 | Epic 4  | Unread message count indicator on collapsed sidebar                                                                                         |
+| FR22 | Epic 4  | Manual expand/collapse of chat sidebar                                                                                                      |
+| FR23 | Epic 4  | Edit/delete own messages; revision history; soft-delete                                                                                     |
+| FR24 | Epic 4  | Viewer presence list (all authenticated users)                                                                                              |
+| FR25 | Epic 4  | Infinite scroll with day-boundary delineators                                                                                               |
+| FR26 | Epic 5  | Moderator/Admin delete any message; soft-delete                                                                                             |
+| FR27 | Epic 5  | Moderator/Admin mute user (chat-silenced, stream retained)                                                                                  |
+| FR28 | Epic 5  | Moderator/Admin ban user (access revoked + immediate session termination)                                                                   |
+| FR29 | Epic 5  | Moderator/Admin unmute user                                                                                                                 |
+| FR30 | Epic 5  | Audit log for all moderation actions                                                                                                        |
+| FR31 | Epic 5  | Non-privileged users see no elevated options                                                                                                |
+| FR32 | Epic 5  | Four-tier role hierarchy: Admin > Moderator > Viewer Company > Viewer Guest                                                                 |
+| FR33 | Epic 5  | Auto-assign base viewer tier on first login from allowlist match                                                                            |
+| FR34 | Epic 5  | Admin role CLI-only assignment                                                                                                              |
+| FR35 | Epic 5  | Admin promote/demote Moderator via web UI                                                                                                   |
+| FR36 | Epic 5  | Admin promote/demote any role via CLI                                                                                                       |
+| FR37 | Epic 5  | Admin view all users with first-seen / last-seen timestamps                                                                                 |
+| FR38 | Epic 5  | Server-computed UserTag on all user profiles; default Guest UserTag for ViewerGuest                                                         |
+| FR39 | Epic 5  | Admin set custom UserTag text on any user                                                                                                   |
+| FR40 | Epic 5  | Admin set custom UserTag color on any user                                                                                                  |
+| FR41 | Epic 2  | CLI add/remove domain allowlist entries                                                                                                     |
+| FR42 | Epic 2  | CLI add/remove individual email allowlist entries                                                                                           |
+| FR43 | Epic 2  | CLI ban/unban user accounts                                                                                                                 |
+| FR44 | Epic 2  | Immediate active session enforcement on allowlist/blocklist change                                                                          |
+| FR45 | Epic 6  | frpc systemd service: stream proxy tunnel on boot                                                                                           |
+| FR46 | Epic 6  | frpc systemd service: API proxy tunnel on boot (camera control)                                                                             |
+| FR47 | Epic 6  | frpc + mediamtx systemd restart-on-failure                                                                                                  |
+| FR48 | Epic 6  | frpc.toml + mediamtx.yml: sensitive config in native config files                                                                           |
+| FR49 | N/A     | REMOVED — no Go binary; no self-update mechanism                                                                                            |
+| FR50 | Epic 6  | Install script + operator README: OS flash → camera verify → frpc/mediamtx setup                                                            |
+| FR51 | Epic 6  | WiFi config: operator's choice; wifi-connect optionally documented in README                                                                |
+| FR52 | Epic 3  | Single-page application constraint                                                                                                          |
+| FR53 | Epic 3  | Graceful Pi tunnel-drop handling (no server crash, state broadcast)                                                                         |
+| FR54 | Epic 1  | GitHub Actions CI/CD: server + web Docker images; agent CI removed                                                                          |
+| FR55 | Epic 1  | Deploy-time config: pet name, site name, OAuth creds, DB URL                                                                                |
+| FR56 | Epic 7  | Editable stream title in Broadcast Console (Admin/Mod); changes broadcast via WS                                                            |
+| FR57 | Epic 7  | Snapshot button in Broadcast Console; client-side JPEG frame capture + download                                                             |
+| FR58 | Epic 7  | PiSugar battery monitor: server TCP poller + admin-only WS broadcast + UI indicator                                                         |
+| FR59 | Epic 7  | Resizable chat sidebar (desktop drag handle); width persisted to localStorage                                                               |
+| FR60 | Epic 8  | Chat Emojis & Emoji Picker — full emoji picker with search and categories; `:emoji_name:` shortcuts with autocomplete                       |
+| FR61 | Epic 8  | Message Reactions — react to messages with emojis; mod/admin can remove; muted users see disabled controls                                  |
+| FR62 | Epic 8  | Expanded Markdown — code blocks with syntax highlighting, blockquotes, links, italics, strikethrough, images, multiline                     |
+| FR63 | Epic 8  | @Mentions — `@Full Name` with autocomplete, highlighted messages, titlebar flash on mention                                                 |
+| FR64 | Epic 8  | Browser Notifications — chat, mention, stream state notifications with granular preferences                                                 |
+| FR65 | Epic 8  | Programmable Slash Commands — admin-defined JS commands with role-based visibility, ephemeral option                                        |
+| FR66 | Epic 10 | Clip Creation — any authenticated user clips from HLS rolling buffer; presets + adjustable range; rate-limited except Moderator+            |
+| FR67 | Epic 10 | Clip Processing — server-side ffmpeg stream-copy, S3 upload, pending/ready/failed status, Sonner processing toast, thumbnail capture        |
+| FR68 | Epic 10 | Clip Visibility Tiers — private/shared/public; public requires Admin/Moderator; tombstone on private; live restore on shared/public in chat |
+| FR69 | Epic 10 | My Clips Dialog — manage own clips via profile-menu dialog, edit title/description/visibility, shared clips toggle, admin all-clips view, copy-link + share-to-chat |
+| FR70 | Epic 10 | Chat Clip Sharing — share at creation or from My Clips; clip message type; Watch modal overlay; URL updates to /clips/[id]                  |
+| FR71 | Epic 10 | Chat Clip Tombstone — private clip replaced with placeholder on next history load; active viewers unaffected until reload                   |
+| FR72 | Epic 10 | Public Clip Pages — /clips/[id] unauthenticated; OG meta server-injected; stream-status CTA for auth users; 403 for non-public clips        |
+| FR73 | Epic 10 | Clipper Attribution — per-clip show-clipper toggle + avatar toggle + custom name field (Admin/Mod only, stored on clip record)              |
 
 ## Epic List
 
@@ -398,7 +417,7 @@ Quality-of-life improvements across admin tooling, stream UX, and chat customisa
 
 ### Epic 10: Clipping & Clip Sharing
 
-Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips page with three-tier visibility (private, shared, public), share clips into the chat timeline as a rich clip card, view clips in a modal overlay without leaving the stream, and share public clips externally via shareable pages with OG social meta tags. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
+Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips dialog (accessible from the profile popover) with three-tier visibility (private, shared, public), share clips into the chat timeline as a rich clip card, view clips in a modal overlay without leaving the stream, and share public clips externally via shareable pages with OG social meta tags. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
 
 **FRs covered:** FR66, FR67, FR68, FR69, FR70, FR71, FR72, FR73
 
@@ -416,9 +435,11 @@ Users can clip segments from the rolling server-side HLS buffer, manage clips th
 - 10-1: Dev Environment Documentation _(must be first; unblocks all implementation)_
 - 10-2: Clipping Infrastructure (HLS buffer, shared volume, ffmpeg, S3 client, Prisma Clip model)
 - 10-3: Clip Creation Pipeline (endpoint, ffmpeg, S3 upload, rate limiting, Sonner, GET+download endpoints) _(depends on 10-2)_
-- 10-4: My Clips Page (clip management, visibility + ACL, audit logging, shared clips toggle, deletion, download) _(depends on 10-2)_
+- 10-3b: Clip Editor UI (stream-integrated timeline scrubber, HLS player swap, drag handles, min/max duration config, HLS proxy route) _(supersedes 10-3 AC #2; depends on 10-3)_
+- 10-4: My Clips Dialog (clip management via profile-menu dialog, visibility, audit logging, shared clips toggle, deletion, download) _(depends on 10-2)_
 - 10-5: Chat Clip Integration (clip message type, Watch modal, tombstone, live visibility updates, download) _(depends on 10-3)_
 - 10-6: Public Clip Pages (unauthenticated route, OG meta injection, clipper attribution, stream-status CTA, download) _(depends on 10-2, 10-3)_
+- 10-6b: Clip UX Polish (My Clips clipper attribution in mixed-ownership view, locked-out public visibility UX, spacebar play/pause in clip editor) _(depends on 10-6)_
 - 10-7: Production Deployment Documentation _(closes epic)_
 
 ---
@@ -2022,3 +2043,377 @@ So that I can express my feelings about a message without typing a response.
 **Then** the change is broadcast to all connected clients via WebSocket in real-time
 
 **And** the emoji picker component from Story 8-5 is reused for the full picker option
+
+---
+
+## Epic 10: Clipping & Clip Sharing
+
+Users can clip segments from the rolling server-side HLS buffer, manage clips through a per-account My Clips dialog (accessible from the profile popover) with three-tier visibility, share clips to chat, view clips in a modal overlay without leaving the stream, download clips, and share public clips externally via OG-tagged shareable pages. S3-compatible storage (Backblaze B2 in production, RustFS in development) stores all clip assets.
+
+---
+
+### Story 10-1: Dev Environment Documentation (Clipping Infrastructure)
+
+As a **developer setting up a local environment**,
+I want complete documentation covering all new clipping infrastructure prerequisites,
+So that I can run a fully functional clipping stack locally without a Backblaze B2 account.
+
+**Acceptance Criteria:**
+
+**Given** a developer reads the updated dev setup documentation
+**When** they follow the clipping infrastructure section
+**Then** it documents: adding the `hls_segments` named Docker volume to `docker-compose`, the RustFS container service (image, ports, env vars, volume mount, bucket creation via console), and all new required env vars: `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `MTX_HLS_URL` (mediamtx HLS server base URL, e.g., `http://mediamtx:8090`)
+
+**Given** a developer reads the mediamtx configuration section
+**When** they follow it
+**Then** it documents the HLS output additions to `mediamtx-server.yml`: enabling HLS (`hls: true`), setting `hlsSegmentDuration` and `hlsSegmentCount`, the segment output path matching the shared volume mount, `hlsAlwaysRemux: true` (ensures continuous segment generation for the clip buffer), and `useAbsoluteTimestamp: true` on the path (preserves original frame timestamps for accurate clip/UI synchronization); it also notes that the HLS path flush on stream offline uses the existing `MTX_API_URL` env var (already present in `env.ts` at default `http://127.0.0.1:9997`) — no new env var is needed for this purpose
+
+**Given** a developer reads the non-Docker / bare-metal section
+**When** they follow the clipping prerequisites
+**Then** it documents: installing ffmpeg on Linux (apt), verifying the install (`ffmpeg -version`), and running a local RustFS instance standalone with equivalent configuration
+
+**And** the documentation clearly states that `hls_segments` must be mounted read-write in the mediamtx container and read-only in the server container
+
+**And** all env var names documented here exactly match those validated in `apps/server/src/env.ts`
+
+**And** all env var names documented here exactly match those validated in `apps/server/src/env.ts`
+
+---
+
+### Story 10-2: Clipping Infrastructure
+
+As a **developer**,
+I want the complete server-side clipping infrastructure in place,
+So that subsequent stories have a stable foundation of HLS buffer, S3 client, Clip data model, and WsMessage types to build on.
+
+**Acceptance Criteria:**
+
+**Given** the server-side mediamtx config is updated
+**When** mediamtx is running and the Pi RTSP stream is connected
+**Then** HLS segments are written to the configured segment path with original frame timestamps preserved (via `useAbsoluteTimestamp: true`); the rolling buffer retains content according to `hlsSegmentCount × hlsSegmentDuration`; the WHEP live viewer endpoint is unaffected
+
+**Given** the `docker-compose.yml` is updated
+**When** `docker compose up` is run
+**Then** a `hls_segments` named volume exists; the mediamtx container mounts it read-write at the segment output path; the server container mounts it read-only at the same path
+
+**Given** `apps/server/src/env.ts` is updated
+**When** the server starts
+**Then** it validates `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`, `S3_FORCE_PATH_STYLE` (boolean, default `true`), and `MTX_HLS_URL` (string, URL, default `http://127.0.0.1:8090` — the mediamtx HLS server base URL) via Zod; missing vars produce a descriptive startup error
+
+**Given** an S3 client singleton is created at `apps/server/src/lib/s3-client.ts`
+**When** other modules import it
+**Then** it exports a single `S3Client` instance configured from env vars; no other file constructs an `S3Client` directly
+
+**Given** the Prisma schema is updated
+**When** `pnpm prisma migrate dev` is run
+**Then** a `clips` table is created with columns: `id CHAR(26)` (PK, server-generated ULID), `user_id CHAR(26)` (FK → users), `name VARCHAR(100) NOT NULL`, `description VARCHAR(500)`, `status TEXT NOT NULL DEFAULT 'pending'` (pending/ready/failed), `visibility TEXT NOT NULL DEFAULT 'private'` (private/shared/public), `thumbnail_key TEXT`, `duration_seconds INTEGER`, `show_clipper BOOLEAN NOT NULL DEFAULT false`, `show_clipper_avatar BOOLEAN NOT NULL DEFAULT false`, `clipper_name VARCHAR(50)`, `clipper_avatar_url TEXT`, `created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()`, `updated_at TIMESTAMPTZ` (uses `@updatedAt` — fires on ALL mutations including status transitions and visibility changes; do not use for "last user edit" signals), `last_edited_at TIMESTAMPTZ` (null until first user PATCH; updated only when name or description is changed by a user PATCH — not on status transitions or visibility changes), `deleted_at TIMESTAMPTZ` (null until soft-deleted; set to current timestamp by `DELETE /api/clips/:id` instead of hard-deleting the row; all list and detail queries must filter `deletedAt: null`; soft-deleted records are retained to allow S3 orphan cleanup by a background sweep); add `@@index([userId])` on the `clips` model (consistent with all other FK-bearing tables in the schema — `sessions`, `messages`, `reactions`, `audit_log` all index their FK columns); developer must also add `clips Clip[]` to the existing `User` model in `schema.prisma` — Prisma requires both sides of a FK relation to be declared, or `prisma generate` will error; **S3 object keys follow pattern `clips/{clipId}/video.mp4` and `clips/{clipId}/thumbnail.jpg` — no separate `s3_key` column needed; derive from clipId**
+
+**Given** the Prisma schema is updated
+**When** the `messages` table migration runs
+**Then** two new columns are added: `clip_id CHAR(26)` (nullable FK → clips, `onDelete: SetNull`) and `message_type TEXT NOT NULL DEFAULT 'text'` (text/clip); an index is added on `clip_id`
+
+**Given** the `packages/types/src/ws.ts` WsMessage union is updated
+**When** other packages import it
+**Then** it adds three new entries to the existing `WsMessage` **discriminated union at line 85 of `ws.ts`** (splice into the union — do not create a separate export or a parallel union type):
+
+- `{ type: 'clip:status-changed'; payload: { clipId: string; status: 'ready'; durationSeconds: number; thumbnailKey: string | null } | { clipId: string; status: 'failed' } }` — discriminated on `status`; `durationSeconds` and `thumbnailKey` are present on `ready` and absent on `failed`; `thumbnailKey` may be null if thumbnail generation failed; do not use `status: 'ready' | 'failed'` with optional fields — TypeScript will not enforce presence on the `ready` branch; **S3 video key is derived from clipId as `clips/{clipId}/video.mp4` — no separate `s3Key` field needed**
+- `{ type: 'clip:visibility-changed'; payload: { clipId: string; visibility: 'private' | 'shared' | 'public' | 'deleted'; chatClipIds: string[]; clip?: { name: string; clipThumbnailUrl: string; durationSeconds: number; clipperDisplayName?: string; clipperAvatarUrl?: string } } }` (`clip` card data is included only when restoring from tombstone, i.e., when visibility moves to `shared` or `public`; `chatClipIds` is capped at the first 100 message IDs; `clipThumbnailUrl` is the proxy path `/api/clips/{clipId}/thumbnail`; if `clipperAvatarUrl` is null, omit the field — do not serialize `null`)
+- The `ChatMessage` interface is split into a discriminated union: `TextChatMessage` = existing `ChatMessage` interface with `messageType: 'text'` added (all existing fields are preserved); `ClipChatMessage` = all base fields from `ChatMessage` with exact field names matching the interface — `id: string`, `userId: string`, `displayName: string`, `avatarUrl: string | null`, `authorRole: Role`, `userTag: UserTag | null`, `content: string`, `createdAt: string`, `editHistory: { content: string; editedAt: string }[] | null`, `updatedAt: string | null`, `deletedAt: string | null`, `deletedBy: string | null`, `reactions?: Reaction[]`, `ephemeral?: boolean` — plus `messageType: 'clip'`, `clipId: string`, `clipThumbnailUrl: string` (the proxy path `/api/clips/{clipId}/thumbnail`), `clipName: string`, `clipDurationSeconds: number`, `tombstone?: true` (present and `true` only when the clip is unavailable — deleted, private, or soft-deleted; absent on live clip messages; clients narrow on `payload.tombstone === true` to render the "clip unavailable" card); `ChatMessage` is retained as a type alias `export type ChatMessage = TextChatMessage | ClipChatMessage` so all existing consumers (`createMessage()`, moderation service, reactions service, etc.) continue to compile without changes; the `chat:message` union member's payload type is updated from `ChatMessage` to `TextChatMessage | ClipChatMessage`; existing `chat:message` consumers must narrow on `payload.messageType` to distinguish text vs. clip messages
+
+**Given** the stream goes from online to explicit offline (admin toggle)
+**When** the stream state transition is processed
+**Then** the server calls the mediamtx HTTP API (`MTX_API_URL` — the existing env var) to remove/flush the HLS path for the stream (fire-and-forget, logged on error, non-fatal)
+
+**Given** the stream is set to online by an admin
+**When** the stream state transition is processed
+**Then** `stream_started_at` is written to `stream_config` as an ISO8601 UTC timestamp key-value entry (no Prisma schema migration is required — `stream_config` is a key-value store); this value persists until the next online transition; each new online transition overwrites it — this is intentional, as clip creation validation only fires at submission time and existing clips are unaffected by stream restarts
+
+**Given** `chatService.ts`'s `getHistory()` function is updated as part of this story
+**When** it queries chat messages
+**Then** the query gains `include: { clip: { select: { id: true, visibility: true, name: true, thumbnailKey: true, durationSeconds: true, clipperName: true, clipperAvatarUrl: true, showClipper: true, showClipperAvatar: true, deletedAt: true } } }` (all field names are Prisma camelCase — Prisma maps `thumbnail_key` → `thumbnailKey`, `deleted_at` → `deletedAt`, etc.; use Prisma field names in `select`, not DB column names); the `MessageRow` type gains `clipId?`, `messageType`, and `clip?` fields; `toApiChatMessage()` maps clip fields to the `ClipChatMessage` payload shape when `messageType = 'clip'`; `clipThumbnailUrl` is the proxy path `/api/clips/{clipId}/thumbnail`; if `clipperAvatarUrl` is null in the DB, omit the field from the payload (do not emit `clipperAvatarUrl: null` — the TypeScript type is `clipperAvatarUrl?: string`, not `string | null`); for clip messages where `clipId IS NULL` (cascade-nulled after hard deletion), where the joined clip has `visibility: 'private'`, or where the joined clip has `deletedAt IS NOT NULL` (soft-deleted), set `tombstone: true` on the returned `ClipChatMessage` — **clip soft-deletion sets only `clips.deletedAt`; it NEVER sets `messages.deletedAt`** (message rows for deleted clips remain intact with their original `deletedAt: null`; the existing `getHistory()` filter `where: { deletedAt: null }` on message rows continues to work correctly and does not accidentally hide clip-tombstone rows)
+
+**And** `ffmpeg` is present in the server Dockerfile and available at runtime
+
+**And** Story 10-2 is a prerequisite for Stories 10-3, 10-4, and 10-5; the WsMessage type additions and `chatService.ts` changes must be merged before implementing those stories to ensure TypeScript type safety
+
+---
+
+### Story 10-3: Clip Creation Pipeline
+
+As an **authenticated user**,
+I want to clip a segment from the live stream's rolling buffer,
+So that I can capture memorable moments with an optional name, description, chat share, and download.
+
+**Acceptance Criteria:**
+
+**Given** an authenticated user views the stream
+**When** they look at the Broadcast Console
+**Then** a clip button (lucide `Videotape` icon, tooltip "Clip Stream") appears to the right of the snapshot button; it is visible to all authenticated roles including ViewerGuest
+
+**Given** a user clicks the clip button
+**When** the clip UI opens
+**Then** a modal overlay renders with: an HLS scrubber populated from the live `.m3u8` playlist (using segment timestamps derived from the HLS playlist); preset buttons (30s, 1min, 2min) that preselect the corresponding tail of the available buffer as the initial range; drag handles on both ends for manual adjustment; name and description input fields; a "Share to chat when ready" checkbox; a Submit button
+
+**Given** the user submits a clip request
+**When** `POST /api/clips` is called with `{ startTime: ISO8601, endTime: ISO8601, name: string, description?: string, shareToChat?: boolean }`
+**Then** the server validates: if the `stream_started_at` key does not exist in `stream_config` (stream has never been started), return 422 "Stream has not started"; `startTime >= stream_started_at` (else 422 "Cannot clip footage from before the stream started"); `startTime` and `endTime` fall within the available HLS segment range parsed from the stream playlist (else 422 "Requested range is not available in the buffer"); `endTime > startTime`; the resulting duration does not exceed 15 minutes (else 422); `name` must not exceed 200 characters (else 422); `description` must not exceed 500 characters if provided (else 422)
+
+**Given** the stream goes online (admin toggles to 'live')
+**When** `stream_started_at` is written to `stream_config`
+**Then** the server fetches the HLS master playlist at `{MTX_HLS_URL}/cam/index.m3u8` **once**, extracts the stream playlist filename (e.g., `video1_stream.m3u8`), and caches it in `stream_config` for the duration of the stream session; all subsequent segment range validation and ffmpeg input use the full stream playlist URL `{MTX_HLS_URL}/cam/{streamPlaylistName}`; the master playlist is NOT re-fetched for every clip request — only on stream start
+
+**Given** a valid clip request is received
+**When** the server creates the clip record
+**Then** a `pending` clip record is created with a server-generated ULID; the endpoint returns `{ id, status: 'pending' }` immediately without waiting for processing; `shareToChat` is held as a closure variable passed to the async processing function — it is **not persisted** to the `clips` table (no `share_to_chat` column exists); if the server crashes during ffmpeg processing, the `shareToChat` intent is permanently lost and the clip will be `pending`/`ready`/`failed` with no chat share attempted; crash recovery for in-flight processing is out of scope for MVP
+
+**Given** the clip record is created
+**When** async processing runs
+**Then** ffmpeg is called with `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -t {durationSeconds} -c copy /tmp/{clipId}.mp4` (`-ss` before `-i` is fast input seek; with `useAbsoluteTimestamp: true` preserving original frame timestamps, ffmpeg correctly interprets the ISO8601 `-ss` value as an absolute calendar timestamp seek; `-t` takes duration in seconds computed server-side as `Math.round((new Date(endTime) - new Date(startTime)) / 1000)` — **do not use `-to {endTime}`** as `-to` takes an output-stream position, not a wall-clock timestamp, and will produce wrong output; `{streamPlaylistName}` is the cached stream playlist filename extracted from `index.m3u8` at stream start, e.g., `video1_stream.m3u8`); a thumbnail JPEG is extracted with a separate invocation: `-ss {startTime_ISO8601} -i {MTX_HLS_URL}/cam/{streamPlaylistName} -vframes 1 -q:v 2 /tmp/{clipId}-thumb.jpg`; both temp files are named by clip ULID to prevent collision between concurrent invocations; the video file is uploaded to S3 with **private** ACL (default); the thumbnail file is uploaded to S3 (private bucket — thumbnails are served via the proxy endpoint `/api/clips/{clipId}/thumbnail`, which enforces access control); `thumbnailUrl` is always the proxy path `/api/clips/{clipId}/thumbnail`; the clip record is updated to `status: 'ready'` with `s3Key`, `thumbnailKey`, and `durationSeconds`; temp files are deleted after upload or on error; if ffmpeg exits with a non-zero code or produces output shorter than expected (TOCTOU: a segment may have rolled out of the buffer between validation and processing), the clip is set to `status: 'failed'`; concurrent ffmpeg invocation count is not capped in MVP — documented as a known limitation for constrained hosts
+
+**Given** the clip creation request contains `startTime` and `endTime`
+**When** the client computes these values
+**Then** the client derives them from segment timestamps parsed from the live stream playlist (with `useAbsoluteTimestamp: true`, segment timestamps correspond to original frame timestamps); using `Date.now()` or any other wall-clock source is prohibited — the scrubber must be driven entirely by playlist-reported timestamps to ensure correct HLS segment mapping
+
+**Given** processing completes successfully with `shareToChat: true`
+**When** the clip is ready
+**Then** the clip's `visibility` is updated to `shared` and a `Message` record is created atomically via `prisma.$transaction()`; a `chat:message` WsMessage is broadcast to all connected users with `messageType: 'clip'` and the clip card payload (`clipId`, `clipThumbnailUrl` as the proxy path `/api/clips/{clipId}/thumbnail`, `clipName`, `clipDurationSeconds`); a `clip:status-changed` WsMessage is also broadcast to all connected users with `status: 'ready'`; a `clip:visibility-changed` WsMessage is also broadcast with `{ clipId, visibility: 'shared', chatClipIds: [the new message id] }` and the full clip card in `clip` — this ensures any prior tombstone (e.g., from an earlier failed share attempt) is restored and My Clips visibility badges update in real-time on other open sessions; if the DB transaction fails after S3 upload succeeds, the clip remains `ready`/`private` with no chat post and no notification — this is an accepted known limitation; the owner can manually Share to Chat from My Clips
+
+**Given** processing completes successfully with `shareToChat: false`
+**When** the clip is ready
+**Then** a targeted `clip:status-changed` WsMessage is sent to all active WebSocket connections for the clip owner's userId (via `wsHub.sendToUser`) with `status: 'ready'`; no chat message is created; clip remains `private`
+
+**Given** ffmpeg or S3 upload fails
+**When** the error is caught
+**Then** the clip record is updated to `status: 'failed'`; temp files are cleaned up; a targeted `clip:status-changed` WsMessage is sent to all active WebSocket connections for the clip owner's userId with `status: 'failed'`
+
+**Given** a clip is being processed
+**When** the user's frontend is connected
+**Then** a persistent Sonner toast shows the clip name and processing state; it updates to success (with clip name) when the `clip:status-changed` WsMessage with `status: 'ready'` is received; it updates to error when `status: 'failed'` is received; it does not obscure the stream video area
+
+**Given** an authenticated user submits a clip request
+**When** they have submitted 5 or more clips in the past 60 minutes (rolling window, counted via `prisma.clip.count({ where: { userId, createdAt: { gte: new Date(Date.now() - 3_600_000) } } })`; concurrent near-simultaneous submissions from the same user may both pass this check in a race — documented as an accepted known limitation)
+**Then** the server returns 429 with a descriptive error; the Sonner surfaces this message; this rate limit applies to all roles below Moderator (Viewer and ViewerGuest); use `ROLE_RANK[user.role] < ROLE_RANK['Moderator']` from `apps/server/src/lib/roleUtils.ts` — do not inline the role comparison
+
+**Given** a Moderator or Admin submits a clip request
+**When** any number of clips exist for that user in the past hour
+**Then** no rate limit is applied
+
+**And** if the clip owner has no active WebSocket connections when processing completes (they went offline), the `clip:status-changed` notification is silently dropped; no stored delivery or retry mechanism exists; the current status is always queryable via `GET /api/clips/:id`
+
+**Given** `GET /api/clips/:id` is called
+**When** the clip exists and the requester has access (owner; Admin; Moderator only for their own clips or clips with `shared`/`public` visibility — a Moderator cannot access `private` clips owned by others and receives **404** (not 403) to avoid confirming the clip's existence to unauthorized callers; unauthenticated users can access `public` clips only; 401 if unauthenticated and clip is not public; soft-deleted clips (`deletedAt IS NOT NULL`) are treated as not found → 404 for all callers)
+**Then** the clip record is returned with all non-sensitive fields; `thumbnailUrl` is the proxy path `/api/clips/{clipId}/thumbnail` — the proxy endpoint handles access control and caching (`Cache-Control: public, max-age=86400`); the download URL is generated separately via `GET /api/clips/:id/download` which presigns the video object
+
+**Given** `GET /api/clips/:id/download` is called
+**When** the request is processed
+**Then** 401 if unauthenticated; 404 if clip not found, soft-deleted, or if the requester lacks access (use 404 — not 403 — to avoid confirming clip existence, consistent with all other clip endpoints); 409 if clip `status` is not `ready` (pending and failed clips are not downloadable); for `ready` clips with access, the server generates a presigned S3 URL (60-minute expiry) with `ResponseContentDisposition: attachment; filename="{slugified-clip-name}.mp4"` and responds with a 302 redirect; no binary data is proxied; if the slugified clip name is empty (e.g., entirely non-ASCII), the clip ULID is used as the filename instead (`{clipId}.mp4`); if a download begins and the presigned URL expires before the transfer completes, the download will fail mid-transfer — this is an accepted limitation of presigned URLs
+
+**And** `POST /api/clips` requires an active session — 401 if unauthenticated; the `authMiddleware` is informational only and does not auto-reject unauthenticated requests, so this endpoint must explicitly verify a session exists
+
+**And** clip attribution fields (`showClipper`, `showClipperAvatar`, `clipperName`) cannot be set via `POST /api/clips`; they are PATCH-only
+
+---
+
+### Story 10-4: My Clips Dialog
+
+As an **authenticated user**,
+I want a My Clips dialog accessible from the profile menu to view and manage my clips,
+So that I can edit clip details, control visibility, share to chat, download, and delete clips.
+
+**Acceptance Criteria:**
+
+**Given** `GET /api/clips` is called
+**When** the request is authenticated
+**Then** it returns a paginated list (page + limit query params; `page` is **zero-indexed** — `page=0` is the first page, `skip = page * limit`; default limit 20, newest-first) of clips the requester can see; `deletedAt: null` is applied to **all variants** of the query — own clips, `?includeShared=true`, and Admin `?all=true` all exclude soft-deleted clips; by default: own clips only; with `?includeShared=true`: includes all non-private (`shared` or `public`) non-deleted clips from other users; Admin with `?all=true`: includes all non-deleted clips regardless of owner or visibility; non-Admin callers passing `?all=true` have it silently ignored (treated as if not passed); passing both `?all=true&includeShared=true` is valid for Admin (`?all=true` is a superset); each item includes `thumbnailUrl` as the proxy path `/api/clips/{clipId}/thumbnail`, name, description, status, visibility, duration, clipper info, and creation date; offset-based pagination may return duplicates or skip items if clips are created/deleted between page requests — documented as a known limitation
+
+**Given** an authenticated user opens the My Clips dialog (via the profile popover, above Preferences)
+**When** the dialog loads
+**Then** their own clips are displayed as cards (thumbnail, name, duration badge, visibility badge, status indicator, creation date); pending clips show a processing spinner; failed clips show an error state with a Dismiss button; ready clips show Edit, Share to Chat, Copy Link, Download, and Delete actions
+
+**Given** a user clicks Dismiss on a failed clip
+**When** the action completes
+**Then** the Dismiss action calls `DELETE /api/clips/:id`; the endpoint detects `status: 'failed'` and **hard-deletes** the clip record (`prisma.clip.delete()`) — no S3 objects exist for failed clips so no S3 cleanup is needed; no `clip:visibility-changed` broadcast is required because failed clips are never shared to chat and no tombstones exist to update; the card is removed from the UI; responds 204
+
+**Given** a user clicks Delete on a ready clip they own
+**When** `DELETE /api/clips/:id` is called
+**Then** check order: (1) 401 if unauthenticated; (2) fetch clip — if not found or soft-deleted, 404; (3) RBAC — if not owner AND `canModerateOver(actor.role, clip.owner.role)` fails, return **404** (not 403 — avoids confirming the clip exists to unauthorized callers); (4) if `status: 'pending'`, return 409 Conflict (the clip must finish processing before deletion; RBAC check fires first so unauthorized callers always see 404, never 409); for `ready` or `failed` clips: the server first queries `chatClipIds` (`SELECT id FROM messages WHERE clip_id = $clipId`, capped at 100) and then soft-deletes the clip record — both operations wrapped in `prisma.$transaction()`; soft-delete sets `deletedAt = new Date()` on the clip record rather than hard-deleting it (the row is retained for S3 orphan cleanup); following the transaction, delete the S3 video and thumbnail objects (only if `status: 'ready'` — failed clips have no S3 objects, skip S3 cleanup); if S3 deletion fails (connectivity error), the clip record remains soft-deleted and the S3 objects are orphaned — this is an accepted known limitation; a background sweep or admin CLI can find soft-deleted records with `deletedAt IS NOT NULL` and retry S3 cleanup; `onDelete: SetNull` on the message FK acts as a safety net only for any hard-deletes that may occur outside normal flow — in normal soft-delete operation, the message `clip_id` FK remains intact, and chatService tombstones via `clip.deletedAt IS NOT NULL`; the `clip:visibility-changed` broadcast fires only after the `prisma.$transaction()` has confirmed a successful commit — never optimistically before commit; broadcasts `{ clipId, visibility: 'deleted', chatClipIds }` so active sessions tombstone the clip card in real-time; responds 204
+
+**Given** a Moderator or Admin clicks Delete on a clip they do not own
+**When** the delete completes
+**Then** the same deletion logic applies; this action is gated by `canModerateOver(actor.role, clip.owner.role)` — a Moderator cannot delete a clip owned by an Admin and receives **404** (not 403, to avoid confirming clip existence); an audit log entry is written: `action: 'clip:deleted', actorId, targetId: clip.userId, metadata: { clipId, clipName }`; audit log fires only when `actorId !== clip.userId` — an Admin deleting their own clip (including their own public clips) produces no audit log entry (self-action audit is intentionally excluded)
+
+**Given** a user clicks Edit on a clip they own
+**When** the edit form opens
+**Then** they can update name and description; visibility options available: `private` (always), `shared` (always); `public` option is shown only to Moderator and Admin users
+
+**Given** a Moderator or Admin sets visibility to `public`
+**When** the PATCH is submitted
+**Then** attribution controls appear before confirmation: "Show clipper" toggle; when enabled: "Show clipper avatar" toggle + "Clipper name" text field (pre-filled with clip owner's display name); server stores these values on the clip; when `showClipperAvatar` is true, the clip owner's current `avatarUrl` is snapshotted into `clipperAvatarUrl` on the clip record; `showClipperAvatar` must only be set to `true` if the clip owner's `avatarUrl` is non-null at snapshot time — if null, `showClipperAvatar` is stored as `false` regardless of the request value; if `showClipperAvatar` is later disabled and then re-enabled, `clipperAvatarUrl` is re-snapshotted from the clip owner's current `avatarUrl` at that time (same null guard applies); the public clip page renders the attribution block without an avatar image when `clipperAvatarUrl` is null; the thumbnail proxy endpoint (`/api/clips/{clipId}/thumbnail`) handles access regardless of visibility; `thumbnailUrl` is always the proxy path `/api/clips/{clipId}/thumbnail`
+
+**Given** a clip is changed from `public` to `shared` or `private`
+**When** the PATCH completes
+**Then** `thumbnailUrl` remains the proxy path `/api/clips/{clipId}/thumbnail` at all visibility levels; `GET /api/clips/:id/download` generates a presigned URL for `private` and `shared` videos
+
+**Given** `PATCH /api/clips/:id` is called
+**When** the request is processed
+**Then** the endpoint accepts a partial body (only send fields to change): `{ name?: string, description?: string | null, visibility?: 'private' | 'shared' | 'public', showClipper?: boolean, showClipperAvatar?: boolean, clipperName?: string | null }`; check order: (1) 401 if unauthenticated; (2) fetch clip with `include: { user: { select: { avatarUrl: true } } }` (the user join is required for the `showClipperAvatar` snapshot path); (3) if clip not found or soft-deleted → 404; (4) if requester is not owner AND `canModerateOver(requester.role, clip.owner.role)` fails → **404** (not 403, to avoid confirming clip existence); (5) validate field values — a Viewer or ViewerGuest setting `visibility: 'public'` → **422** (this is role-gated validation on a clip the requester owns, not an RBAC failure; do not conflate with step 4); returns 200 with the full updated clip record on success — same shape as `GET /api/clips/:id` response including computed `thumbnailUrl`; a Viewer can PATCH their own clip for name, description, or visibility to `private`/`shared` only; when `name` or `description` is changed, `last_edited_at` is updated to the current timestamp; status transitions, visibility changes, and attribution changes do NOT update `last_edited_at`
+
+**Given** a Moderator or Admin edits a clip they do not own
+**When** any field is changed (name, description, visibility, attribution)
+**Then** multiple separate `AuditLog` rows are written — one per changed category: `action: 'clip:edited'` for name/description changes, `action: 'clip:visibility-changed'` for visibility changes, `action: 'clip:attribution-changed'` for attribution changes; `actorId` = actor's userId, `targetId` = clip owner's userId, `metadata: { clipId, clipName, ...changed fields }`; audit logging only fires when `actorId !== clip.userId`
+
+**Given** a visibility change affects a clip referenced in the chat timeline
+**When** the PATCH completes
+**Then** the server broadcasts a `clip:visibility-changed` WsMessage with `{ clipId, visibility, chatClipIds: [message IDs with this clip_id, capped at first 100] }`; when `visibility` is `shared` or `public`, the payload also includes the full clip card data for tombstone restoration; `clipThumbnailUrl` in the clip card is the proxy path `/api/clips/{clipId}/thumbnail`; if `clipperAvatarUrl` is null, omit it from the payload — do not serialize `null` (same rule as `ClipChatMessage`); the broadcast fires only after the PATCH DB write has committed successfully
+
+**Given** a user clicks Share to Chat on a ready clip
+**When** the action completes
+**Then** if the clip's current `visibility` is `private`, it is first updated to `shared` within the same `prisma.$transaction()` as the Message insert; a `Message` record is created (`messageType: 'clip'`, `clip_id` set, `content` = the clip's **current name at share time**, snapshotted into `content` — if the clip is shared again after a name change, the new message `content` reflects the current name; the `ClipChatMessage` `clipName` field also reflects the current name); a `chat:message` WsMessage is broadcast with clip card payload (`clipThumbnailUrl` = the proxy path `/api/clips/{clipId}/thumbnail`); a `clip:visibility-changed` WsMessage is also broadcast when visibility changed (see Story 10-3 for the full broadcast spec on the `shareToChat` path); there is no uniqueness constraint preventing the same clip from being shared to chat multiple times; the button remains active; the server verifies the requesting user is not muted and returns 403 if they are (UI hides the button but server validation is authoritative)
+
+**Given** a muted user opens My Clips
+**When** the dialog renders
+**Then** the Share to Chat button is hidden for all clips (muted users cannot post to chat)
+
+**Given** a user clicks Copy Link
+**When** the action completes
+**Then** `/clips/{id}` is written to clipboard; if the clip's visibility is `private`, a tooltip reads "Only you can view this link"
+
+**Given** a user clicks Download on a ready clip
+**When** the action completes
+**Then** the browser calls `GET /api/clips/:id/download` which issues a presigned redirect with the clip's slugified name as the download filename
+
+**Given** the "Show shared clips" toggle is active
+**When** the page renders
+**Then** clips from other users with `shared` or `public` visibility are included in the list, sorted newest-first globally (no pinning of own clips to top — this is intentional; the view functions as a discovery feed when the toggle is active)
+
+**And** `shared` visibility is available to all authenticated roles including ViewerGuest; only `public` is role-gated to Moderator and Admin
+
+**Given** an Admin toggles "Show all clips"
+**When** the page renders
+**Then** all clips regardless of visibility or owner are included
+
+---
+
+### Story 10-5: Chat Clip Integration
+
+As an **authenticated viewer**,
+I want clip shares to appear as rich cards in the chat timeline,
+So that I can watch, download, and interact with clips without leaving the stream.
+
+**Acceptance Criteria:**
+
+**Given** a `chat:message` WsMessage is received with `messageType: 'clip'`
+**When** it renders in the chat timeline
+**Then** a clip card displays: thumbnail image, clip name, duration badge, and Watch + Download action buttons; standard message metadata (sender avatar, display name, timestamp) appears as with text messages
+
+**Given** a user clicks Watch on a clip card
+**When** the modal opens
+**Then** a clip viewer modal overlays the current page; the stream and chat continue behind it; the browser URL is updated to `/clips/{id}` via `history.pushState({ clipModal: true, fromRoute: '/' }, '', '/clips/{id}')`; whether to use `pushState` or `replaceState` is determined by a composable-level reactive: `const isClipModalOpen = ref(false)` (or equivalent in the clip composable) — if `isClipModalOpen.value === true` when Watch is clicked, use `history.replaceState({ clipModal: true, fromRoute: '/' }, '', '/clips/{newId}')` to prevent stacking multiple clip entries in browser history; if `false`, use `pushState`; the modal can be closed via an X button or Escape key, which calls `history.back()`
+
+**Given** a user presses the browser back button while the clip modal is open
+**When** the `popstate` event fires
+**Then** the modal closes and the URL returns to the stream page; the stream is unaffected
+
+**Given** a user refreshes the browser while at `/clips/{id}` with no `history.state`
+**When** the page loads
+**Then** Vue Router detects the absence of `history.state.clipModal` and renders the standalone clip page (Story 10-6) rather than the modal-over-stream
+
+**Given** a user clicks Download on a clip card in chat
+**When** the action completes
+**Then** the browser calls `GET /api/clips/:id/download` and the file downloads with the clip's slugified name
+
+**Given** a clip referenced in the chat timeline is set to `private` or is deleted
+**When** a user's chat history is next fetched (page load or pagination scroll)
+**Then** the chat history endpoint joins the `clips` table on `message.clip_id` to check current visibility; a `message_type = 'clip'` row where `clip_id IS NULL` (nulled by `onDelete: SetNull` cascade after clip deletion) is always returned as a tombstone; if the joined clip has `visibility: 'private'`, it is also returned as a tombstone; the clip card renders as "This clip is no longer available" with identical card dimensions
+
+**Given** a clip is currently private/deleted and displayed as a tombstone in an active session
+**When** a `clip:visibility-changed` WsMessage is received
+**Then** if `visibility` is `shared` or `public` AND the payload includes `chatClipIds` containing message IDs currently rendered as tombstones, ALL matching tombstones are immediately replaced with live clip cards using the card data from the WS payload; the client must update every message ID in `chatClipIds` (not just the first), since the same clip may have been shared to chat multiple times
+
+**And** the reverse (going private) is intentionally deferred: active sessions are not disrupted; the tombstone only appears on the next history fetch; no immediate real-time tombstoning occurs
+
+**And** a rapid `private → public → private` sequence will leave active sessions showing the clip card as live until the next page load; this is an accepted consequence of the asymmetric tombstone design and requires no special handling
+
+**Given** a user scroll-back paginates and re-fetches a page of messages that already contains rendered clip cards
+**When** the paginated response returns tombstone flags for some of those messages
+**Then** the frontend merges tombstone state into the existing rendered message list (not merely appending new results); any already-rendered message ID in the paginated response that arrives with `tombstone: true` replaces the existing rendered card with the tombstone card
+
+**And** muted users can view clip cards, watch clips, and download clips; they cannot share clips to chat (Share to Chat is absent from their My Clips dialog per Story 10-4)
+
+---
+
+### Story 10-6: Public Clip Pages
+
+As an **unauthenticated user with a clip link**,
+I want to view a public clip without logging in,
+So that I can watch shared moments without requiring stream access.
+
+**Acceptance Criteria:**
+
+**Given** the Hono app routes are registered
+**When** `app.ts` is updated
+**Then** a `GET /clips/:id` route handler is registered at module level, entirely outside the `if (env.NODE_ENV === 'production')` block — this guarantees it is always registered before the `serveStatic` block and is never accidentally inside the production guard; in development there is no `serveStatic` registered, so no special dev branch is needed — the route simply returns plain `index.html` from disk if `distPath` is reachable, or a graceful fallback if not; **`distPath` must be hoisted** to before the production guard (`const distPath = join(__dirname, '../../web/dist')` — move it out of the `if` block in `app.ts` so the OG injection route can reference it), then the production block continues to use the same `distPath` variable; this unconditional placement works in all environments including bare-metal with nginx/traefik in front
+
+**Given** `GET /clips/:id` is requested and the clip exists with `visibility: 'public'`
+**When** the server processes the request
+**Then** it fetches the clip record, reads `index.html` from the web dist, injects into `<head>`: `og:title` (clip name), `og:description` (clip description or a default), `og:image` (`/api/clips/{id}/thumbnail`), `og:url` (`{BASE_URL}/clips/{id}` — use the existing `BASE_URL` env var, already validated in `env.ts`); if the DB lookup fails, the server falls through to plain `index.html` with no OG tags (non-fatal)
+
+**Given** `GET /clips/:id` is requested and the clip is non-public or does not exist
+**When** the server processes the request
+**Then** plain `index.html` is served with no OG tag injection; the SPA renders an appropriate state: "Sign in to view this clip" for unauthenticated requests to shared clips; "Clip not found" for missing or private clips
+
+**Given** an unauthenticated user views a public clip page
+**When** the SPA loads
+**Then** it renders: video player, clip name, description, and (if `showClipper: true`) the stored `clipperName` and (if `showClipperAvatar: true`) the stored `clipperAvatarUrl`; no stream link, chat panel, or application navigation is shown; no stream CTA is shown for unauthenticated users; the Download button calls `GET /api/clips/:id/download` — the download endpoint returns a presigned URL redirect and does not require authentication for public clips (the public clip endpoint does not enforce auth), so this works for unauthenticated users on public clip pages
+
+**Given** an authenticated user views any clip page at `/clips/:id` directly (not via modal)
+**When** `history.state.clipModal` is absent or false
+**Then** the standalone clip page renders; a stream-status-aware CTA is shown (stream status is derived from the authenticated user's existing WebSocket `stream:state` messages — no separate REST endpoint is needed); the CTA reads "Watch Live →" when the stream is online and "Go to Stream →" when offline or when WS state is not yet known; a Download button is shown for clips the user has access to
+
+**Given** an authenticated user accesses a `shared` clip at `/clips/:id` directly
+**When** the SPA loads
+**Then** the full clip page renders (same layout as public, plus the stream CTA); access is permitted to all authenticated users for `shared` visibility
+
+**Given** a user at `/clips/:id` has `history.state.clipModal: true`
+**When** Vue Router resolves the route
+**Then** the router checks `history.state?.clipModal === true && history.state?.fromRoute === '/'` — at `pushState` time (Story 10-5), the state object is stored as `{ clipModal: true, fromRoute: '/' }` (hardcoded — the stream is always at `/`; do not use `router.currentRoute.value.path` dynamically, as this would produce a different value and break the stale-state detection check); if either condition fails (stale state from a session restore, external navigation, or `fromRoute` mismatch), the standalone clip page renders instead; otherwise the clip modal overlay renders over the stream page with the stream active in the background
+
+**And** a Download button is shown on the standalone clip page for ready clips; all users (authenticated or not) call `GET /api/clips/:id/download` — the endpoint returns a presigned URL redirect and the public clip endpoint does not require authentication for public clips
+
+**And** if the DB lookup fails when processing a `GET /clips/:id` OG injection request, the server falls through to plain `index.html` with no OG tags (non-fatal); operators should note that social media crawlers aggressively cache OG meta tags — a transient DB error at crawl time may result in blank/generic previews cached for 7–30 days with no retry mechanism
+
+---
+
+### Story 10-7: Production Deployment Documentation
+
+As an **operator deploying ManlyCam to production**,
+I want complete documentation for configuring Backblaze B2 and the clipping stack in a production environment,
+So that I can deploy the full clipping feature without guessing at configuration details.
+
+**Acceptance Criteria:**
+
+**Given** an operator reads the B2 setup section
+**When** they follow it
+**Then** it documents: creating a private B2 bucket, creating an application key scoped to the bucket with read/write permissions, and which env vars map to B2 settings (`S3_ENDPOINT` → `https://s3.{region}.backblazeb2.com`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_REGION`); note that B2 does **not** support per-object ACLs (`PutObjectAcl`) — the bucket stays fully private; thumbnails are proxied through the backend at `/api/clips/:clipId/thumbnail` rather than served directly from B2
+
+**Given** an operator reads the mediamtx HLS configuration section
+**When** they follow it
+**Then** it documents: enabling HLS output, setting `useAbsoluteTimestamp: true` on the path for accurate timestamp synchronization, and the rolling buffer formula: `hlsSegmentCount = desired_buffer_minutes × 60 / hlsSegmentDuration`; example: 15 min buffer with 2s segments = 450 segments; disk space guidance: approximately `bitrate_mbps × buffer_minutes × 7.5` MB (e.g., 2 Mbps × 15 min ≈ 225 MB); recommendation to back the HLS path with sufficient disk space
+
+**Given** an operator reads the Docker Compose production section
+**When** they follow it
+**Then** it documents: the `hls_segments` named volume declaration, read-write mount for mediamtx, read-only mount for the server container, and how to verify the volume is functioning after deploy
+
+**Given** an operator deploys without Docker
+**When** they read the bare-metal section
+**Then** it documents: verifying ffmpeg is installed and in PATH, configuring mediamtx to write HLS segments to a shared directory readable by the Hono process, and recommended systemd service ordering (mediamtx before server)
+
+**And** the documentation notes that B2 egress costs apply to clip playback from public clip pages and presigned download URLs; operators should review B2 pricing before enabling public clips at scale
+
+**And** the documentation notes that clip thumbnails are served through the backend proxy endpoint `/api/clips/:clipId/thumbnail` (responds with `Cache-Control: public, max-age=86400`); access control is enforced by the proxy — thumbnails of private or deleted clips are not served to unauthorised callers; operators may configure Traefik or Caddy to cache this endpoint for up to 24 h to reduce origin load (the `Cache-Control` header is already set to enable downstream caching)
+
+**And** the documentation notes that `DELETE /api/clips/:id` soft-deletes the clip record (sets `deleted_at` timestamp) and then attempts best-effort S3 deletion; if S3 deletion fails, S3 objects are orphaned until a manual cleanup is performed; operators can identify orphaned objects by querying `SELECT id, s3_key, thumbnail_key FROM clips WHERE deleted_at IS NOT NULL` and cross-referencing with S3 bucket contents
+
+**And** all documented env var names exactly match those validated in `apps/server/src/env.ts`; the `MTX_HLS_URL` env var must be configured to point to the mediamtx HLS server (e.g., `http://mediamtx:8090`)
+
+**And** the operator guide cross-references the dev environment documentation (Story 10-1) so operators can verify local behaviour before deploying

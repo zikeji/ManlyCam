@@ -26,7 +26,7 @@ set -euo pipefail
 # ── Defaults ────────────────────────────────────────────────────────────────────
 
 FRPC_VERSION="0.61.0"
-MTX_VERSION="1.9.2"
+MTX_VERSION="1.17.0"
 ENDPOINT=""
 FRP_TOKEN=""
 
@@ -132,7 +132,7 @@ download_frpc() {
 
 download_mediamtx() {
   local version="$1"
-  local archive="mediamtx_v${version}_linux_arm64v8.tar.gz"
+  local archive="mediamtx_v${version}_linux_arm64.tar.gz"
   local url="https://github.com/bluenviron/mediamtx/releases/download/v${version}/${archive}"
   local tmpdir
   tmpdir="$(mktemp -d)"
@@ -223,6 +223,8 @@ paths:
     # Restore stability: limit bitrate and increase keyframe frequency
     rpiCameraBitrate: 4000000
     rpiCameraIDRPeriod: 30
+    # Preserve original frame timestamps for accurate clip/UI synchronization
+    useAbsoluteTimestamp: true
 MTX_YML
 
 chown root:root "${CONFIG_DIR}/mediamtx.yml"

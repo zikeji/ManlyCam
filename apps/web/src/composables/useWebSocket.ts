@@ -7,6 +7,7 @@ import {
   handleChatEdit,
   handleChatDelete,
   handleEphemeral,
+  handleClipTombstoneRestore,
 } from './useChat';
 import { handleAdminUserUpdate } from './useAdminUsers';
 import {
@@ -26,6 +27,8 @@ import { refreshCommands } from './useCommands';
 import { useAuth } from './useAuth';
 import { useBrowserNotifications } from './useBrowserNotifications';
 import { useNotificationPreferences } from './useNotificationPreferences';
+import { handleClipStatusChanged } from './useClipCreate';
+import { handleClipStatusUpdate, handleClipVisibilityChanged } from './useClips';
 import type { UserPresence, WsMessage } from '@manlycam/types';
 
 export interface WsInterface {
@@ -153,6 +156,14 @@ export function useWebSocket(): WsInterface {
       }
       if (msg.type === 'reaction:remove') {
         handleReactionRemove(msg.payload, user.value?.id);
+      }
+      if (msg.type === 'clip:status-changed') {
+        handleClipStatusChanged(msg.payload);
+        handleClipStatusUpdate(msg.payload);
+      }
+      if (msg.type === 'clip:visibility-changed') {
+        handleClipVisibilityChanged(msg.payload);
+        handleClipTombstoneRestore(msg.payload);
       }
     } catch {
       // Ignore malformed messages

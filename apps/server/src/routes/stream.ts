@@ -10,6 +10,20 @@ import { logger } from '../lib/logger.js';
 import type { AppEnv } from '../lib/types.js';
 import { CAMERA_CONTROLS_ALLOWLIST, Role } from '@manlycam/types';
 
+// Hop-by-hop headers must not be forwarded — mixing Transfer-Encoding + Content-Length
+// in the same response is an HTTP protocol violation that Node.js rejects.
+const HOP_BY_HOP = new Set([
+  'connection',
+  'keep-alive',
+  'transfer-encoding',
+  'content-length',
+  'te',
+  'trailer',
+  'upgrade',
+  'proxy-authenticate',
+  'proxy-authorization',
+]);
+
 export const streamRouter = new Hono<AppEnv>();
 
 // GET /api/stream/state — current stream state
@@ -35,21 +49,6 @@ streamRouter.post('/api/stream/whep', requireAuth, async (c) => {
     headers: { 'Content-Type': c.req.header('Content-Type') ?? 'application/sdp' },
     body: await c.req.text(),
   });
-
-  // Hop-by-hop headers must not be forwarded — mixing Transfer-Encoding + Content-Length
-  // in the same response is an HTTP protocol violation that Node.js rejects.
-  // content-length is also dropped; Response() recalculates it from the string body.
-  const HOP_BY_HOP = new Set([
-    'connection',
-    'keep-alive',
-    'transfer-encoding',
-    'content-length',
-    'te',
-    'trailer',
-    'upgrade',
-    'proxy-authenticate',
-    'proxy-authorization',
-  ]);
 
   const headers = new Headers();
   for (const [key, value] of res.headers.entries()) {
@@ -78,18 +77,6 @@ streamRouter.on(['PATCH', 'DELETE'], '/api/stream/whep/:session', requireAuth, a
     body: c.req.method === 'PATCH' ? await c.req.text() : undefined,
   });
   // 204 No Content (typical PATCH response) forbids a body — always use null.
-  // Strip hop-by-hop headers for the same reason as the POST handler above.
-  const HOP_BY_HOP = new Set([
-    'connection',
-    'keep-alive',
-    'transfer-encoding',
-    'content-length',
-    'te',
-    'trailer',
-    'upgrade',
-    'proxy-authenticate',
-    'proxy-authorization',
-  ]);
   const forwardedHeaders = Object.fromEntries(
     [...res.headers.entries()].filter(([k]) => !HOP_BY_HOP.has(k.toLowerCase())),
   );
@@ -214,3 +201,31 @@ streamRouter.patch(
     }
   },
 );
+
+// HLS proxy — forward HLS playlist and segment requests to the local mediamtx HLS server.
+// Auth is enforced here so the raw mediamtx HLS port never needs to be publicly exposed.
+// Used by ClipEditor for HLS playback during clip creation.
+streamRouter.get('/api/stream/hls/*', requireAuth, async (c) => {
+  const hlsPrefix = '/api/stream/hls/';
+  /* c8 ignore next 3 -- else branch unreachable: route only matches this prefix */
+  const rawPath = c.req.path.startsWith(hlsPrefix) ? c.req.path.slice(hlsPrefix.length) : '';
+  let wildcardPath: string;
+  try {
+    wildcardPath = decodeURIComponent(rawPath);
+  } catch {
+    throw new AppError('Invalid path encoding', 'VALIDATION_ERROR', 400);
+  }
+  if (wildcardPath.includes('..') || !/^[\w./-]*$/.test(wildcardPath)) {
+    throw new AppError('Invalid path', 'VALIDATION_ERROR', 400);
+  }
+  try {
+    const upstreamUrl = `${env.MTX_HLS_URL}/cam/${wildcardPath}`;
+    const res = await fetch(upstreamUrl);
+    const contentType = res.headers.get('content-type');
+    const headers: Record<string, string> = {};
+    if (contentType) headers['content-type'] = contentType;
+    return new Response(res.body, { status: res.status, headers });
+  } catch {
+    throw new AppError('HLS upstream unreachable', 'UPSTREAM_ERROR', 502);
+  }
+});

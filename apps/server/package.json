@@ -15,6 +15,8 @@
     "manlycam-admin": "./dist/cli/index.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1014.0",
+    "@aws-sdk/s3-request-presigner": "^3.1014.0",
     "@hono/node-server": "^1.19.11",
     "@hono/node-ws": "^1.3.0",
     "@manlycam/types": "workspace:*",

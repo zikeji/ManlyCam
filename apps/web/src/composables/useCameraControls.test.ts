@@ -134,23 +134,23 @@ describe('useCameraControls', () => {
     const { stageValue, stagedValues, hasStagedChanges } = useCameraControls();
 
     expect(hasStagedChanges.value).toBe(false);
-    stageValue('rpiCameraFps', 60);
-    expect(stagedValues.value).toEqual({ rpiCameraFps: 60 });
+    stageValue('rpiCameraFPS', 60);
+    expect(stagedValues.value).toEqual({ rpiCameraFPS: 60 });
     expect(hasStagedChanges.value).toBe(true);
   });
 
   it('stageValue accumulates multiple staged values', () => {
     const { stageValue, stagedValues } = useCameraControls();
 
-    stageValue('rpiCameraFps', 60);
+    stageValue('rpiCameraFPS', 60);
     stageValue('rpiCameraWidth', 1920);
-    expect(stagedValues.value).toEqual({ rpiCameraFps: 60, rpiCameraWidth: 1920 });
+    expect(stagedValues.value).toEqual({ rpiCameraFPS: 60, rpiCameraWidth: 1920 });
   });
 
   it('discardStagedValues resets stagedValues to empty', () => {
     const { stageValue, discardStagedValues, stagedValues, hasStagedChanges } = useCameraControls();
 
-    stageValue('rpiCameraFps', 60);
+    stageValue('rpiCameraFPS', 60);
     expect(hasStagedChanges.value).toBe(true);
 
     discardStagedValues();
@@ -164,7 +164,7 @@ describe('useCameraControls', () => {
     const { stageValue, applyStaged, stagedValues, hasStagedChanges, settings } =
       useCameraControls();
 
-    stageValue('rpiCameraFps', 60);
+    stageValue('rpiCameraFPS', 60);
     stageValue('rpiCameraWidth', 1920);
 
     await applyStaged();
@@ -172,11 +172,11 @@ describe('useCameraControls', () => {
     expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/api/stream/camera-settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rpiCameraFps: 60, rpiCameraWidth: 1920 }),
+      body: JSON.stringify({ rpiCameraFPS: 60, rpiCameraWidth: 1920 }),
     });
     expect(stagedValues.value).toEqual({});
     expect(hasStagedChanges.value).toBe(false);
-    expect(settings.value.rpiCameraFps).toBe(60);
+    expect(settings.value.rpiCameraFPS).toBe(60);
     expect(settings.value.rpiCameraWidth).toBe(1920);
   });
 
@@ -185,7 +185,7 @@ describe('useCameraControls', () => {
 
     const { stageValue, applyStaged, stagedValues, lastError } = useCameraControls();
 
-    stageValue('rpiCameraFps', 60);
+    stageValue('rpiCameraFPS', 60);
     await applyStaged();
 
     // staged values are cleared regardless
@@ -198,14 +198,14 @@ describe('useCameraControls', () => {
 
     const { patchSettings, settings } = useCameraControls();
 
-    await patchSettings({ rpiCameraFps: 30, rpiCameraBitrate: 2000 });
+    await patchSettings({ rpiCameraFPS: 30, rpiCameraBitrate: 2000 });
 
     expect(vi.mocked(apiFetch)).toHaveBeenCalledWith('/api/stream/camera-settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rpiCameraFps: 30, rpiCameraBitrate: 2000 }),
+      body: JSON.stringify({ rpiCameraFPS: 30, rpiCameraBitrate: 2000 }),
     });
-    expect(settings.value.rpiCameraFps).toBe(30);
+    expect(settings.value.rpiCameraFPS).toBe(30);
     expect(settings.value.rpiCameraBitrate).toBe(2000);
   });
 
@@ -215,7 +215,7 @@ describe('useCameraControls', () => {
 
     const { patchSettings, lastError } = useCameraControls();
 
-    await patchSettings({ rpiCameraFps: 30 });
+    await patchSettings({ rpiCameraFPS: 30 });
 
     expect(lastError.value).toBe('Network error');
   });
@@ -223,7 +223,7 @@ describe('useCameraControls', () => {
   it('fetchSettings does not overwrite settings when PATCH is in flight', async () => {
     const { fetchSettings, patchSettings, settings } = useCameraControls();
 
-    settings.value = { rpiCameraFps: 60 };
+    settings.value = { rpiCameraFPS: 60 };
     let resolvePatch: () => void;
     vi.mocked(apiFetch).mockImplementation(
       () =>
@@ -232,13 +232,13 @@ describe('useCameraControls', () => {
         }) as Promise<{ ok: boolean }>,
     );
 
-    const patchPromise = patchSettings({ rpiCameraFps: 60 });
+    const patchPromise = patchSettings({ rpiCameraFPS: 60 });
     vi.mocked(apiFetch).mockResolvedValue({
-      settings: { rpiCameraFps: 30 },
+      settings: { rpiCameraFPS: 30 },
       piReachable: true,
     });
     await fetchSettings();
-    expect(settings.value.rpiCameraFps).toBe(60);
+    expect(settings.value.rpiCameraFPS).toBe(60);
 
     resolvePatch!();
     await patchPromise;
@@ -246,14 +246,14 @@ describe('useCameraControls', () => {
 
   it('fetchSettings updates settings when no PATCH is in flight', async () => {
     vi.mocked(apiFetch).mockResolvedValue({
-      settings: { rpiCameraFps: 30 },
+      settings: { rpiCameraFPS: 30 },
       piReachable: true,
     });
 
     const { fetchSettings, settings } = useCameraControls();
     await fetchSettings();
 
-    expect(settings.value.rpiCameraFps).toBe(30);
+    expect(settings.value.rpiCameraFPS).toBe(30);
   });
 
   it('patchSettings sets fallback error when result.ok is false and error is undefined', async () => {

@@ -46,7 +46,8 @@ FROM node:24-alpine AS runner
 
 ENV NODE_ENV=production
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@latest --activate && \
+    apk add --no-cache ffmpeg
 
 WORKDIR /repo
 
