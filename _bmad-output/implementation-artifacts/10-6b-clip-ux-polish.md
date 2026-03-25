@@ -1,6 +1,6 @@
 # Story 10-6b: Clip UX Polish
 
-Status: review
+Status: done
 
 ## Story
 
