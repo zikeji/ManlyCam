@@ -1425,6 +1425,7 @@ describe('updateClip', () => {
       visibility: 'shared',
       user: { ...baseClipUser, userTagText: null, userTagColor: null },
     } as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
     await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
     expect(wsHub.broadcast).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'clip:visibility-changed' }),
@@ -1437,6 +1438,7 @@ describe('updateClip', () => {
       visibility: 'shared',
       user: { ...baseClipUser, userTagText: null, userTagColor: null },
     } as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
     await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
     expect(wsHub.broadcast).toHaveBeenCalledWith({
       type: 'clip:visibility-changed',
@@ -1444,13 +1446,57 @@ describe('updateClip', () => {
     });
   });
 
-  it('does not broadcast when visibility does not change', async () => {
+  it('does not broadcast when there are no chat messages referencing the clip', async () => {
     vi.mocked(prisma.clip.update).mockResolvedValue({
       ...baseClip,
       user: { ...baseClipUser, userTagText: null, userTagColor: null },
     } as never);
+    // beforeEach mocks message.findMany to return [] — no chat messages
     await updateClip({ clipId: 'clip-001', actor, data: { name: 'New Name' } });
     expect(wsHub.broadcast).not.toHaveBeenCalled();
+  });
+
+  it('broadcasts on name-only change when chat messages exist', async () => {
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      name: 'Updated Name',
+      visibility: 'shared',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
+    await updateClip({ clipId: 'clip-001', actor, data: { name: 'Updated Name' } });
+    expect(wsHub.broadcast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'clip:visibility-changed',
+        payload: expect.objectContaining({ clipId: 'clip-001', chatClipIds: ['msg-001'] }),
+      }),
+    );
+  });
+
+  it('broadcasts with tombstone payload when clip is set to private', async () => {
+    vi.mocked(prisma.clip.findUnique).mockResolvedValue({
+      ...baseClip,
+      visibility: 'shared',
+      user: baseClipUser,
+    } as never);
+    vi.mocked(prisma.clip.update).mockResolvedValue({
+      ...baseClip,
+      visibility: 'private',
+      user: { ...baseClipUser, userTagText: null, userTagColor: null },
+    } as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
+    await updateClip({
+      clipId: 'clip-001',
+      actor,
+      data: { visibility: 'private' },
+    });
+    expect(wsHub.broadcast).toHaveBeenCalledWith({
+      type: 'clip:visibility-changed',
+      payload: expect.objectContaining({ visibility: 'private', chatClipIds: ['msg-001'] }),
+    });
+    // No clip data in payload for private (tombstone doesn't need it)
+    const payload = (wsHub.broadcast as ReturnType<typeof vi.fn>).mock.calls[0][0].payload;
+    expect(payload.clip).toBeUndefined();
   });
 
   it('writes audit log for each category when Moderator edits non-owned clip', async () => {
@@ -1537,6 +1583,7 @@ describe('updateClip', () => {
       thumbnailKey: null,
       user: { ...baseClipUser, userTagText: null, userTagColor: null },
     } as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
     await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
     const call = vi
       .mocked(wsHub.broadcast)
@@ -1568,6 +1615,7 @@ describe('updateClip', () => {
       clipperAvatarUrl: 'https://cdn.example.com/av.jpg',
       user: { ...baseClipUser, userTagText: null, userTagColor: null },
     } as never);
+    vi.mocked(prisma.message.findMany).mockResolvedValue([{ id: 'msg-001' }] as never);
     await updateClip({ clipId: 'clip-001', actor, data: { visibility: 'shared' } });
     const call = vi
       .mocked(wsHub.broadcast)

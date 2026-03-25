@@ -750,7 +750,6 @@ export async function updateClip(params: {
     if (!isOwner) auditCategories.push('clip:visibility-changed');
   }
 
-  const prevVisibility = clip.visibility;
   const newVisibility = (data.visibility ?? clip.visibility) as string;
 
   // Attribution controls — only relevant when going to/staying at public
@@ -807,16 +806,17 @@ export async function updateClip(params: {
     }
   }
 
-  // Broadcast visibility change if changed
-  if (data.visibility !== undefined && data.visibility !== prevVisibility) {
-    const chatClipIds = (
-      await prisma.message.findMany({
-        where: { clipId },
-        select: { id: true },
-        take: 100,
-      })
-    ).map((m) => m.id);
+  // Broadcast to active sessions: tombstone on private, restore/update on shared/public.
+  // Fires for any update (name, visibility, attribution) so chat clip cards reflect changes immediately.
+  const chatClipIds = (
+    await prisma.message.findMany({
+      where: { clipId },
+      select: { id: true },
+      take: 100,
+    })
+  ).map((m) => m.id);
 
+  if (chatClipIds.length > 0) {
     const visibilityPayload: {
       clipId: string;
       visibility: string;

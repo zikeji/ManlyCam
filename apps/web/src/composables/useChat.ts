@@ -58,23 +58,26 @@ export const dismissEphemeral = (id: string): void => {
   ephemeralMessages.value = ephemeralMessages.value.filter((m) => m.id !== id);
 };
 
-// Restores tombstoned clip chat messages to live cards when a clip becomes public/shared.
-// Called by useWebSocket when a clip:visibility-changed WS message arrives with
-// visibility 'shared' or 'public' and chatClipIds + clip payload.
+// Updates chat clip cards when a clip:visibility-changed WS message arrives.
+// - private/deleted: tombstones matching cards immediately in active sessions
+// - shared/public: restores tombstones to live cards AND updates live cards with latest clip data
 export const handleClipTombstoneRestore = (payload: ClipVisibilityChangedPayload): void => {
-  if (
-    (payload.visibility !== 'shared' && payload.visibility !== 'public') ||
-    !payload.chatClipIds?.length ||
-    !payload.clip
-  )
-    return;
+  if (!payload.chatClipIds?.length) return;
 
-  const clipData = payload.clip;
   const ids = new Set(payload.chatClipIds);
+  const isVisible = payload.visibility === 'shared' || payload.visibility === 'public';
 
   messages.value = messages.value.map((msg) => {
-    if (msg.messageType !== 'clip' || !ids.has(msg.id) || !msg.tombstone) return msg;
-    const restored: ClipChatMessage = {
+    if (msg.messageType !== 'clip' || !ids.has(msg.id)) return msg;
+
+    if (!isVisible) {
+      return { ...msg, tombstone: true } as ClipChatMessage;
+    }
+
+    if (!payload.clip) return msg;
+
+    const clipData = payload.clip;
+    const updated: ClipChatMessage = {
       ...(msg as ClipChatMessage),
       clipId: clipData.clipId,
       clipName: clipData.clipName,
@@ -84,7 +87,7 @@ export const handleClipTombstoneRestore = (payload: ClipVisibilityChangedPayload
       clipperAvatarUrl: clipData.clipperAvatarUrl,
       tombstone: undefined,
     };
-    return restored;
+    return updated;
   });
 };
 

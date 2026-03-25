@@ -485,11 +485,20 @@ describe('useChat', () => {
       expect(restored.clipThumbnailUrl).toBe('https://cdn.example.com/thumb.jpg');
     });
 
-    it('does nothing when visibility is not shared or public', () => {
+    it('tombstones a live clip message immediately when visibility is private', () => {
       const { messages } = useChat();
-      messages.value = [liveClipMsg];
+      messages.value = [{ ...liveClipMsg, tombstone: undefined }];
 
-      handleClipTombstoneRestore({ ...restorePayload, visibility: 'private' });
+      handleClipTombstoneRestore({ ...restorePayload, visibility: 'private', clip: undefined });
+
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
+    });
+
+    it('tombstones a live clip message immediately when visibility is deleted', () => {
+      const { messages } = useChat();
+      messages.value = [{ ...liveClipMsg, tombstone: undefined }];
+
+      handleClipTombstoneRestore({ ...restorePayload, visibility: 'deleted', clip: undefined });
 
       expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
     });
@@ -503,7 +512,7 @@ describe('useChat', () => {
       expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
     });
 
-    it('does nothing when clip payload is missing', () => {
+    it('does not update a clip message when visibility is shared but clip payload is missing', () => {
       const { messages } = useChat();
       messages.value = [liveClipMsg];
 
@@ -512,15 +521,15 @@ describe('useChat', () => {
       expect((messages.value[0] as ClipChatMessage).tombstone).toBe(true);
     });
 
-    it('does not restore a non-tombstoned clip message', () => {
+    it('updates a live (non-tombstoned) clip message with new data when visibility is shared', () => {
       const { messages } = useChat();
       const liveNotTombstoned = { ...liveClipMsg, tombstone: undefined };
       messages.value = [liveNotTombstoned];
 
       handleClipTombstoneRestore(restorePayload);
 
-      // Message should not be changed (tombstone remains undefined, clipName unchanged)
-      expect((messages.value[0] as ClipChatMessage).clipName).toBe('Old Name');
+      expect((messages.value[0] as ClipChatMessage).clipName).toBe('New Name');
+      expect((messages.value[0] as ClipChatMessage).tombstone).toBeUndefined();
     });
 
     it('only restores messages whose IDs are in chatClipIds', () => {
