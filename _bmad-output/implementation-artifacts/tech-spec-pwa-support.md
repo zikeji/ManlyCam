@@ -2,7 +2,7 @@
 title: 'PWA Support via vite-plugin-pwa'
 type: 'feature'
 created: '2026-03-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: '6b2fa72882695e2b711d0fc7408df3615fcfdc59'
 context: []
 ---
