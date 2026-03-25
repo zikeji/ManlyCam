@@ -1,6 +1,6 @@
 # Story 9.1: Camera Settings Enhancements
 
-Status: review
+Status: done
 
 ## Story
 

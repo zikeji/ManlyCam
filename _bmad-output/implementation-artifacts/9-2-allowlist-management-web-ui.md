@@ -1,6 +1,6 @@
 # Story 9.2: Allowlist Management Web UI
 
-Status: ready-for-review
+Status: done
 
 ## Story
 
