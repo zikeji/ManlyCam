@@ -2,7 +2,7 @@
 title: 'Stream-Only Link for Browser Sources'
 type: 'feature'
 created: '2026-03-26'
-status: 'ready-for-review'
+status: 'done'
 baseline_commit: '358430c9a96bfdd7a87ab6a8dba4e3be80bf96b4'
 context: []
 ---
@@ -66,20 +66,20 @@ context: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `apps/server/src/services/streamService.ts` — add module-level `EventEmitter`; track `private prevLive = false` in `broadcastState()`; emit `'live'` on `false → true` transition; expose `waitForLive(timeoutMs): Promise<boolean>` using `Promise.race` between the emitter's `once('live')` and a timeout that resolves `false`
-- [ ] `apps/server/src/routes/stream-only.ts` — new router: `GET /api/stream-only/config` (returns `{ enabled, key }`); `PATCH /api/stream-only/config` (body `{ enabled: boolean }`, persists to stream_config); `POST /api/stream-only/config/regenerate` (generates `crypto.randomBytes(96).toString('base64url')`, persists, returns `{ key }`); `POST /api/stream-only/:key/whep` (validate key+enabled → 404, check live state → long-poll via `waitForLive(30_000)` → 503 on timeout, else proxy WHEP with Location rewrite to `/api/stream-only/:key/whep/:uuid`); `PATCH|DELETE /api/stream-only/:key/whep/:session` (validate key+enabled, proxy)
-- [ ] `apps/server/src/routes/stream-only.test.ts` — unit-test I/O matrix scenarios: valid key+live, valid key+offline (wait resolves true), timeout (503), invalid key (404), disabled (404), PATCH/DELETE relay, regenerate invalidates old key
-- [ ] `apps/server/src/app.ts` — import and mount `streamOnlyRouter` before SPA catch-all
-- [ ] `apps/web/src/composables/useStreamOnlyWhep.ts` — copy `useWhep` reconnect/monitoring structure; accept `key: string` param; POST to `/api/stream-only/${key}/whep` (no `credentials: 'include'`); add `isConnecting` ref (true while POST in flight, set in try/finally); on 404 response set `isPermanentlyFailed = true` and skip `scheduleReconnect`; rewrite session URL path from `/api/stream/whep/` to `/api/stream-only/${key}/whep/` using Location header value
-- [ ] `apps/web/src/composables/useStreamOnlyWhep.test.ts` — test `isConnecting` flag lifecycle, 404 halts retries, non-404 errors schedule reconnect
-- [ ] `apps/web/src/composables/useStreamOnlyLink.ts` — fetch `GET /api/stream-only/config`; expose `enabled`, `key`, `isLoading`, `error`; `toggle(enabled: boolean)` → PATCH; `regenerate()` → POST regenerate
-- [ ] `apps/web/src/composables/useStreamOnlyLink.test.ts` — test fetch, toggle, regenerate
-- [ ] `apps/web/src/components/admin/StreamOnlyPanel.vue` — Switch labeled "Enable Stream-Only Link" with description "A link that only displays the stream when enabled and nothing else, e.g. in an OBS browser source."; bind the Switch via `v-model` bound to `enabled` from `useStreamOnlyLink` (do NOT use `:checked` + `@update:checked` — use `v-model`); when enabled: readonly `<input>` showing `${origin}/stream-only/${key}`, Copy button, Regenerate button; loading skeleton; uses `useStreamOnlyLink`
-- [ ] `apps/web/src/components/admin/StreamOnlyPanel.test.ts` — test disabled state, enabled state (URL shown), copy, regenerate
-- [ ] `apps/web/src/components/admin/AdminDialog.vue` — add "Stream Link" `TabsTrigger` + `TabsContent` containing `<StreamOnlyPanel />`
-- [ ] `apps/web/src/views/StreamOnlyView.vue` — standalone full-viewport page; reads `:key` from `useRoute`; mounts `useStreamOnlyWhep(key)`; `<video>` with `object-fit: cover` / `width: 100vw` / `height: 100vh`; shows centered spinner overlay when `isConnecting || (!isHealthy && !isPermanentlyFailed)`; black when `isPermanentlyFailed`; no other UI
-- [ ] `apps/web/src/views/StreamOnlyView.test.ts` — test spinner shown while connecting, black on permanent failure, video rendered when healthy
-- [ ] `apps/web/src/router/index.ts` — add `{ path: '/stream-only/:key', component: StreamOnlyView }`; add `to.path.startsWith('/stream-only/')` bypass to `beforeEach` auth guard
+- [x] `apps/server/src/services/streamService.ts` — add module-level `EventEmitter`; track `private prevLive = false` in `broadcastState()`; emit `'live'` on `false → true` transition; expose `waitForLive(timeoutMs): Promise<boolean>` using `Promise.race` between the emitter's `once('live')` and a timeout that resolves `false`
+- [x] `apps/server/src/routes/stream-only.ts` — new router: `GET /api/stream-only/config` (returns `{ enabled, key }`); `PATCH /api/stream-only/config` (body `{ enabled: boolean }`, persists to stream_config); `POST /api/stream-only/config/regenerate` (generates `crypto.randomBytes(96).toString('base64url')`, persists, returns `{ key }`); `POST /api/stream-only/:key/whep` (validate key+enabled → 404, check live state → long-poll via `waitForLive(30_000)` → 503 on timeout, else proxy WHEP with Location rewrite to `/api/stream-only/:key/whep/:uuid`); `PATCH|DELETE /api/stream-only/:key/whep/:session` (validate key+enabled, proxy)
+- [x] `apps/server/src/routes/stream-only.test.ts` — unit-test I/O matrix scenarios: valid key+live, valid key+offline (wait resolves true), timeout (503), invalid key (404), disabled (404), PATCH/DELETE relay, regenerate invalidates old key
+- [x] `apps/server/src/app.ts` — import and mount `streamOnlyRouter` before SPA catch-all
+- [x] `apps/web/src/composables/useStreamOnlyWhep.ts` — copy `useWhep` reconnect/monitoring structure; accept `key: string` param; POST to `/api/stream-only/${key}/whep` (no `credentials: 'include'`); add `isConnecting` ref (true while POST in flight, set in try/finally); on 404 response set `isPermanentlyFailed = true` and skip `scheduleReconnect`; rewrite session URL path from `/api/stream/whep/` to `/api/stream-only/${key}/whep/` using Location header value
+- [x] `apps/web/src/composables/useStreamOnlyWhep.test.ts` — test `isConnecting` flag lifecycle, 404 halts retries, non-404 errors schedule reconnect
+- [x] `apps/web/src/composables/useStreamOnlyLink.ts` — fetch `GET /api/stream-only/config`; expose `enabled`, `key`, `isLoading`, `error`; `toggle(enabled: boolean)` → PATCH; `regenerate()` → POST regenerate
+- [x] `apps/web/src/composables/useStreamOnlyLink.test.ts` — test fetch, toggle, regenerate
+- [x] `apps/web/src/components/admin/StreamOnlyPanel.vue` — Switch labeled "Enable Stream-Only Link" with description "A link that only displays the stream when enabled and nothing else, e.g. in an OBS browser source."; bind the Switch via `v-model` bound to `enabled` from `useStreamOnlyLink` (do NOT use `:checked` + `@update:checked` — use `v-model`); when enabled: readonly `<input>` showing `${origin}/stream-only/${key}`, Copy button, Regenerate button; loading skeleton; uses `useStreamOnlyLink`
+- [x] `apps/web/src/components/admin/StreamOnlyPanel.test.ts` — test disabled state, enabled state (URL shown), copy, regenerate
+- [x] `apps/web/src/components/admin/AdminDialog.vue` — add "Stream Link" `TabsTrigger` + `TabsContent` containing `<StreamOnlyPanel />`
+- [x] `apps/web/src/views/StreamOnlyView.vue` — standalone full-viewport page; reads `:key` from `useRoute`; mounts `useStreamOnlyWhep(key)`; `<video>` with `object-fit: cover` / `width: 100vw` / `height: 100vh`; shows centered spinner overlay when `isConnecting || (!isHealthy && !isPermanentlyFailed)`; black when `isPermanentlyFailed`; no other UI
+- [x] `apps/web/src/views/StreamOnlyView.test.ts` — test spinner shown while connecting, black on permanent failure, video rendered when healthy
+- [x] `apps/web/src/router/index.ts` — add `{ path: '/stream-only/:key', component: StreamOnlyView }`; add `to.path.startsWith('/stream-only/')` bypass to `beforeEach` auth guard
 
 **Acceptance Criteria:**
 - Given admin opens AdminDialog → Stream Link tab with link disabled, then toggle is off and URL field shows a placeholder (no key exposed)
@@ -147,3 +147,17 @@ After initial implementation, two issues were identified via smoke test:
 - `apps/web/src/views/StreamOnlyView.test.ts`
 - `apps/web/src/router/index.ts`
 - `apps/web/src/App.vue`
+
+### Smoke test fixes (commits 4313c35, ce73e0d)
+
+Four bugs found during full smoke test, all fixed:
+
+1. **`/api/me` firing on stream-only page** — `route.path` in `App.vue`'s `onMounted` guard resolved to `/` (Vue Router start location) before the initial navigation completed, so the guard never matched. Fixed by switching to `window.location.pathname`, which always reflects the real URL. Unused `useRoute` import removed.
+
+2. **Disabling the link did not disconnect active viewers** — the original SSE endpoint validated `enabled` at connection time only. Fixed: SSE now subscribes to `configEmitter`; on any config change it re-reads `stream_only_enabled` and pushes `{ live: false }` to connected clients with valid but disabled keys, immediately dropping the WHEP connection via the client's `live:false` handler.
+
+3. **Key regeneration did not disconnect existing viewers** — the `not-found` SSE event handler only closed the `EventSource`; the active `RTCPeerConnection` kept running, leaving video playing. Fixed: `teardownWhep()` is now called before `es.close()` in the `not-found` handler so the peer connection is torn down. Observed behaviour on regeneration: video freezes (RTCPeerConnection closed) rather than going black — acceptable.
+
+4. **Wrong key showed spinner instead of permanent black** — `EventSource` auto-retries on HTTP errors (including 404), so returning 404 for a bad key caused perpetual reconnect attempts with a persistent spinner. Fixed: SSE endpoint always returns HTTP 200; invalid keys receive a named `event: not-found` SSE event that the client converts to `isPermanentlyFailed = true` (black, no further requests).
+
+**Additional observation:** DELETE requests to `/api/stream-only/:key/whep/:session` return 404 in teardown scenarios (key changed, disabled, mediamtx session already gone). This is benign — `teardownWhep` fires DELETE as best-effort cleanup with `.catch(() => {})`, and a 404 simply means the server-side session was already invalid. No action required.
