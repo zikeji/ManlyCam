@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { onMounted, provide, watch } from 'vue';
-import { useRoute } from 'vue-router';
 import { useAuth } from '@/composables/useAuth';
 import { useWebSocket, WS_INJECTION_KEY } from '@/composables/useWebSocket';
 import LoginView from '@/views/LoginView.vue';
 import WatchView from '@/views/WatchView.vue';
 import { Toaster } from '@/components/ui/sonner';
 
-const route = useRoute();
 const { user, authLoading, fetchCurrentUser } = useAuth();
 
 const ws = useWebSocket();
@@ -20,8 +18,9 @@ watch(user, (u) => {
 });
 
 onMounted(() => {
-  // stream-only pages are auth-free; skip the /api/me call to avoid spurious 401s
-  if (!route.path.startsWith('/stream-only/')) {
+  // Use window.location.pathname — route.path resolves asynchronously and may still be '/'
+  // when onMounted fires on initial navigation to a stream-only URL.
+  if (!window.location.pathname.startsWith('/stream-only/')) {
     fetchCurrentUser();
   }
 });

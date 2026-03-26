@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import crypto from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { env } from '../env.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
@@ -25,6 +26,11 @@ const HOP_BY_HOP = new Set([
 ]);
 
 export const streamOnlyRouter = new Hono<AppEnv>();
+
+// Fires whenever stream_only_enabled or stream_only_key changes so live SSE connections
+// can push updated state (or a not-found event) without polling.
+export const configEmitter = new EventEmitter();
+configEmitter.setMaxListeners(0); // unbounded — one listener per active SSE connection
 
 const mtxWhepBase = () => `${env.MTX_WEBRTC_URL}/cam/whep`;
 
@@ -58,6 +64,7 @@ streamOnlyRouter.patch(
     }
     const { enabled } = body as { enabled: boolean };
     await streamConfig.set('stream_only_enabled', enabled ? 'true' : 'false');
+    configEmitter.emit('change');
     return c.json({ ok: true });
   },
 );
@@ -70,6 +77,7 @@ streamOnlyRouter.post(
   async (c) => {
     const key = crypto.randomBytes(96).toString('base64url');
     await streamConfig.set('stream_only_key', key);
+    configEmitter.emit('change');
     return c.json({ key });
   },
 );
@@ -83,39 +91,81 @@ async function validateStreamOnlyKey(key: string): Promise<boolean> {
 }
 
 // GET /api/stream-only/:key/sse — no auth — SSE stream of { live: boolean } reachability events.
-// Sends current state immediately on connect, then pushes an event on every piReachable change.
+// Always returns 200 for the HTTP response; invalid keys receive a 'not-found' named event
+// instead of 404 so EventSource doesn't spin-retry. Disabled-but-valid keys stay subscribed
+// and receive { live: false } until the admin re-enables them.
 streamOnlyRouter.get('/api/stream-only/:key/sse', async (c) => {
   const key = c.req.param('key');
-  const valid = await validateStreamOnlyKey(key);
-  if (!valid) throw new AppError('Not found', 'NOT_FOUND', 404);
+  const storedKey = await streamConfig.getOrNull('stream_only_key');
 
   return streamSSE(c, async (stream) => {
-    await stream.writeSSE({ data: JSON.stringify({ live: streamService.isPiReachable() }) });
+    if (storedKey !== key) {
+      await stream.writeSSE({ event: 'not-found', data: '' });
+      return;
+    }
 
-    const unsubscribe = streamService.subscribeReachability(async (live) => {
-      await stream.writeSSE({ data: JSON.stringify({ live }) });
+    const enabledRaw = await streamConfig.getOrNull('stream_only_enabled');
+    let isEnabled = enabledRaw === 'true';
+    await stream.writeSSE({
+      data: JSON.stringify({ live: isEnabled && streamService.isPiReachable() }),
     });
 
     await new Promise<void>((resolve) => {
-      stream.onAbort(() => {
-        unsubscribe();
-        resolve();
+      let finished = false;
+
+      const unsubscribe = streamService.subscribeReachability(async (piLive) => {
+        if (isEnabled) {
+          await stream.writeSSE({ data: JSON.stringify({ live: piLive }) });
+        }
       });
+
+      function finish(): void {
+        /* c8 ignore next 2 -- guard against double-resolution (abort + config change race) */
+        if (finished) return;
+        finished = true;
+        unsubscribe();
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        configEmitter.off('change', onConfigChange);
+        resolve();
+      }
+
+      async function onConfigChange(): Promise<void> {
+        const [enabledNow, keyNow] = await Promise.all([
+          streamConfig.getOrNull('stream_only_enabled'),
+          streamConfig.getOrNull('stream_only_key'),
+        ]);
+        if (keyNow !== key) {
+          await stream.writeSSE({ event: 'not-found', data: '' });
+          finish();
+          return;
+        }
+        isEnabled = enabledNow === 'true';
+        await stream.writeSSE({
+          data: JSON.stringify({ live: isEnabled && streamService.isPiReachable() }),
+        });
+      }
+
+      configEmitter.on('change', onConfigChange);
+      stream.onAbort(finish);
     });
   });
 });
 
-// POST /api/stream-only/:key/whep — no auth — validate key+enabled, long-poll, proxy WHEP
-// Only piReachable matters — admin toggle is intentionally bypassed for stream-only links.
+// POST /api/stream-only/:key/whep — no auth — validate key+enabled, proxy WHEP.
+// Wrong key → 404 (permanent client failure). Disabled → 503 (transient, client retries via SSE).
 streamOnlyRouter.post('/api/stream-only/:key/whep', async (c) => {
   const key = c.req.param('key');
 
-  const valid = await validateStreamOnlyKey(key);
-  if (!valid) {
+  const [enabledRaw, storedKey] = await Promise.all([
+    streamConfig.getOrNull('stream_only_enabled'),
+    streamConfig.getOrNull('stream_only_key'),
+  ]);
+
+  if (storedKey !== key) {
     throw new AppError('Not found', 'NOT_FOUND', 404);
   }
 
-  if (!streamService.isPiReachable()) {
+  if (enabledRaw !== 'true' || !streamService.isPiReachable()) {
     throw new AppError('Stream not live', 'STREAM_NOT_LIVE', 503);
   }
 
