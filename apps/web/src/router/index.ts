@@ -3,6 +3,7 @@ import LoginView from '@/views/LoginView.vue';
 import RejectedView from '@/views/RejectedView.vue';
 import BannedView from '@/views/BannedView.vue';
 import ClipPage from '@/views/ClipPage.vue';
+import StreamOnlyView from '@/views/StreamOnlyView.vue';
 import { user, authLoading, fetchCurrentUser } from '@/composables/useAuth';
 
 // Called by useAuth.logout() to signal that auth state has been invalidated.
@@ -18,12 +19,14 @@ export const router = createRouter({
     { path: '/rejected', component: RejectedView },
     { path: '/banned', component: BannedView },
     { path: '/clips/:id', component: ClipPage },
+    { path: '/stream-only/:key', component: StreamOnlyView },
   ],
 });
 
 router.beforeEach(async (to) => {
   if (to.path === '/rejected' || to.path === '/banned') return true;
   if (to.path.startsWith('/clips/')) return true;
+  if (to.path.startsWith('/stream-only/')) return true;
 
   // Fetch user if not yet loaded (authLoading resets to true after logout)
   if (authLoading.value) {

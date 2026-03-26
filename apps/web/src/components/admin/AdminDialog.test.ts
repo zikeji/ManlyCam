@@ -27,6 +27,10 @@ vi.mock('./AuditLogTable.vue', () => ({
   default: { template: '<div data-testid="audit-log-table">AuditLogTable</div>' },
 }));
 
+vi.mock('./StreamOnlyPanel.vue', () => ({
+  default: { template: '<div data-testid="stream-only-panel">StreamOnlyPanel</div>' },
+}));
+
 describe('AdminDialog', () => {
   let wrapper: VueWrapper | null = null;
 
@@ -44,11 +48,12 @@ describe('AdminDialog', () => {
     expect(wrapper.text()).toContain('Admin');
   });
 
-  it('renders Users, Allowlist, and Audit Log tab triggers', () => {
+  it('renders Users, Allowlist, Audit Log, and Stream Link tab triggers', () => {
     wrapper = mount(AdminDialog, { props: { open: true } });
     expect(wrapper.text()).toContain('Users');
     expect(wrapper.text()).toContain('Allowlist');
     expect(wrapper.text()).toContain('Audit Log');
+    expect(wrapper.text()).toContain('Stream Link');
   });
 
   it('renders UserList in the Users tab content', () => {
@@ -72,6 +77,11 @@ describe('AdminDialog', () => {
   it('renders AuditLogTable in the Audit Log tab content', () => {
     wrapper = mount(AdminDialog, { props: { open: true } });
     expect(wrapper.find('[data-testid="audit-log-table"]').exists()).toBe(true);
+  });
+
+  it('renders StreamOnlyPanel in the Stream Link tab content', () => {
+    wrapper = mount(AdminDialog, { props: { open: true } });
+    expect(wrapper.find('[data-testid="stream-only-panel"]').exists()).toBe(true);
   });
 
   it('does not render content when closed', () => {

@@ -538,6 +538,49 @@ describe('StreamService camera reapply', () => {
   });
 });
 
+describe('StreamService waitForLive', () => {
+  let service: StreamService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new StreamService();
+  });
+
+  afterEach(() => {
+    service.stop();
+  });
+
+  it('resolves true when stream becomes live before timeout', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    const waitPromise = service.waitForLive(5000);
+    await service.pollMediamtxState();
+    const result = await waitPromise;
+    expect(result).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('resolves false when timeout expires before stream is live', async () => {
+    const result = await service.waitForLive(10);
+    expect(result).toBe(false);
+  });
+
+  it('does not emit live when state stays live (no false→true transition)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    // First poll: becomes live
+    await service.pollMediamtxState();
+    // waitForLive now — stream is already live, should time out (no re-emission)
+    const result = await service.waitForLive(20);
+    expect(result).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('StreamService cacheHlsPlaylistName', () => {
   let service: StreamService;
 

@@ -11,6 +11,7 @@ import { X } from 'lucide-vue-next';
 import UserList from './UserList.vue';
 import AllowlistPanel from './AllowlistPanel.vue';
 import AuditLogTable from './AuditLogTable.vue';
+import StreamOnlyPanel from './StreamOnlyPanel.vue';
 
 const isOpen = defineModel<boolean>('open', { default: false });
 </script>
@@ -35,6 +36,9 @@ const isOpen = defineModel<boolean>('open', { default: false });
           <TabsTrigger value="audit-log" class="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent pb-2">
             Audit Log
           </TabsTrigger>
+          <TabsTrigger value="stream-link" class="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent pb-2">
+            Stream Link
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="users" class="flex-1 overflow-hidden m-0 data-[state=inactive]:hidden">
           <UserList />
@@ -44,6 +48,9 @@ const isOpen = defineModel<boolean>('open', { default: false });
         </TabsContent>
         <TabsContent value="audit-log" force-mount class="flex-1 overflow-hidden m-0 data-[state=inactive]:hidden">
           <AuditLogTable />
+        </TabsContent>
+        <TabsContent value="stream-link" force-mount class="flex-1 overflow-y-auto m-0 data-[state=inactive]:hidden">
+          <StreamOnlyPanel />
         </TabsContent>
       </Tabs>
     </AlertDialogContent>

@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { env } from '../env.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../db/client.js';
@@ -6,6 +7,8 @@ import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
 import type { StreamState } from '@manlycam/types';
 
+const liveEmitter = new EventEmitter();
+
 export class StreamService {
   private adminToggle: 'live' | 'offline' = 'live';
   private piReachable = false;
@@ -13,6 +16,7 @@ export class StreamService {
   private offlineEmoji: string | null = null;
   private offlineTitle: string | null = null;
   private offlineDescription: string | null = null;
+  private prevLive = false;
 
   getState(): StreamState {
     if (this.adminToggle === 'offline')
@@ -152,8 +156,29 @@ export class StreamService {
     this.broadcastState();
   }
 
+  waitForLive(timeoutMs: number): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      let timer: ReturnType<typeof setTimeout>;
+      const onLive = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      timer = setTimeout(() => {
+        liveEmitter.removeListener('live', onLive);
+        resolve(false);
+      }, timeoutMs);
+      liveEmitter.once('live', onLive);
+    });
+  }
+
   private broadcastState(): void {
-    wsHub.broadcast({ type: 'stream:state', payload: this.getState() });
+    const state = this.getState();
+    wsHub.broadcast({ type: 'stream:state', payload: state });
+    const nowLive = state.state === 'live';
+    if (!this.prevLive && nowLive) {
+      liveEmitter.emit('live');
+    }
+    this.prevLive = nowLive;
   }
 
   private async pollLoop(): Promise<void> {
