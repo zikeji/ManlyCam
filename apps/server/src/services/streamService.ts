@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { env } from '../env.js';
 import { logger } from '../lib/logger.js';
 import { prisma } from '../db/client.js';
@@ -13,6 +14,9 @@ export class StreamService {
   private offlineEmoji: string | null = null;
   private offlineTitle: string | null = null;
   private offlineDescription: string | null = null;
+  private prevLive = false;
+  private liveEmitter = new EventEmitter();
+  private reachabilityEmitter = new EventEmitter();
 
   getState(): StreamState {
     if (this.adminToggle === 'offline')
@@ -152,8 +156,34 @@ export class StreamService {
     this.broadcastState();
   }
 
+  waitForLive(timeoutMs: number): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      let timer: ReturnType<typeof setTimeout>;
+      const onLive = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+      timer = setTimeout(() => {
+        this.liveEmitter.removeListener('live', onLive);
+        resolve(false);
+      }, timeoutMs);
+      this.liveEmitter.once('live', onLive);
+    });
+  }
+
+  subscribeReachability(cb: (live: boolean) => void): () => void {
+    this.reachabilityEmitter.on('change', cb);
+    return () => this.reachabilityEmitter.off('change', cb);
+  }
+
   private broadcastState(): void {
-    wsHub.broadcast({ type: 'stream:state', payload: this.getState() });
+    const state = this.getState();
+    wsHub.broadcast({ type: 'stream:state', payload: state });
+    const nowLive = state.state === 'live';
+    if (!this.prevLive && nowLive) {
+      this.liveEmitter.emit('live');
+    }
+    this.prevLive = nowLive;
   }
 
   private async pollLoop(): Promise<void> {
@@ -214,6 +244,7 @@ export class StreamService {
       this.piReachable = reachable;
       logger.info({ piReachable: reachable }, 'stream: Pi reachability changed');
       this.broadcastState();
+      this.reachabilityEmitter.emit('change', reachable);
       if (reachable) {
         /* c8 ignore next -- reapplyCameraSettings only rejects in catastrophic async failure; happy-path coverage via pollMediamtxState test */
         this.reapplyCameraSettings().catch((err) => {

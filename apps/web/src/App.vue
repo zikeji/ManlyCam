@@ -18,7 +18,11 @@ watch(user, (u) => {
 });
 
 onMounted(() => {
-  fetchCurrentUser();
+  // Use window.location.pathname — route.path resolves asynchronously and may still be '/'
+  // when onMounted fires on initial navigation to a stream-only URL.
+  if (!window.location.pathname.startsWith('/stream-only/')) {
+    fetchCurrentUser();
+  }
 });
 </script>
 

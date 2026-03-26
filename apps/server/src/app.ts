@@ -23,6 +23,7 @@ import { createAdminRouter } from './routes/admin.js';
 import { createCommandsRouter } from './routes/commands.js';
 import { createReactionsRouter } from './routes/reactions.js';
 import { createClipsRouter } from './routes/clips.js';
+import { streamOnlyRouter } from './routes/stream-only.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -64,6 +65,7 @@ export function createApp() {
   app.route('/', createModerationRouter());
   app.route('/', createReactionsRouter());
   app.route('/', createClipsRouter());
+  app.route('/', streamOnlyRouter);
   app.route('/api/admin', createAdminRouter());
 
   // WebSocket — createNodeWebSocket must receive the app instance before routes are added

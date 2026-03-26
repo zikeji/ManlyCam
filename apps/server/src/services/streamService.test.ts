@@ -538,6 +538,49 @@ describe('StreamService camera reapply', () => {
   });
 });
 
+describe('StreamService waitForLive', () => {
+  let service: StreamService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new StreamService();
+  });
+
+  afterEach(() => {
+    service.stop();
+  });
+
+  it('resolves true when stream becomes live before timeout', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    const waitPromise = service.waitForLive(5000);
+    await service.pollMediamtxState();
+    const result = await waitPromise;
+    expect(result).toBe(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('resolves false when timeout expires before stream is live', async () => {
+    const result = await service.waitForLive(10);
+    expect(result).toBe(false);
+  });
+
+  it('does not emit live when state stays live (no false→true transition)', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    // First poll: becomes live
+    await service.pollMediamtxState();
+    // waitForLive now — stream is already live, should time out (no re-emission)
+    const result = await service.waitForLive(20);
+    expect(result).toBe(false);
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('StreamService cacheHlsPlaylistName', () => {
   let service: StreamService;
 
@@ -608,5 +651,77 @@ describe('StreamService cacheHlsPlaylistName', () => {
       { err: expect.any(Error) },
       'stream: failed to cache HLS playlist name on live toggle (will retry on first clip)',
     );
+  });
+});
+
+describe('StreamService subscribeReachability', () => {
+  let service: StreamService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new StreamService();
+  });
+
+  afterEach(() => {
+    service.stop();
+  });
+
+  it('calls callback with true when pi becomes reachable', async () => {
+    const cb = vi.fn();
+    service.subscribeReachability(cb);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb).toHaveBeenCalledWith(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('calls callback with false when pi goes offline', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+
+    const cb = vi.fn();
+    service.subscribeReachability(cb);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: false }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb).toHaveBeenCalledWith(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('unsubscribe stops further callbacks', async () => {
+    const cb = vi.fn();
+    const unsubscribe = service.subscribeReachability(cb);
+    unsubscribe();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('multiple subscribers each receive the event', async () => {
+    const cb1 = vi.fn();
+    const cb2 = vi.fn();
+    service.subscribeReachability(cb1);
+    service.subscribeReachability(cb2);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb1).toHaveBeenCalledWith(true);
+    expect(cb2).toHaveBeenCalledWith(true);
+    vi.unstubAllGlobals();
   });
 });
