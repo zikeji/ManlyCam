@@ -2,7 +2,7 @@
 title: 'Stream-Only Link for Browser Sources'
 type: 'feature'
 created: '2026-03-26'
-status: 'done'
+status: 'ready-for-review'
 baseline_commit: '358430c9a96bfdd7a87ab6a8dba4e3be80bf96b4'
 context: []
 ---
@@ -113,3 +113,37 @@ Set `isConnecting.value = true` before the `fetch('/api/stream-only/...')` call.
 **Manual checks:**
 - Open `/stream-only/:key` in an incognito window (no session) — stream should connect and show full-viewport video with no UI
 - Disable the link in admin panel — same URL should show permanent black with no spinner
+- Restart frpc on the Pi — stream should recover within ~2s (SSE detects reachability change and reconnects WHEP)
+- Confirm `/api/me` does NOT appear in DevTools Network tab when viewing stream-only page
+
+## Post-Implementation Notes
+
+### SSE pivot (commit ed0bb3f)
+
+After initial implementation, two issues were identified via smoke test:
+
+1. **Admin explicit-offline toggle was affecting stream-only page** — the original spec's "long-poll until live" used `waitForLive` which incorporated admin toggle state. The fix: only `piReachable` matters for stream-only; admin toggle bypass was already a spec constraint but the long-poll implementation violated it.
+
+2. **frpc restart recovery was slow** — ICE failure detection takes 30+ seconds, meaning a Pi reconnect caused a 30s+ outage on the stream-only page.
+
+**Resolution:** Replaced the long-poll `/api/stream-only/:key/status` endpoint and `waitForReachabilityChange` on `StreamService` with a persistent SSE endpoint `/api/stream-only/:key/sse` using Hono's native `streamSSE`. WHEP handler now 503s immediately instead of waiting.
+
+**Client impact:** `useStreamOnlyWhep.ts` completely rewritten to use `EventSource`. On ICE failure, stall timeout, or SSE error: tears down WHEP and reconnects SSE to get fresh `piReachable` state — enabling sub-2s recovery when frpc restarts.
+
+**File List (full implementation):**
+- `apps/server/src/services/streamService.ts`
+- `apps/server/src/services/streamService.test.ts`
+- `apps/server/src/routes/stream-only.ts`
+- `apps/server/src/routes/stream-only.test.ts`
+- `apps/server/src/app.ts`
+- `apps/web/src/composables/useStreamOnlyWhep.ts`
+- `apps/web/src/composables/useStreamOnlyWhep.test.ts`
+- `apps/web/src/composables/useStreamOnlyLink.ts`
+- `apps/web/src/composables/useStreamOnlyLink.test.ts`
+- `apps/web/src/components/admin/StreamOnlyPanel.vue`
+- `apps/web/src/components/admin/StreamOnlyPanel.test.ts`
+- `apps/web/src/components/admin/AdminDialog.vue`
+- `apps/web/src/views/StreamOnlyView.vue`
+- `apps/web/src/views/StreamOnlyView.test.ts`
+- `apps/web/src/router/index.ts`
+- `apps/web/src/App.vue`
