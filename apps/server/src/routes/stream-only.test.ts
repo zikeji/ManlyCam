@@ -20,8 +20,8 @@ vi.mock('../services/authService.js', () => ({
 }));
 vi.mock('../services/streamService.js', () => ({
   streamService: {
-    getState: vi.fn(),
-    waitForLive: vi.fn(),
+    isPiReachable: vi.fn(),
+    subscribeReachability: vi.fn(),
   },
   StreamService: vi.fn(),
 }));
@@ -232,13 +232,111 @@ describe('POST /api/stream-only/config/regenerate', () => {
     const { key: newKey } = await regenRes.json();
     expect(newKey).not.toBe(oldKey);
 
-    // WHEP POST with old key must return 404
+    // WHEP POST with old key must return 404 (key validation fails before reachability check)
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
     const whepRes = await createApp().app.request(`/api/stream-only/${oldKey}/whep`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/sdp' },
       body: 'v=0\r\n',
     });
     expect(whepRes.status).toBe(404);
+  });
+});
+
+describe('GET /api/stream-only/:key/sse', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('returns 404 for invalid key', async () => {
+    vi.mocked(streamConfig.getOrNull).mockResolvedValue(null);
+    const res = await createApp().app.request('/api/stream-only/badkey/sse');
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 404 when disabled', async () => {
+    vi.mocked(streamConfig.getOrNull)
+      .mockResolvedValueOnce('false')
+      .mockResolvedValueOnce('validkey');
+    const res = await createApp().app.request('/api/stream-only/validkey/sse');
+    expect(res.status).toBe(404);
+  });
+
+  it('sends initial { live: true } when pi is reachable', async () => {
+    vi.mocked(streamConfig.getOrNull)
+      .mockResolvedValueOnce('true')
+      .mockResolvedValueOnce('validkey');
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
+    vi.mocked(streamService.subscribeReachability).mockReturnValue(vi.fn());
+
+    const res = await createApp().app.request('/api/stream-only/validkey/sse');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('text/event-stream');
+
+    const reader = res.body!.getReader();
+    const { value } = await reader.read();
+    const text = new TextDecoder().decode(value);
+    expect(text).toContain('"live":true');
+    await reader.cancel();
+  });
+
+  it('sends initial { live: false } when pi is not reachable', async () => {
+    vi.mocked(streamConfig.getOrNull)
+      .mockResolvedValueOnce('true')
+      .mockResolvedValueOnce('validkey');
+    vi.mocked(streamService.isPiReachable).mockReturnValue(false);
+    vi.mocked(streamService.subscribeReachability).mockReturnValue(vi.fn());
+
+    const res = await createApp().app.request('/api/stream-only/validkey/sse');
+    const reader = res.body!.getReader();
+    const { value } = await reader.read();
+    const text = new TextDecoder().decode(value);
+    expect(text).toContain('"live":false');
+    await reader.cancel();
+  });
+
+  it('calls subscribeReachability and unsubscribes on abort', async () => {
+    vi.mocked(streamConfig.getOrNull)
+      .mockResolvedValueOnce('true')
+      .mockResolvedValueOnce('validkey');
+    vi.mocked(streamService.isPiReachable).mockReturnValue(false);
+    const unsubscribeMock = vi.fn();
+    vi.mocked(streamService.subscribeReachability).mockReturnValue(unsubscribeMock);
+
+    const res = await createApp().app.request('/api/stream-only/validkey/sse');
+    const reader = res.body!.getReader();
+    await reader.read();
+    await reader.cancel();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(vi.mocked(streamService.subscribeReachability)).toHaveBeenCalled();
+    expect(unsubscribeMock).toHaveBeenCalled();
+  });
+
+  it('pushes event when reachability changes', async () => {
+    vi.mocked(streamConfig.getOrNull)
+      .mockResolvedValueOnce('true')
+      .mockResolvedValueOnce('validkey');
+    vi.mocked(streamService.isPiReachable).mockReturnValue(false);
+
+    let capturedCb: ((live: boolean) => void) | null = null;
+    vi.mocked(streamService.subscribeReachability).mockImplementation((cb) => {
+      capturedCb = cb;
+      return vi.fn();
+    });
+
+    const res = await createApp().app.request('/api/stream-only/validkey/sse');
+    const reader = res.body!.getReader();
+    await reader.read(); // consume initial event
+
+    capturedCb!(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    const { value } = await reader.read();
+    const text = new TextDecoder().decode(value);
+    expect(text).toContain('"live":true');
+    await reader.cancel();
   });
 });
 
@@ -279,11 +377,11 @@ describe('POST /api/stream-only/:key/whep', () => {
     expect(res.status).toBe(404);
   });
 
-  it('proxies WHEP immediately when stream is live', async () => {
+  it('proxies WHEP immediately when pi is reachable', async () => {
     vi.mocked(streamConfig.getOrNull)
       .mockResolvedValueOnce('true')
       .mockResolvedValueOnce('validkey');
-    vi.mocked(streamService.getState).mockReturnValue({ state: 'live' });
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
@@ -307,21 +405,32 @@ describe('POST /api/stream-only/:key/whep', () => {
     expect(await res.text()).toBe('v=0\r\n');
   });
 
-  it('waits for live and proxies when stream becomes live', async () => {
+  it('returns 503 when pi is not reachable', async () => {
     vi.mocked(streamConfig.getOrNull)
       .mockResolvedValueOnce('true')
       .mockResolvedValueOnce('validkey');
-    vi.mocked(streamService.getState).mockReturnValue({
-      state: 'unreachable',
-      adminToggle: 'live',
+    vi.mocked(streamService.isPiReachable).mockReturnValue(false);
+
+    const res = await createApp().app.request('/api/stream-only/validkey/whep', {
+      method: 'POST',
+      body: 'v=0\r\n',
     });
-    vi.mocked(streamService.waitForLive).mockResolvedValue(true);
+
+    expect(res.status).toBe(503);
+  });
+
+  it('proxies WHEP even when admin toggle is explicit-offline (bypass admin state)', async () => {
+    // stream-only ignores admin toggle — isPiReachable=true is the only condition that matters.
+    vi.mocked(streamConfig.getOrNull)
+      .mockResolvedValueOnce('true')
+      .mockResolvedValueOnce('validkey');
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
         new Response('v=0\r\n', {
           status: 201,
-          headers: { Location: '/cam/whep/session-xyz' },
+          headers: { Location: '/cam/whep/session-admin-offline' },
         }),
       ),
     );
@@ -332,33 +441,13 @@ describe('POST /api/stream-only/:key/whep', () => {
     });
 
     expect(res.status).toBe(201);
-    expect(res.headers.get('Location')).toBe('/api/stream-only/validkey/whep/session-xyz');
-    expect(vi.mocked(streamService.waitForLive)).toHaveBeenCalledWith(30_000);
-  });
-
-  it('returns 503 when waitForLive times out', async () => {
-    vi.mocked(streamConfig.getOrNull)
-      .mockResolvedValueOnce('true')
-      .mockResolvedValueOnce('validkey');
-    vi.mocked(streamService.getState).mockReturnValue({
-      state: 'unreachable',
-      adminToggle: 'live',
-    });
-    vi.mocked(streamService.waitForLive).mockResolvedValue(false);
-
-    const res = await createApp().app.request('/api/stream-only/validkey/whep', {
-      method: 'POST',
-      body: 'v=0\r\n',
-    });
-
-    expect(res.status).toBe(503);
   });
 
   it('strips hop-by-hop headers from mediamtx response', async () => {
     vi.mocked(streamConfig.getOrNull)
       .mockResolvedValueOnce('true')
       .mockResolvedValueOnce('validkey');
-    vi.mocked(streamService.getState).mockReturnValue({ state: 'live' });
+    vi.mocked(streamService.isPiReachable).mockReturnValue(true);
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(

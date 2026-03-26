@@ -7,8 +7,6 @@ import { ulid } from '../lib/ulid.js';
 import { wsHub } from './wsHub.js';
 import type { StreamState } from '@manlycam/types';
 
-const liveEmitter = new EventEmitter();
-
 export class StreamService {
   private adminToggle: 'live' | 'offline' = 'live';
   private piReachable = false;
@@ -17,6 +15,8 @@ export class StreamService {
   private offlineTitle: string | null = null;
   private offlineDescription: string | null = null;
   private prevLive = false;
+  private liveEmitter = new EventEmitter();
+  private reachabilityEmitter = new EventEmitter();
 
   getState(): StreamState {
     if (this.adminToggle === 'offline')
@@ -164,11 +164,16 @@ export class StreamService {
         resolve(true);
       };
       timer = setTimeout(() => {
-        liveEmitter.removeListener('live', onLive);
+        this.liveEmitter.removeListener('live', onLive);
         resolve(false);
       }, timeoutMs);
-      liveEmitter.once('live', onLive);
+      this.liveEmitter.once('live', onLive);
     });
+  }
+
+  subscribeReachability(cb: (live: boolean) => void): () => void {
+    this.reachabilityEmitter.on('change', cb);
+    return () => this.reachabilityEmitter.off('change', cb);
   }
 
   private broadcastState(): void {
@@ -176,7 +181,7 @@ export class StreamService {
     wsHub.broadcast({ type: 'stream:state', payload: state });
     const nowLive = state.state === 'live';
     if (!this.prevLive && nowLive) {
-      liveEmitter.emit('live');
+      this.liveEmitter.emit('live');
     }
     this.prevLive = nowLive;
   }
@@ -239,6 +244,7 @@ export class StreamService {
       this.piReachable = reachable;
       logger.info({ piReachable: reachable }, 'stream: Pi reachability changed');
       this.broadcastState();
+      this.reachabilityEmitter.emit('change', reachable);
       if (reachable) {
         /* c8 ignore next -- reapplyCameraSettings only rejects in catastrophic async failure; happy-path coverage via pollMediamtxState test */
         this.reapplyCameraSettings().catch((err) => {

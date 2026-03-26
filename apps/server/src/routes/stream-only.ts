@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
 import crypto from 'node:crypto';
 import { env } from '../env.js';
 import { requireAuth } from '../middleware/requireAuth.js';
@@ -81,7 +82,31 @@ async function validateStreamOnlyKey(key: string): Promise<boolean> {
   return enabledRaw === 'true' && storedKey === key;
 }
 
+// GET /api/stream-only/:key/sse — no auth — SSE stream of { live: boolean } reachability events.
+// Sends current state immediately on connect, then pushes an event on every piReachable change.
+streamOnlyRouter.get('/api/stream-only/:key/sse', async (c) => {
+  const key = c.req.param('key');
+  const valid = await validateStreamOnlyKey(key);
+  if (!valid) throw new AppError('Not found', 'NOT_FOUND', 404);
+
+  return streamSSE(c, async (stream) => {
+    await stream.writeSSE({ data: JSON.stringify({ live: streamService.isPiReachable() }) });
+
+    const unsubscribe = streamService.subscribeReachability(async (live) => {
+      await stream.writeSSE({ data: JSON.stringify({ live }) });
+    });
+
+    await new Promise<void>((resolve) => {
+      stream.onAbort(() => {
+        unsubscribe();
+        resolve();
+      });
+    });
+  });
+});
+
 // POST /api/stream-only/:key/whep — no auth — validate key+enabled, long-poll, proxy WHEP
+// Only piReachable matters — admin toggle is intentionally bypassed for stream-only links.
 streamOnlyRouter.post('/api/stream-only/:key/whep', async (c) => {
   const key = c.req.param('key');
 
@@ -90,12 +115,8 @@ streamOnlyRouter.post('/api/stream-only/:key/whep', async (c) => {
     throw new AppError('Not found', 'NOT_FOUND', 404);
   }
 
-  const state = streamService.getState();
-  if (state.state !== 'live') {
-    const becameLive = await streamService.waitForLive(30_000);
-    if (!becameLive) {
-      throw new AppError('Stream not live', 'STREAM_NOT_LIVE', 503);
-    }
+  if (!streamService.isPiReachable()) {
+    throw new AppError('Stream not live', 'STREAM_NOT_LIVE', 503);
   }
 
   const res = await fetch(mtxWhepBase(), {

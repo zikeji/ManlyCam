@@ -10,14 +10,14 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const { startWhep, stopWhep, isHealthy, isConnecting, isPermanentlyFailed } =
   useStreamOnlyWhep(key);
 
-onMounted(async () => {
+onMounted(() => {
   if (videoRef.value) {
-    await startWhep(videoRef.value).catch(() => {});
+    startWhep(videoRef.value);
   }
 });
 
-onUnmounted(async () => {
-  await stopWhep();
+onUnmounted(() => {
+  stopWhep();
 });
 </script>
 

@@ -1,25 +1,24 @@
 import { ref } from 'vue';
 
-const MAX_DELAY = 30_000;
+// 5s chosen to detect frozen video without false positives from normal network jitter
 const STALL_TIMEOUT_MS = 5_000;
 
 export const useStreamOnlyWhep = (key: string) => {
+  let stopped = false;
+  let sse: EventSource | null = null;
+  let whepAbortCtrl: AbortController | null = null;
+
+  // WHEP connection state
   let pc: RTCPeerConnection | null = null;
   let sessionUrl: string | null = null;
   let storedVideoEl: HTMLVideoElement | null = null;
-  let reconnectDelay = 1000;
+  let isMonitoring = false;
+  let stallTimer: ReturnType<typeof setTimeout> | null = null;
+  let lastTimeupdateAt = 0;
 
   const isHealthy = ref(false);
   const isConnecting = ref(false);
   const isPermanentlyFailed = ref(false);
-
-  let stallTimer: ReturnType<typeof setTimeout> | null = null;
-  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  let lastTimeupdateAt = 0;
-  let isMonitoring = false;
-
-  // Forward reference: connectWhep and scheduleReconnect are mutually recursive.
-  let scheduleReconnect = (): void => {};
 
   function clearStallTimer(): void {
     if (stallTimer !== null) {
@@ -28,10 +27,12 @@ export const useStreamOnlyWhep = (key: string) => {
     }
   }
 
-  function clearReconnectTimer(): void {
-    if (reconnectTimer !== null) {
-      clearTimeout(reconnectTimer);
-      reconnectTimer = null;
+  function reconnectSse(): void {
+    sse?.close();
+    sse = null;
+    if (!stopped && !isPermanentlyFailed.value && storedVideoEl) {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      openSse(storedVideoEl);
     }
   }
 
@@ -40,7 +41,9 @@ export const useStreamOnlyWhep = (key: string) => {
     stallTimer = setTimeout(() => {
       stallTimer = null;
       if (isMonitoring && !document.hidden) {
-        scheduleReconnect();
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        teardownWhep();
+        reconnectSse();
       }
     }, STALL_TIMEOUT_MS);
   }
@@ -49,8 +52,6 @@ export const useStreamOnlyWhep = (key: string) => {
     lastTimeupdateAt = Date.now();
     if (!isHealthy.value) {
       isHealthy.value = true;
-      reconnectDelay = 1000;
-      clearReconnectTimer();
     }
     if (!document.hidden) {
       resetStallTimer();
@@ -63,17 +64,19 @@ export const useStreamOnlyWhep = (key: string) => {
     } else if (isMonitoring && storedVideoEl && !storedVideoEl.paused) {
       const elapsed = Date.now() - lastTimeupdateAt;
       if (lastTimeupdateAt > 0 && elapsed > STALL_TIMEOUT_MS) {
-        scheduleReconnect();
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        teardownWhep();
+        reconnectSse();
       } else {
         resetStallTimer();
       }
     }
   }
 
-  function startMonitoring(videoEl: HTMLVideoElement): void {
+  function startMonitoring(el: HTMLVideoElement): void {
     isMonitoring = true;
     lastTimeupdateAt = 0;
-    videoEl.addEventListener('timeupdate', onTimeupdate);
+    el.addEventListener('timeupdate', onTimeupdate);
     document.addEventListener('visibilitychange', onVisibilityChange);
     if (!document.hidden) {
       resetStallTimer();
@@ -89,12 +92,14 @@ export const useStreamOnlyWhep = (key: string) => {
     document.removeEventListener('visibilitychange', onVisibilityChange);
   }
 
-  async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
+  function teardownWhep(): void {
     stopMonitoring();
-    clearReconnectTimer();
-
+    isHealthy.value = false;
+    isConnecting.value = false;
+    whepAbortCtrl?.abort();
+    whepAbortCtrl = null;
     if (sessionUrl) {
-      await fetch(sessionUrl, { method: 'DELETE' }).catch(() => {});
+      fetch(sessionUrl, { method: 'DELETE' }).catch(() => {});
       sessionUrl = null;
     }
     if (pc) {
@@ -105,8 +110,11 @@ export const useStreamOnlyWhep = (key: string) => {
       pc.close();
       pc = null;
     }
+  }
 
-    isHealthy.value = false;
+  async function connectWhep(el: HTMLVideoElement): Promise<void> {
+    teardownWhep();
+    whepAbortCtrl = new AbortController();
     isConnecting.value = true;
 
     try {
@@ -115,8 +123,8 @@ export const useStreamOnlyWhep = (key: string) => {
 
       pc.ontrack = (event) => {
         const stream = event.streams[0] ?? new MediaStream([event.track]);
-        videoEl.srcObject = stream;
-        videoEl.play().catch(() => {});
+        el.srcObject = stream;
+        el.play().catch(() => {});
       };
 
       pc.onicecandidate = ({ candidate }) => {
@@ -129,29 +137,22 @@ export const useStreamOnlyWhep = (key: string) => {
         }
       };
 
+      // ICE/connection failure → teardown + reconnect SSE to get fresh state
       pc.oniceconnectionstatechange = () => {
         /* c8 ignore next 2 -- pc is guaranteed non-null inside this closure */
         if (!pc) return;
-        const { iceConnectionState } = pc;
-        if (
-          iceConnectionState === 'failed' ||
-          iceConnectionState === 'disconnected' ||
-          iceConnectionState === 'closed'
-        ) {
-          scheduleReconnect();
+        if (pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed') {
+          teardownWhep();
+          reconnectSse();
         }
       };
 
       pc.onconnectionstatechange = () => {
         /* c8 ignore next 2 -- pc is guaranteed non-null inside this closure */
         if (!pc) return;
-        const { connectionState } = pc;
-        if (
-          connectionState === 'failed' ||
-          connectionState === 'disconnected' ||
-          connectionState === 'closed'
-        ) {
-          scheduleReconnect();
+        if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+          teardownWhep();
+          reconnectSse();
         }
       };
 
@@ -162,19 +163,11 @@ export const useStreamOnlyWhep = (key: string) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/sdp' },
         body: offer.sdp,
+        signal: whepAbortCtrl.signal,
       });
 
       if (res.status === 404) {
         isPermanentlyFailed.value = true;
-        // Clean up and do NOT schedule reconnect
-        if (pc) {
-          pc.oniceconnectionstatechange = null;
-          pc.onconnectionstatechange = null;
-          pc.onicecandidate = null;
-          pc.ontrack = null;
-          pc.close();
-          pc = null;
-        }
         return;
       }
 
@@ -182,16 +175,15 @@ export const useStreamOnlyWhep = (key: string) => {
         throw new Error(`WHEP POST failed: ${res.status}`);
       }
 
-      // Server rewrites Location header to include key — use it directly
       sessionUrl = res.headers.get('Location');
       const sdpAnswer = await res.text();
-
       await pc.setRemoteDescription({ type: 'answer', sdp: sdpAnswer });
 
-      startMonitoring(videoEl);
-    } catch (error) {
+      startMonitoring(el);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       if (sessionUrl) {
-        await fetch(sessionUrl, { method: 'DELETE' }).catch(() => {});
+        fetch(sessionUrl, { method: 'DELETE' }).catch(() => {});
         sessionUrl = null;
       }
       if (pc) {
@@ -202,56 +194,56 @@ export const useStreamOnlyWhep = (key: string) => {
         pc.close();
         pc = null;
       }
-      throw error;
+      throw err;
     } finally {
       isConnecting.value = false;
+      whepAbortCtrl = null;
     }
   }
 
-  scheduleReconnect = (): void => {
-    /* c8 ignore next 2 -- storedVideoEl is always set when scheduleReconnect fires; guard against stop() race */
-    if (!storedVideoEl) return;
-    clearStallTimer();
-    clearReconnectTimer();
-    isHealthy.value = false;
-    const delay = reconnectDelay;
-    reconnectDelay = Math.min(reconnectDelay * 2, MAX_DELAY);
-    const el = storedVideoEl;
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      connectWhep(el).catch(() => {
-        // connectWhep cleaned up on error; schedule next attempt
-        scheduleReconnect();
-      });
-    }, delay);
+  function openSse(el: HTMLVideoElement): void {
+    const es = new EventSource(`/api/stream-only/${key}/sse`);
+    sse = es;
+
+    es.onmessage = (event: MessageEvent) => {
+      if (stopped || isPermanentlyFailed.value) return;
+      const data = JSON.parse(event.data as string) as { live: boolean };
+      if (data.live && !pc && !isConnecting.value) {
+        connectWhep(el).catch(() => {
+          if (!stopped && !isPermanentlyFailed.value) {
+            setTimeout(reconnectSse, 2000);
+          }
+        });
+      } else if (!data.live) {
+        teardownWhep();
+      }
+    };
+
+    es.addEventListener('not-found', () => {
+      isPermanentlyFailed.value = true;
+      es.close();
+      sse = null;
+    });
+
+    es.onerror = () => {
+      if (stopped || isPermanentlyFailed.value) return;
+      // SSE connection dropped — teardown WHEP; EventSource auto-reconnects and will
+      // re-send current state, restarting WHEP if Pi is still reachable.
+      teardownWhep();
+    };
+  }
+
+  const startWhep = (el: HTMLVideoElement): void => {
+    storedVideoEl = el;
+    openSse(el);
   };
 
-  const stopWhep = async (): Promise<void> => {
-    clearReconnectTimer();
-    stopMonitoring();
-    const capturedSessionUrl = sessionUrl;
-    const capturedPc = pc;
-    sessionUrl = null;
-    pc = null;
+  const stopWhep = (): void => {
+    stopped = true;
+    sse?.close();
+    sse = null;
+    teardownWhep();
     storedVideoEl = null;
-    isHealthy.value = false;
-    isConnecting.value = false;
-    if (capturedSessionUrl) {
-      await fetch(capturedSessionUrl, { method: 'DELETE' }).catch(() => {});
-    }
-    if (capturedPc) {
-      capturedPc.oniceconnectionstatechange = null;
-      capturedPc.onconnectionstatechange = null;
-      capturedPc.onicecandidate = null;
-      capturedPc.ontrack = null;
-      capturedPc.close();
-    }
-  };
-
-  const startWhep = async (videoEl: HTMLVideoElement): Promise<void> => {
-    storedVideoEl = videoEl;
-    reconnectDelay = 1000;
-    await connectWhep(videoEl);
   };
 
   return { startWhep, stopWhep, isHealthy, isConnecting, isPermanentlyFailed };

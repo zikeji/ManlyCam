@@ -653,3 +653,75 @@ describe('StreamService cacheHlsPlaylistName', () => {
     );
   });
 });
+
+describe('StreamService subscribeReachability', () => {
+  let service: StreamService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    service = new StreamService();
+  });
+
+  afterEach(() => {
+    service.stop();
+  });
+
+  it('calls callback with true when pi becomes reachable', async () => {
+    const cb = vi.fn();
+    service.subscribeReachability(cb);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb).toHaveBeenCalledWith(true);
+    vi.unstubAllGlobals();
+  });
+
+  it('calls callback with false when pi goes offline', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+
+    const cb = vi.fn();
+    service.subscribeReachability(cb);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: false }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb).toHaveBeenCalledWith(false);
+    vi.unstubAllGlobals();
+  });
+
+  it('unsubscribe stops further callbacks', async () => {
+    const cb = vi.fn();
+    const unsubscribe = service.subscribeReachability(cb);
+    unsubscribe();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('multiple subscribers each receive the event', async () => {
+    const cb1 = vi.fn();
+    const cb2 = vi.fn();
+    service.subscribeReachability(cb1);
+    service.subscribeReachability(cb2);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ready: true }) }),
+    );
+    await service.pollMediamtxState();
+    expect(cb1).toHaveBeenCalledWith(true);
+    expect(cb2).toHaveBeenCalledWith(true);
+    vi.unstubAllGlobals();
+  });
+});

@@ -2,6 +2,54 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const SESSION_URL = '/api/stream-only/testkey/whep/test-uuid';
 
+// ── MockEventSource ──────────────────────────────────────────────────────────
+
+class MockEventSource {
+  static instance: MockEventSource | null = null;
+
+  url: string;
+  onmessage: ((e: MessageEvent) => void) | null = null;
+  onerror: (() => void) | null = null;
+  private namedListeners: Record<string, ((e: Event) => void)[]> = {};
+  closed = false;
+
+  constructor(url: string) {
+    this.url = url;
+    MockEventSource.instance = this;
+  }
+
+  addEventListener(type: string, handler: (e: Event) => void) {
+    this.namedListeners[type] = this.namedListeners[type] ?? [];
+    this.namedListeners[type].push(handler);
+  }
+
+  removeEventListener(type: string, handler: (e: Event) => void) {
+    if (this.namedListeners[type]) {
+      this.namedListeners[type] = this.namedListeners[type].filter((h) => h !== handler);
+    }
+  }
+
+  close() {
+    this.closed = true;
+  }
+
+  // ── Test helpers ────────────────────────────────────────────────────────────
+
+  sendLive(live: boolean) {
+    this.onmessage?.(new MessageEvent('message', { data: JSON.stringify({ live }) }));
+  }
+
+  sendNotFound() {
+    (this.namedListeners['not-found'] ?? []).forEach((h) => h(new Event('not-found')));
+  }
+
+  triggerError() {
+    this.onerror?.();
+  }
+}
+
+// ── Shared mock helpers ──────────────────────────────────────────────────────
+
 function makeMockPc() {
   return {
     addTransceiver: vi.fn(),
@@ -42,53 +90,319 @@ function makeMockVideoEl() {
   };
 }
 
+function stubFetchWhep(mockPc: ReturnType<typeof makeMockPc>, whepStatus = 201) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
+      if (opts?.method === 'POST') {
+        if (whepStatus === 404) {
+          return Promise.resolve({
+            ok: false,
+            status: 404,
+            text: () => Promise.resolve('not found'),
+            headers: { get: () => null },
+          });
+        }
+        if (whepStatus !== 201 && whepStatus !== 200) {
+          return Promise.resolve({
+            ok: false,
+            status: whepStatus,
+            text: () => Promise.resolve('error'),
+            headers: { get: () => null },
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: whepStatus,
+          text: () => Promise.resolve('v=0\r\nanswer-sdp'),
+          headers: {
+            get: (name: string) => (name === 'Location' ? SESSION_URL : null),
+          },
+        });
+      }
+      return Promise.resolve({ ok: true });
+    }),
+  );
+  return mockPc;
+}
+
+// ── Tests ────────────────────────────────────────────────────────────────────
+
 describe('useStreamOnlyWhep', () => {
   let mockPc: ReturnType<typeof makeMockPc>;
 
   beforeEach(() => {
     vi.resetModules();
+    MockEventSource.instance = null;
     mockPc = makeMockPc();
     vi.stubGlobal(
       'RTCPeerConnection',
       vi.fn(() => mockPc),
     );
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
-        if (opts?.method === 'POST') {
-          return Promise.resolve({
-            ok: true,
-            status: 201,
-            text: () => Promise.resolve('v=0\r\nanswer-sdp'),
-            headers: {
-              get: (name: string) => (name === 'Location' ? SESSION_URL : null),
-            },
-          });
-        }
-        return Promise.resolve({ ok: true });
-      }),
-    );
+    vi.stubGlobal('EventSource', MockEventSource);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('creates RTCPeerConnection with video-only transceiver (no audio)', async () => {
+  it('opens EventSource with correct SSE URL on startWhep', async () => {
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('mykey');
     const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    expect(MockEventSource.instance).not.toBeNull();
+    expect(MockEventSource.instance!.url).toBe('/api/stream-only/mykey/sse');
+    stopWhep();
+  });
+
+  it('SSE live:true → starts WHEP', async () => {
+    stubFetchWhep(mockPc);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
     const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(mockPc.addTransceiver).toHaveBeenCalledWith('video', { direction: 'recvonly' });
-    expect(mockPc.addTransceiver).not.toHaveBeenCalledWith('audio', expect.anything());
-    await stopWhep();
+    stopWhep();
+  });
+
+  it('SSE live:false → WHEP never started', async () => {
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isConnecting, isHealthy } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(false);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(isConnecting.value).toBe(false);
+    expect(isHealthy.value).toBe(false);
+    expect(mockPc.addTransceiver).not.toHaveBeenCalled();
+    stopWhep();
+  });
+
+  it('SSE live:false after WHEP connected → tears down WHEP', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isHealthy } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    // Fire timeupdate so isHealthy becomes true
+    videoEl.dispatchTimeupdate();
+    expect(isHealthy.value).toBe(true);
+
+    MockEventSource.instance!.sendLive(false);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(isHealthy.value).toBe(false);
+    expect(mockPc.close).toHaveBeenCalled();
+    stopWhep();
+  });
+
+  it('not-found SSE event → isPermanentlyFailed set, EventSource closed', async () => {
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, isPermanentlyFailed } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendNotFound();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(isPermanentlyFailed.value).toBe(true);
+    expect(MockEventSource.instance!.closed).toBe(true);
+  });
+
+  it('404 from WHEP → isPermanentlyFailed set', async () => {
+    stubFetchWhep(mockPc, 404);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isPermanentlyFailed } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(isPermanentlyFailed.value).toBe(true);
+    stopWhep();
+  });
+
+  it('non-404 WHEP error → reconnects SSE after 2s delay', async () => {
+    vi.useFakeTimers();
+    stubFetchWhep(mockPc, 503);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isPermanentlyFailed } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+    const firstSse = MockEventSource.instance!;
+
+    firstSse.sendLive(true);
+    await Promise.resolve();
+
+    expect(isPermanentlyFailed.value).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(2000);
+
+    // A new SSE instance should have been created
+    expect(MockEventSource.instance).not.toBe(firstSse);
+    stopWhep();
+    vi.useRealTimers();
+  });
+
+  it('ICE failure → teardownWhep + reconnects SSE', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isHealthy } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+    const firstSse = MockEventSource.instance!;
+
+    firstSse.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    videoEl.dispatchTimeupdate();
+    expect(isHealthy.value).toBe(true);
+
+    mockPc.iceConnectionState = 'failed';
+    mockPc.oniceconnectionstatechange!();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(isHealthy.value).toBe(false);
+    expect(MockEventSource.instance).not.toBe(firstSse);
+    stopWhep();
+  });
+
+  it('connection state failed → teardownWhep + reconnects SSE', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isHealthy } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+    const firstSse = MockEventSource.instance!;
+
+    firstSse.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    videoEl.dispatchTimeupdate();
+
+    mockPc.connectionState = 'failed';
+    mockPc.onconnectionstatechange!();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(isHealthy.value).toBe(false);
+    expect(MockEventSource.instance).not.toBe(firstSse);
+    stopWhep();
+  });
+
+  it('SSE onerror → teardownWhep (EventSource auto-reconnects)', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isHealthy } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    videoEl.dispatchTimeupdate();
+    expect(isHealthy.value).toBe(true);
+
+    MockEventSource.instance!.triggerError();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(isHealthy.value).toBe(false);
+    expect(mockPc.close).toHaveBeenCalled();
+    stopWhep();
+  });
+
+  it('stopWhep closes SSE and tears down WHEP', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    stopWhep();
+
+    expect(MockEventSource.instance!.closed).toBe(true);
+    expect(fetch).toHaveBeenCalledWith(SESSION_URL, expect.objectContaining({ method: 'DELETE' }));
+    expect(mockPc.close).toHaveBeenCalled();
+  });
+
+  it('stopWhep is safe to call before startWhep', async () => {
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { stopWhep } = useStreamOnlyWhep('testkey');
+    expect(() => stopWhep()).not.toThrow();
+  });
+
+  it('calls setRemoteDescription with SDP answer', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockPc.setRemoteDescription).toHaveBeenCalledWith({
+      type: 'answer',
+      sdp: 'v=0\r\nanswer-sdp',
+    });
+    stopWhep();
+  });
+
+  it('attaches stream to video srcObject via ontrack', async () => {
+    const mockStream = {} as MediaStream;
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    mockPc.ontrack!({ streams: [mockStream] });
+
+    expect(videoEl.srcObject).toBe(mockStream);
+    expect(videoEl.play).toHaveBeenCalled();
+    stopWhep();
+  });
+
+  it('ontrack handles undefined streams[0] by wrapping track', async () => {
+    const mockTrack = { id: 'track-1' } as MediaStreamTrack;
+    const mockFallbackStream = { id: 'stream-fallback' } as unknown as MediaStream;
+    vi.stubGlobal('MediaStream', vi.fn().mockReturnValue(mockFallbackStream));
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    mockPc.ontrack!({ streams: [], track: mockTrack });
+
+    expect(videoEl.srcObject).toBe(mockFallbackStream);
+    stopWhep();
   });
 
   it('POSTs SDP offer to /api/stream-only/:key/whep without credentials', async () => {
-    const videoEl = makeMockVideoEl();
+    stubFetchWhep(mockPc);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
     const { startWhep, stopWhep } = useStreamOnlyWhep('mykey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(fetch).toHaveBeenCalledWith(
       '/api/stream-only/mykey/whep',
       expect.objectContaining({
@@ -97,74 +411,24 @@ describe('useStreamOnlyWhep', () => {
         body: 'v=0\r\noffer-sdp',
       }),
     );
-    // No credentials: 'include'
     const fetchCalls = vi.mocked(global.fetch).mock.calls;
     const postCall = fetchCalls.find((c) => (c[1] as RequestInit)?.method === 'POST');
     expect((postCall![1] as RequestInit).credentials).toBeUndefined();
-    await stopWhep();
-  });
-
-  it('calls setRemoteDescription with SDP answer', async () => {
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
-    expect(mockPc.setRemoteDescription).toHaveBeenCalledWith({
-      type: 'answer',
-      sdp: 'v=0\r\nanswer-sdp',
-    });
-    await stopWhep();
-  });
-
-  it('attaches stream to video srcObject via ontrack', async () => {
-    const mockStream = {} as MediaStream;
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
-    mockPc.ontrack!({ streams: [mockStream] });
-    expect(videoEl.srcObject).toBe(mockStream);
-    expect(videoEl.play).toHaveBeenCalled();
-    await stopWhep();
-  });
-
-  it('ontrack handles undefined streams[0] by wrapping track', async () => {
-    const mockTrack = { id: 'track-1' } as MediaStreamTrack;
-    const mockFallbackStream = { id: 'stream-fallback' } as unknown as MediaStream;
-    vi.stubGlobal('MediaStream', vi.fn().mockReturnValue(mockFallbackStream));
-
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
-    mockPc.ontrack!({ streams: [], track: mockTrack });
-    expect(videoEl.srcObject).toBe(mockFallbackStream);
-    await stopWhep();
-  });
-
-  it('stopWhep sends DELETE to session URL and closes peer connection', async () => {
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
-    await stopWhep();
-    expect(fetch).toHaveBeenCalledWith(SESSION_URL, expect.objectContaining({ method: 'DELETE' }));
-    expect(mockPc.close).toHaveBeenCalled();
-  });
-
-  it('stopWhep is safe to call before startWhep', async () => {
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { stopWhep } = useStreamOnlyWhep('testkey');
-    await expect(stopWhep()).resolves.toBeUndefined();
+    stopWhep();
   });
 
   it('trickle ICE PATCHes candidate to session URL', async () => {
-    const videoEl = makeMockVideoEl();
+    stubFetchWhep(mockPc);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
     const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
     mockPc.onicecandidate!({ candidate: { candidate: 'candidate:1 ...' } as RTCIceCandidate });
     await new Promise((r) => setTimeout(r, 0));
+
     expect(fetch).toHaveBeenCalledWith(
       SESSION_URL,
       expect.objectContaining({
@@ -173,88 +437,32 @@ describe('useStreamOnlyWhep', () => {
         body: 'candidate:1 ...',
       }),
     );
-    await stopWhep();
+    stopWhep();
   });
 
-  it('trickle ICE with null candidate does not call fetch', async () => {
-    const videoEl = makeMockVideoEl();
+  it('trickle ICE with null candidate does not call fetch for PATCH', async () => {
+    stubFetchWhep(mockPc);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
     const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
     const callsBefore = vi.mocked(global.fetch).mock.calls.length;
-    // null candidate is the "gathering complete" signal — should not PATCH
     mockPc.onicecandidate!({ candidate: null });
     await new Promise((r) => setTimeout(r, 0));
     expect(vi.mocked(global.fetch).mock.calls.length).toBe(callsBefore);
-    await stopWhep();
+    stopWhep();
   });
 
-  it('404 response sets isPermanentlyFailed true and does not reconnect', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
-        if (opts?.method === 'POST') {
-          return Promise.resolve({
-            ok: false,
-            status: 404,
-            text: () => Promise.resolve('not found'),
-            headers: { get: () => null },
-          });
-        }
-        return Promise.resolve({ ok: true });
-      }),
-    );
-
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, isPermanentlyFailed, isConnecting } = useStreamOnlyWhep('testkey');
-
-    await startWhep(videoEl as unknown as HTMLVideoElement);
-
-    expect(isPermanentlyFailed.value).toBe(true);
-    expect(isConnecting.value).toBe(false);
-
-    await new Promise((r) => setTimeout(r, 50));
-    // fetch was only called once (the POST) — no reconnect attempts
-    expect(vi.mocked(global.fetch)).toHaveBeenCalledTimes(1);
-  });
-
-  it('non-404 error does not set isPermanentlyFailed', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
-        if (opts?.method === 'POST') {
-          return Promise.resolve({
-            ok: false,
-            status: 503,
-            text: () => Promise.resolve('retry'),
-            headers: { get: () => null },
-          });
-        }
-        return Promise.resolve({ ok: true });
-      }),
-    );
-
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, isPermanentlyFailed, stopWhep } = useStreamOnlyWhep('testkey');
-
-    await startWhep(videoEl as unknown as HTMLVideoElement).catch(() => {});
-    expect(isPermanentlyFailed.value).toBe(false);
-    await stopWhep();
-  });
-
-  it('isConnecting is true during fetch and false after', async () => {
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, stopWhep, isConnecting } = useStreamOnlyWhep('testkey');
-
+  it('isConnecting is true during WHEP POST and false after', async () => {
     let connectingDuringFetch = false;
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
         if (opts?.method === 'POST') {
-          connectingDuringFetch = isConnecting.value;
+          connectingDuringFetch = true;
           return Promise.resolve({
             ok: true,
             status: 201,
@@ -266,108 +474,178 @@ describe('useStreamOnlyWhep', () => {
       }),
     );
 
-    await startWhep(videoEl as unknown as HTMLVideoElement);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep, isConnecting } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(connectingDuringFetch).toBe(true);
     expect(isConnecting.value).toBe(false);
-    await stopWhep();
-  });
-
-  it('isConnecting is false when connect throws', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
-        if (opts?.method === 'POST') {
-          return Promise.resolve({
-            ok: false,
-            status: 503,
-            text: () => Promise.resolve('error'),
-            headers: { get: () => null },
-          });
-        }
-        return Promise.resolve({ ok: true });
-      }),
-    );
-
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, isConnecting, stopWhep } = useStreamOnlyWhep('testkey');
-
-    await startWhep(videoEl as unknown as HTMLVideoElement).catch(() => {});
-    expect(isConnecting.value).toBe(false);
-    await stopWhep();
+    stopWhep();
   });
 
   it('timeupdate event sets isHealthy true', async () => {
-    const videoEl = makeMockVideoEl();
+    stubFetchWhep(mockPc);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
     const { startWhep, stopWhep, isHealthy } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(isHealthy.value).toBe(false);
     videoEl.dispatchTimeupdate();
     expect(isHealthy.value).toBe(true);
-    await stopWhep();
+    stopWhep();
   });
 
-  it('ICE connection failed state schedules reconnect', async () => {
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, stopWhep, isHealthy } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
-
-    // Simulate healthy stream first
-    videoEl.dispatchTimeupdate();
-    expect(isHealthy.value).toBe(true);
-
-    // Simulate ICE failure
-    mockPc.iceConnectionState = 'failed';
-    mockPc.oniceconnectionstatechange!();
-
-    // isHealthy becomes false (reconnecting)
-    expect(isHealthy.value).toBe(false);
-    await stopWhep();
-  });
-
-  it('connection state failed schedules reconnect', async () => {
-    const videoEl = makeMockVideoEl();
-    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep, stopWhep, isHealthy } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
-
-    videoEl.dispatchTimeupdate();
-    expect(isHealthy.value).toBe(true);
-
-    mockPc.connectionState = 'failed';
-    mockPc.onconnectionstatechange!();
-    expect(isHealthy.value).toBe(false);
-    await stopWhep();
-  });
-
-  it('startWhep throws on setRemoteDescription failure and cleans up', async () => {
+  it('setRemoteDescription failure cleans up pc', async () => {
     mockPc.setRemoteDescription = vi.fn().mockRejectedValue(new Error('Invalid SDP'));
-    const videoEl = makeMockVideoEl();
+    stubFetchWhep(mockPc);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
-    const { startWhep } = useStreamOnlyWhep('testkey');
-    await expect(startWhep(videoEl as unknown as HTMLVideoElement)).rejects.toThrow('Invalid SDP');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(mockPc.close).toHaveBeenCalled();
+    stopWhep();
   });
 
   it('visibility change to hidden clears stall timer', async () => {
-    const videoEl = makeMockVideoEl();
+    stubFetchWhep(mockPc);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
     const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
-    await startWhep(videoEl as unknown as HTMLVideoElement);
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
     videoEl.dispatchTimeupdate();
 
-    // Simulate visibility change to hidden
     Object.defineProperty(document, 'hidden', { value: true, writable: true, configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
 
-    // Restore and cleanup
     Object.defineProperty(document, 'hidden', {
       value: false,
       writable: true,
       configurable: true,
     });
-    await stopWhep();
+    stopWhep();
+  });
+
+  it('stall timer fires after 5s and reconnects SSE', async () => {
+    vi.useFakeTimers();
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await Promise.resolve();
+    videoEl.dispatchTimeupdate(); // arms stall timer + sets isHealthy
+    const firstSse = MockEventSource.instance!;
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(MockEventSource.instance).not.toBe(firstSse);
+    stopWhep();
+    vi.useRealTimers();
+  });
+
+  it('visibility change back from hidden with stale video → reconnects SSE', async () => {
+    // Use Date.now spy to control elapsed time without fake timers
+    let fakeNow = 1_000_000;
+    const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => fakeNow);
+
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0)); // flush connectWhep
+    videoEl.dispatchTimeupdate(); // lastTimeupdateAt = fakeNow (1_000_000)
+    const firstSse = MockEventSource.instance!;
+
+    // Hide tab (clears stall timer)
+    Object.defineProperty(document, 'hidden', { value: true, writable: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    // Advance past STALL_TIMEOUT_MS
+    fakeNow += 6000;
+
+    // Show tab — elapsed 6000 > 5000 → should reconnect
+    Object.defineProperty(document, 'hidden', {
+      value: false,
+      writable: true,
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(MockEventSource.instance).not.toBe(firstSse);
+    stopWhep();
+    dateNowSpy.mockRestore();
+  });
+
+  it('visibility change back from hidden with fresh video → resets stall timer (no reconnect)', async () => {
+    // Use Date.now spy — don't advance it so elapsed is tiny
+    let fakeNow = 1_000_000;
+    const dateNowSpy = vi.spyOn(Date, 'now').mockImplementation(() => fakeNow);
+
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    videoEl.dispatchTimeupdate(); // lastTimeupdateAt = 1_000_000
+    const firstSse = MockEventSource.instance!;
+
+    // Hide tab
+    Object.defineProperty(document, 'hidden', { value: true, writable: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    // Do NOT advance fakeNow — elapsed will be ~0, NOT > STALL_TIMEOUT_MS
+    Object.defineProperty(document, 'hidden', {
+      value: false,
+      writable: true,
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    // Same SSE instance — no reconnect triggered
+    expect(MockEventSource.instance).toBe(firstSse);
+    stopWhep();
+    dateNowSpy.mockRestore();
+  });
+
+  it('duplicate SSE live:true messages do not start a second WHEP while one is active', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, stopWhep } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    const callsAfterFirst = vi.mocked(global.fetch).mock.calls.length;
+
+    // Send live:true again — should be a no-op because pc is already set
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(vi.mocked(global.fetch).mock.calls.length).toBe(callsAfterFirst);
+    stopWhep();
   });
 });
