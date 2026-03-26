@@ -219,6 +219,27 @@ describe('useStreamOnlyWhep', () => {
     expect(MockEventSource.instance!.closed).toBe(true);
   });
 
+  it('not-found SSE event while WHEP active → tears down WHEP', async () => {
+    stubFetchWhep(mockPc);
+    const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');
+    const { startWhep, isPermanentlyFailed, isHealthy } = useStreamOnlyWhep('testkey');
+    const videoEl = makeMockVideoEl();
+    startWhep(videoEl as unknown as HTMLVideoElement);
+
+    MockEventSource.instance!.sendLive(true);
+    await new Promise((r) => setTimeout(r, 0));
+    videoEl.dispatchTimeupdate();
+    expect(isHealthy.value).toBe(true);
+
+    MockEventSource.instance!.sendNotFound();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(isPermanentlyFailed.value).toBe(true);
+    expect(isHealthy.value).toBe(false);
+    expect(mockPc.close).toHaveBeenCalled();
+    expect(MockEventSource.instance!.closed).toBe(true);
+  });
+
   it('404 from WHEP → isPermanentlyFailed set', async () => {
     stubFetchWhep(mockPc, 404);
     const { useStreamOnlyWhep } = await import('./useStreamOnlyWhep');

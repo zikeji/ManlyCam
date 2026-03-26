@@ -221,6 +221,7 @@ export const useStreamOnlyWhep = (key: string) => {
 
     es.addEventListener('not-found', () => {
       isPermanentlyFailed.value = true;
+      teardownWhep();
       es.close();
       sse = null;
     });
