@@ -12,6 +12,13 @@ export async function listEntries(): Promise<AllowlistEntry[]> {
   return prisma.allowlistEntry.findMany({ orderBy: { createdAt: 'asc' } });
 }
 
+export async function findEntryByTypeValue(
+  type: string,
+  value: string,
+): Promise<AllowlistEntry | null> {
+  return prisma.allowlistEntry.findUnique({ where: { type_value: { type, value } } });
+}
+
 export async function removeById(id: string): Promise<void> {
   await prisma.allowlistEntry.delete({ where: { id } });
   // P2025 (record not found) bubbles to the route handler which converts it to 404

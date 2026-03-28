@@ -3,9 +3,14 @@ import { Prisma } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
-import { listEntries, addDomain, addEmail, removeById } from '../services/allowlistService.js';
+import {
+  listEntries,
+  addDomain,
+  addEmail,
+  removeById,
+  findEntryByTypeValue,
+} from '../services/allowlistService.js';
 import { getAuditLogPage } from '../services/auditLogService.js';
-import { prisma } from '../db/client.js';
 import { AppError } from '../lib/errors.js';
 import { parseJsonBody } from '../lib/parse-body.js';
 import type { AppEnv } from '../lib/types.js';
@@ -119,9 +124,7 @@ export function createAdminRouter() {
 
     const normalized = type === 'email' ? value.trim().toLowerCase() : value.trim();
 
-    const existing = await prisma.allowlistEntry.findUnique({
-      where: { type_value: { type, value: normalized } },
-    });
+    const existing = await findEntryByTypeValue(type, normalized);
     if (existing) {
       return c.json({
         id: existing.id,
@@ -142,9 +145,7 @@ export function createAdminRouter() {
       throw new AppError((err as Error).message, 'VALIDATION_ERROR', 422);
     }
 
-    const newEntry = await prisma.allowlistEntry.findUnique({
-      where: { type_value: { type, value: normalized } },
-    });
+    const newEntry = await findEntryByTypeValue(type, normalized);
     return c.json({
       /* c8 ignore next -- newEntry always exists after successful addDomain/addEmail */
       id: newEntry!.id,

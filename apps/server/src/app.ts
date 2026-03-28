@@ -8,7 +8,6 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { env } from './env.js';
 import { AppError } from './lib/errors.js';
 import { logger } from './lib/logger.js';
-import { prisma } from './db/client.js';
 import type { AppEnv } from './lib/types.js';
 import { requestLogger } from './middleware/logger.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -24,6 +23,7 @@ import { createCommandsRouter } from './routes/commands.js';
 import { createReactionsRouter } from './routes/reactions.js';
 import { createClipsRouter } from './routes/clips.js';
 import { streamOnlyRouter } from './routes/stream-only.js';
+import { getPublicClipForOg } from './services/clipService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -84,10 +84,7 @@ export function createApp() {
     }
 
     try {
-      const clip = await prisma.clip.findFirst({
-        where: { id, deletedAt: null },
-        select: { visibility: true, name: true, description: true, thumbnailKey: true },
-      });
+      const clip = await getPublicClipForOg(id);
 
       if (clip?.visibility === 'public') {
         const ogTitle = escapeHtmlAttr(clip.name);

@@ -336,6 +336,18 @@ export async function processClip({
   }
 }
 
+export async function getPublicClipForOg(id: string): Promise<{
+  visibility: string;
+  name: string;
+  description: string | null;
+  thumbnailKey: string | null;
+} | null> {
+  return prisma.clip.findFirst({
+    where: { id, deletedAt: null },
+    select: { visibility: true, name: true, description: true, thumbnailKey: true },
+  });
+}
+
 export async function getSegmentRange(): Promise<{
   earliest: string;
   latest: string;

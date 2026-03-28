@@ -4,7 +4,7 @@ import { env } from '../env.js';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { streamService } from '../services/streamService.js';
-import { prisma } from '../db/client.js';
+import { getCameraSettings, upsertCameraSettings } from '../services/cameraService.js';
 import { AppError } from '../lib/errors.js';
 import { parseJsonBody } from '../lib/parse-body.js';
 import { logger } from '../lib/logger.js';
@@ -136,11 +136,7 @@ streamRouter.patch(
 
 // GET /api/stream/camera-settings
 streamRouter.get('/api/stream/camera-settings', requireAuth, requireRole(Role.Admin), async (c) => {
-  const rows = await prisma.cameraSettings.findMany();
-  const settings: Record<string, unknown> = {};
-  for (const row of rows) {
-    settings[row.key] = JSON.parse(row.value);
-  }
+  const settings = await getCameraSettings();
   return c.json({ settings, piReachable: streamService.isPiReachable() });
 });
 
@@ -160,15 +156,7 @@ streamRouter.patch(
     }
 
     // Persist to DB
-    await Promise.all(
-      Object.entries(body).map(([key, value]) =>
-        prisma.cameraSettings.upsert({
-          where: { key },
-          update: { value: JSON.stringify(value) },
-          create: { key, value: JSON.stringify(value) },
-        }),
-      ),
-    );
+    await upsertCameraSettings(body);
 
     // Forward to Pi via frp tunnel (always attempted — DB is source of truth)
     try {
