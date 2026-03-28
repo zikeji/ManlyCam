@@ -1,3 +1,5 @@
+import { onUnmounted } from 'vue';
+
 const NOTIFICATION_CHANNEL = 'manlycam-notifications';
 const LEADER_TIMEOUT_MS = 100;
 
@@ -49,6 +51,12 @@ export function useBrowserNotifications() {
       channel!.postMessage({ type: 'notification-shown' });
     }, LEADER_TIMEOUT_MS);
   }
+
+  /* c8 ignore next 4 -- module-level channel can't be unmounted in tests */
+  onUnmounted(() => {
+    channel?.close();
+    channel = null;
+  });
 
   return { requestPermission, showNotification };
 }
