@@ -94,18 +94,12 @@ export function createAdminRouter() {
 
     // System user role is immutable
     if (targetUserId === SYSTEM_USER_ID) {
-      return c.json(
-        { error: { code: 'FORBIDDEN', message: 'The system user role cannot be changed.' } },
-        403,
-      );
+      throw new AppError('The system user role cannot be changed.', 'FORBIDDEN', 403);
     }
 
     // AC #8: Admin cannot change their own role via web UI
     if (targetUserId === actor.id) {
-      return c.json(
-        { error: { code: 'FORBIDDEN', message: 'You cannot change your own role.' } },
-        403,
-      );
+      throw new AppError('You cannot change your own role.', 'FORBIDDEN', 403);
     }
 
     await updateUserRoleById(targetUserId, role as Role);

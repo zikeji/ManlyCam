@@ -2,6 +2,7 @@ import type { AllowlistEntry } from '@prisma/client';
 import { prisma } from '../db/client.js';
 import { ulid } from '../lib/ulid.js';
 import { logger } from '../lib/logger.js';
+import { AppError } from '../lib/errors.js';
 
 // Keep in sync with AllowlistPanel.vue EMAIL_REGEX / DOMAIN_REGEX
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -18,7 +19,7 @@ export async function removeById(id: string): Promise<void> {
 
 export async function addDomain(domain: string): Promise<void> {
   if (!DOMAIN_REGEX.test(domain)) {
-    throw new Error(`Invalid domain format: ${domain}`);
+    throw new AppError(`Invalid domain format: ${domain}`, 'VALIDATION_ERROR', 400);
   }
   await prisma.allowlistEntry.upsert({
     where: { type_value: { type: 'domain', value: domain } },
@@ -32,14 +33,14 @@ export async function removeDomain(domain: string): Promise<void> {
   const result = await prisma.allowlistEntry.deleteMany({
     where: { type: 'domain', value: domain },
   });
-  if (result.count === 0) throw new Error(`Domain not found: ${domain}`);
+  if (result.count === 0) throw new AppError(`Domain not found: ${domain}`, 'NOT_FOUND', 404);
   logger.info({ type: 'domain', value: domain }, 'allowlist_entry_removed');
 }
 
 export async function addEmail(email: string): Promise<void> {
   const normalized = email.toLowerCase();
   if (!EMAIL_REGEX.test(normalized)) {
-    throw new Error(`Invalid email format: ${email}`);
+    throw new AppError(`Invalid email format: ${email}`, 'VALIDATION_ERROR', 400);
   }
   await prisma.allowlistEntry.upsert({
     where: { type_value: { type: 'email', value: normalized } },
@@ -54,6 +55,6 @@ export async function removeEmail(email: string): Promise<void> {
   const result = await prisma.allowlistEntry.deleteMany({
     where: { type: 'email', value: normalized },
   });
-  if (result.count === 0) throw new Error(`Email not found: ${email}`);
+  if (result.count === 0) throw new AppError(`Email not found: ${email}`, 'NOT_FOUND', 404);
   logger.info({ type: 'email', value: normalized }, 'allowlist_entry_removed');
 }

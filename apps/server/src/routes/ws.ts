@@ -144,10 +144,16 @@ export function createWsRouter(upgradeWebSocket: UpgradeWebSocket) {
               ws.send(JSON.stringify(infoMsg));
             }
             if (msg.type === 'users:lookup') {
-              const ids = (msg.payload as { ids: string[] }).ids;
-              if (Array.isArray(ids) && ids.length > 0) {
+              const payload = msg.payload as Record<string, unknown>;
+              const ids = payload.ids;
+              if (
+                Array.isArray(ids) &&
+                ids.length > 0 &&
+                ids.length <= 50 &&
+                ids.every((id) => typeof id === 'string' && id.length > 0)
+              ) {
                 const users = await prisma.user.findMany({
-                  where: { id: { in: ids, not: SYSTEM_USER_ID } },
+                  where: { id: { in: ids as string[], not: SYSTEM_USER_ID } },
                 });
                 const infoMsg: WsMessage = {
                   type: 'users:info',

@@ -43,6 +43,8 @@ const emit = defineEmits<{
   banUser: [userId: string];
 }>();
 
+const filteredViewers = computed(() => props.viewers.filter((v) => v.id !== SYSTEM_USER_ID));
+
 const showBanDialog = ref(false);
 const targetForBan = ref<UserPresence | null>(null);
 
@@ -72,14 +74,14 @@ function initials(name: string): string {
 <template>
   <div class="p-3">
     <p
-      v-if="viewers.filter(v => v.id !== SYSTEM_USER_ID).length === 0"
+      v-if="filteredViewers.length === 0"
       class="text-sm text-muted-foreground text-center mt-4"
     >
       Just you for now 👀
     </p>
     <ul v-else class="space-y-2">
       <li
-        v-for="viewer in viewers.filter(v => v.id !== SYSTEM_USER_ID)"
+        v-for="viewer in filteredViewers"
         :key="viewer.id"
         class="flex items-center gap-2"
       >
