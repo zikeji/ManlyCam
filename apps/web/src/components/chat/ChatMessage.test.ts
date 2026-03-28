@@ -933,7 +933,7 @@ describe('ChatMessage.vue', () => {
 
       const addSpy = vi.spyOn(document, 'addEventListener');
       // Fire the rAF — isMounted is false, so nothing should be registered
-      rafCallback?.();
+      if (rafCallback !== null) (rafCallback as () => void)();
       expect(addSpy).not.toHaveBeenCalledWith('touchstart', expect.any(Function));
       addSpy.mockRestore();
       vi.unstubAllGlobals();
