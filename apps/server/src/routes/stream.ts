@@ -6,6 +6,7 @@ import { requireRole } from '../middleware/requireRole.js';
 import { streamService } from '../services/streamService.js';
 import { prisma } from '../db/client.js';
 import { AppError } from '../lib/errors.js';
+import { parseJsonBody } from '../lib/parse-body.js';
 import { logger } from '../lib/logger.js';
 import type { AppEnv } from '../lib/types.js';
 import { CAMERA_CONTROLS_ALLOWLIST, Role } from '@manlycam/types';
@@ -122,12 +123,7 @@ streamRouter.patch(
   requireAuth,
   requireRole(Role.Admin),
   async (c) => {
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch (_err) {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
+    const body = await parseJsonBody<unknown>(c);
     const parsed = offlineMessageSchema.safeParse(body);
     if (!parsed.success) {
       throw new AppError('Invalid request body', 'VALIDATION_ERROR', 422);
@@ -154,12 +150,7 @@ streamRouter.patch(
   requireAuth,
   requireRole(Role.Admin),
   async (c) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json<Record<string, unknown>>();
-    } catch (_err) {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
+    const body = await parseJsonBody<Record<string, unknown>>(c);
     const allowlist = new Set(CAMERA_CONTROLS_ALLOWLIST);
 
     for (const key of Object.keys(body)) {

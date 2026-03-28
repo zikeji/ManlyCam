@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { AppError } from '../lib/errors.js';
+import { parseJsonBody } from '../lib/parse-body.js';
 import {
   createClip,
   getClip,
@@ -25,12 +26,7 @@ export function createClipsRouter() {
   });
 
   clipsRouter.post('/api/clips', requireAuth, async (c) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json<Record<string, unknown>>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
+    const body = await parseJsonBody<Record<string, unknown>>(c);
     if (!body || typeof body !== 'object') {
       throw new AppError('Request body must be a JSON object', 'VALIDATION_ERROR', 400);
     }
@@ -103,12 +99,7 @@ export function createClipsRouter() {
   });
 
   clipsRouter.patch('/api/clips/:clipId', requireAuth, async (c) => {
-    let body: Record<string, unknown>;
-    try {
-      body = await c.req.json<Record<string, unknown>>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
+    const body = await parseJsonBody<Record<string, unknown>>(c);
     /* c8 ignore next 3 -- Hono always returns an object from .json(), never null/primitive */
     if (!body || typeof body !== 'object') {
       throw new AppError('Request body must be a JSON object', 'VALIDATION_ERROR', 400);

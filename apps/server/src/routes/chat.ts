@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { AppError } from '../lib/errors.js';
+import { parseJsonBody } from '../lib/parse-body.js';
 import { createMessage, getHistory, editMessage, deleteMessage } from '../services/chatService.js';
 import type { AppEnv } from '../lib/types.js';
 import type { Role } from '@manlycam/types';
@@ -9,13 +10,7 @@ export function createChatRouter() {
   const chatRouter = new Hono<AppEnv>();
 
   chatRouter.post('/api/chat/messages', requireAuth, async (c) => {
-    let body: { content?: unknown };
-    try {
-      body = await c.req.json<{ content?: unknown }>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
-
+    const body = await parseJsonBody<{ content?: unknown }>(c);
     const { content } = body;
 
     if (typeof content !== 'string' || content.trim().length === 0) {
@@ -57,12 +52,7 @@ export function createChatRouter() {
 
   chatRouter.patch('/api/chat/messages/:messageId', requireAuth, async (c) => {
     const messageId = c.req.param('messageId');
-    let body: { content?: unknown };
-    try {
-      body = await c.req.json<{ content?: unknown }>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
+    const body = await parseJsonBody<{ content?: unknown }>(c);
     const { content } = body;
     if (typeof content !== 'string' || content.trim().length === 0)
       throw new AppError('Content must be a non-empty string', 'VALIDATION_ERROR', 422);
