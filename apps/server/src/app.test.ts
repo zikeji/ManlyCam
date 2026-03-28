@@ -226,3 +226,39 @@ describe('GET /clips/:id — OG injection route', () => {
     });
   });
 });
+
+describe('CORS middleware', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sets CORS headers for requests from BASE_URL origin', async () => {
+    const { app } = createApp();
+    const res = await app.request('/health', {
+      headers: { Origin: 'http://localhost:3000' },
+    });
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+    expect(res.headers.get('Access-Control-Allow-Credentials')).toBe('true');
+  });
+
+  it('does not set CORS headers for unknown origins', async () => {
+    const { app } = createApp();
+    const res = await app.request('/health', {
+      headers: { Origin: 'http://evil.example.com' },
+    });
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBeNull();
+  });
+
+  it('handles OPTIONS preflight for BASE_URL origin', async () => {
+    const { app } = createApp();
+    const res = await app.request('/health', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'http://localhost:3000',
+        'Access-Control-Request-Method': 'POST',
+      },
+    });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:3000');
+  });
+});

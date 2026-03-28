@@ -651,6 +651,16 @@ describe('useWebSocket', () => {
       disconnect();
       expect(mockWsInstance.close).toHaveBeenCalled();
     });
+
+    it('nulls out all handlers before closing to prevent stale reconnect', () => {
+      const { connect, disconnect } = useWebSocket();
+      connect();
+      disconnect();
+      expect(mockWsInstance.onopen).toBeNull();
+      expect(mockWsInstance.onmessage).toBeNull();
+      expect(mockWsInstance.onclose).toBeNull();
+      expect(mockWsInstance.onerror).toBeNull();
+    });
   });
 
   describe('isConnected', () => {

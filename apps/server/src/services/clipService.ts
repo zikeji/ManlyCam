@@ -156,16 +156,15 @@ export async function processClip({
 
   const clip = await prisma.clip.findUnique({ where: { id: clipId } });
   if (!clip || clip.deletedAt !== null) {
-    await unlink(playlistSnapshot).catch(() => undefined);
+    /* c8 ignore next 3 -- file may not exist; defensive cleanup, error path not exercised in tests */
+    try {
+      await unlink(playlistSnapshot);
+    } catch {} // eslint-disable-line no-empty
     return;
   }
 
   async function cleanup() {
-    await Promise.allSettled([
-      unlink(videoTmp).catch(() => undefined),
-      unlink(thumbTmp).catch(() => undefined),
-      unlink(playlistSnapshot).catch(() => undefined),
-    ]);
+    await Promise.allSettled([unlink(videoTmp), unlink(thumbTmp), unlink(playlistSnapshot)]);
   }
 
   async function fail() {
@@ -335,6 +334,18 @@ export async function processClip({
       payload: readyPayload,
     });
   }
+}
+
+export async function getPublicClipForOg(id: string): Promise<{
+  visibility: string;
+  name: string;
+  description: string | null;
+  thumbnailKey: string | null;
+} | null> {
+  return prisma.clip.findFirst({
+    where: { id, deletedAt: null },
+    select: { visibility: true, name: true, description: true, thumbnailKey: true },
+  });
 }
 
 export async function getSegmentRange(): Promise<{

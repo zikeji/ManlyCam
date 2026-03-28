@@ -99,6 +99,7 @@ const reactionBarJustOpened = ref(false);
 let barOpenedByLongPress = false;
 let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 let barTouchDismissCleanup: (() => void) | null = null;
+let isMounted = true;
 
 const { addReaction, removeReaction, modRemoveReaction } = useReactions();
 
@@ -116,6 +117,7 @@ function setupBarTouchDismiss() {
     clearBarTouchDismiss();
   };
   requestAnimationFrame(() => {
+    if (!isMounted) return;
     document.addEventListener('touchstart', handler);
     barTouchDismissCleanup = () => document.removeEventListener('touchstart', handler);
   });
@@ -159,6 +161,7 @@ function handleTouchEnd() {
 }
 
 onUnmounted(() => {
+  isMounted = false;
   if (longPressTimer !== null) {
     clearTimeout(longPressTimer);
   }

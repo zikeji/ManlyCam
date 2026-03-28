@@ -73,6 +73,7 @@ model Message {
   @@index([userId])
   @@index([deletedBy])
   @@index([clipId])
+  @@index([deletedAt, id])
   @@map("messages")
 }
 
@@ -102,6 +103,7 @@ model AuditLog {
   actor User @relation(fields: [actorId], references: [id])
 
   @@index([actorId])
+  @@index([performedAt])
   @@map("audit_log")
 }
 
@@ -145,5 +147,7 @@ model Clip {
   messages Message[]
 
   @@index([userId])
+  @@index([createdAt])
+  @@index([status])
   @@map("clips")
 }

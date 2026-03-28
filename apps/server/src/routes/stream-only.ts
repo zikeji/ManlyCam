@@ -8,6 +8,7 @@ import { requireRole } from '../middleware/requireRole.js';
 import { streamService } from '../services/streamService.js';
 import { streamConfig } from '../lib/stream-config.js';
 import { AppError } from '../lib/errors.js';
+import { parseJsonBody } from '../lib/parse-body.js';
 import type { AppEnv } from '../lib/types.js';
 import { Role } from '@manlycam/types';
 
@@ -49,12 +50,7 @@ streamOnlyRouter.patch(
   requireAuth,
   requireRole(Role.Admin),
   async (c) => {
-    let body: unknown;
-    try {
-      body = await c.req.json();
-    } catch (_err) {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
+    const body = await parseJsonBody<unknown>(c);
     if (
       typeof body !== 'object' ||
       body === null ||

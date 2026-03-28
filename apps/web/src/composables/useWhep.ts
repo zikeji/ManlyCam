@@ -98,7 +98,11 @@ async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
   clearReconnectTimer();
 
   if (sessionUrl) {
-    await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+    try {
+      await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' });
+    } catch {
+      // best-effort cleanup — ignore
+    }
     sessionUrl = null;
   }
   if (pc) {
@@ -120,21 +124,29 @@ async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
 
     // Wire up handlers BEFORE setRemoteDescription — ontrack fires synchronously
     // during setRemoteDescription processing and would be missed if set afterwards.
-    pc.ontrack = (event) => {
+    pc.ontrack = async (event) => {
       const stream = event.streams[0] ?? new MediaStream([event.track]);
       videoEl.srcObject = stream;
-      videoEl.play().catch(() => {});
+      try {
+        await videoEl.play();
+      } catch {
+        // autoplay restriction — ignore
+      }
     };
 
     // Trickle ICE — fire-and-forget; errors non-fatal
-    pc.onicecandidate = ({ candidate }) => {
+    pc.onicecandidate = async ({ candidate }) => {
       if (candidate && sessionUrl) {
-        fetch(sessionUrl, {
-          method: 'PATCH',
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/trickle-ice-sdpfrag' },
-          body: candidate.candidate,
-        }).catch(() => {});
+        try {
+          await fetch(sessionUrl, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/trickle-ice-sdpfrag' },
+            body: candidate.candidate,
+          });
+        } catch {
+          // trickle ICE failure — non-fatal
+        }
       }
     };
 
@@ -188,7 +200,11 @@ async function connectWhep(videoEl: HTMLVideoElement): Promise<void> {
   } catch (error) {
     // Clean up on error so caller can retry
     if (sessionUrl) {
-      await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+      try {
+        await fetch(sessionUrl, { method: 'DELETE', credentials: 'include' });
+      } catch {
+        // best-effort cleanup — ignore
+      }
       sessionUrl = null;
     }
     if (pc) {
@@ -216,10 +232,14 @@ scheduleReconnect = (): void => {
   const el = storedVideoEl;
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
-    connectWhep(el).catch(() => {
-      // connectWhep cleaned up on error; schedule next attempt
-      scheduleReconnect();
-    });
+    void (async () => {
+      try {
+        await connectWhep(el);
+      } catch {
+        // connectWhep cleaned up on error; schedule next attempt
+        scheduleReconnect();
+      }
+    })();
   }, delay);
 };
 
@@ -240,7 +260,11 @@ export const useWhep = () => {
     clientFrozen.value = isHealthy.value;
     isHealthy.value = false;
     if (capturedSessionUrl) {
-      await fetch(capturedSessionUrl, { method: 'DELETE', credentials: 'include' }).catch(() => {});
+      try {
+        await fetch(capturedSessionUrl, { method: 'DELETE', credentials: 'include' });
+      } catch {
+        // best-effort teardown DELETE — ignore
+      }
     }
     if (capturedPc) {
       capturedPc.oniceconnectionstatechange = null;

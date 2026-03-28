@@ -909,6 +909,35 @@ describe('ChatMessage.vue', () => {
       await nextTick();
       expect(wrapper.find('[data-reaction-bar]').exists()).toBe(false);
     });
+
+    it('does not attach touchstart listener if component unmounts before rAF fires', async () => {
+      let rafCallback: (() => void) | null = null;
+      vi.stubGlobal('requestAnimationFrame', (cb: () => void) => {
+        rafCallback = cb;
+        return 0;
+      });
+      wrapper = mount(ChatMessage, {
+        props: { message: baseMessage, isCurrentUserMuted: false },
+      });
+      // Trigger long-press to open reaction bar and schedule rAF
+      const listitem = wrapper.find('[role="listitem"]');
+      vi.useFakeTimers();
+      await listitem.trigger('touchstart');
+      vi.advanceTimersByTime(500);
+      await nextTick();
+      vi.useRealTimers();
+
+      // Unmount before rAF fires
+      wrapper.unmount();
+      wrapper = null;
+
+      const addSpy = vi.spyOn(document, 'addEventListener');
+      // Fire the rAF — isMounted is false, so nothing should be registered
+      if (rafCallback !== null) (rafCallback as () => void)();
+      expect(addSpy).not.toHaveBeenCalledWith('touchstart', expect.any(Function));
+      addSpy.mockRestore();
+      vi.unstubAllGlobals();
+    });
   });
 
   describe('continuation row — edit mode and reactions', () => {

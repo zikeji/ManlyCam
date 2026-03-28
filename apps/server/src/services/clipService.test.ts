@@ -21,6 +21,7 @@ vi.mock('../db/client.js', () => ({
     clip: {
       count: vi.fn(),
       create: vi.fn(),
+      findFirst: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
@@ -83,6 +84,7 @@ import {
   deleteClip,
   updateClip,
   shareClipToChat,
+  getPublicClipForOg,
 } from './clipService.js';
 
 const M3U8_WITH_TIMESTAMPS = `
@@ -1789,5 +1791,37 @@ describe('shareClipToChat', () => {
     expect((call![0] as { payload: Record<string, unknown> }).payload).not.toHaveProperty(
       'clipThumbnailUrl',
     );
+  });
+});
+
+describe('getPublicClipForOg', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns clip fields when clip exists and is not deleted', async () => {
+    vi.mocked(prisma.clip.findFirst).mockResolvedValue({
+      visibility: 'public',
+      name: 'My Clip',
+      description: 'A great clip',
+      thumbnailKey: 'key.jpg',
+    } as never);
+    const result = await getPublicClipForOg('clip-abc');
+    expect(result).toEqual({
+      visibility: 'public',
+      name: 'My Clip',
+      description: 'A great clip',
+      thumbnailKey: 'key.jpg',
+    });
+    expect(prisma.clip.findFirst).toHaveBeenCalledWith({
+      where: { id: 'clip-abc', deletedAt: null },
+      select: { visibility: true, name: true, description: true, thumbnailKey: true },
+    });
+  });
+
+  it('returns null when clip does not exist', async () => {
+    vi.mocked(prisma.clip.findFirst).mockResolvedValue(null);
+    const result = await getPublicClipForOg('nonexistent');
+    expect(result).toBeNull();
   });
 });

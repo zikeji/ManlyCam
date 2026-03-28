@@ -7,6 +7,7 @@ vi.mock('../db/client.js', () => ({
       upsert: vi.fn(),
       deleteMany: vi.fn(),
       findMany: vi.fn(),
+      findUnique: vi.fn(),
       delete: vi.fn(),
     },
   },
@@ -28,6 +29,7 @@ import {
   removeEmail,
   listEntries,
   removeById,
+  findEntryByTypeValue,
 } from './allowlistService.js';
 
 describe('allowlistService', () => {
@@ -165,6 +167,29 @@ describe('allowlistService', () => {
       const err = Object.assign(new Error('Record not found'), { code: 'P2025' });
       vi.mocked(prisma.allowlistEntry.delete).mockRejectedValue(err);
       await expect(removeById('nope')).rejects.toThrow('Record not found');
+    });
+  });
+
+  describe('findEntryByTypeValue', () => {
+    it('returns entry when found', async () => {
+      const mockEntry: AllowlistEntry = {
+        id: 'entry-1',
+        type: 'email',
+        value: 'test@example.com',
+        createdAt: new Date(),
+      };
+      vi.mocked(prisma.allowlistEntry.findUnique).mockResolvedValue(mockEntry);
+      const result = await findEntryByTypeValue('email', 'test@example.com');
+      expect(result).toEqual(mockEntry);
+      expect(prisma.allowlistEntry.findUnique).toHaveBeenCalledWith({
+        where: { type_value: { type: 'email', value: 'test@example.com' } },
+      });
+    });
+
+    it('returns null when not found', async () => {
+      vi.mocked(prisma.allowlistEntry.findUnique).mockResolvedValue(null);
+      const result = await findEntryByTypeValue('domain', 'notexist.com');
+      expect(result).toBeNull();
     });
   });
 });

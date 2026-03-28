@@ -3,10 +3,16 @@ import { Prisma } from '@prisma/client';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
-import { listEntries, addDomain, addEmail, removeById } from '../services/allowlistService.js';
+import {
+  listEntries,
+  addDomain,
+  addEmail,
+  removeById,
+  findEntryByTypeValue,
+} from '../services/allowlistService.js';
 import { getAuditLogPage } from '../services/auditLogService.js';
-import { prisma } from '../db/client.js';
 import { AppError } from '../lib/errors.js';
+import { parseJsonBody } from '../lib/parse-body.js';
 import type { AppEnv } from '../lib/types.js';
 import { Role, SYSTEM_USER_ID } from '@manlycam/types';
 
@@ -42,13 +48,7 @@ export function createAdminRouter() {
 
   router.patch('/users/:userId/user-tag', async (c) => {
     const targetUserId = c.req.param('userId');
-    let body: { userTagText?: unknown; userTagColor?: unknown };
-    try {
-      body = await c.req.json<{ userTagText?: unknown; userTagColor?: unknown }>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
-
+    const body = await parseJsonBody<{ userTagText?: unknown; userTagColor?: unknown }>(c);
     const { userTagText, userTagColor } = body;
 
     // Normalize: empty string treated as clear
@@ -75,13 +75,7 @@ export function createAdminRouter() {
 
   router.post('/users/:userId/role', async (c) => {
     const targetUserId = c.req.param('userId');
-    let body: { role?: unknown };
-    try {
-      body = await c.req.json<{ role?: unknown }>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
-
+    const body = await parseJsonBody<{ role?: unknown }>(c);
     const { role } = body;
     if (role !== Role.Moderator && role !== Role.ViewerCompany && role !== Role.ViewerGuest) {
       throw new AppError(
@@ -94,18 +88,12 @@ export function createAdminRouter() {
 
     // System user role is immutable
     if (targetUserId === SYSTEM_USER_ID) {
-      return c.json(
-        { error: { code: 'FORBIDDEN', message: 'The system user role cannot be changed.' } },
-        403,
-      );
+      throw new AppError('The system user role cannot be changed.', 'FORBIDDEN', 403);
     }
 
     // AC #8: Admin cannot change their own role via web UI
     if (targetUserId === actor.id) {
-      return c.json(
-        { error: { code: 'FORBIDDEN', message: 'You cannot change your own role.' } },
-        403,
-      );
+      throw new AppError('You cannot change your own role.', 'FORBIDDEN', 403);
     }
 
     await updateUserRoleById(targetUserId, role as Role);
@@ -125,13 +113,7 @@ export function createAdminRouter() {
   });
 
   router.post('/allowlist', async (c) => {
-    let body: { type?: unknown; value?: unknown };
-    try {
-      body = await c.req.json<{ type?: unknown; value?: unknown }>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
-
+    const body = await parseJsonBody<{ type?: unknown; value?: unknown }>(c);
     const { type, value } = body;
     if (type !== 'domain' && type !== 'email') {
       throw new AppError('type must be "domain" or "email"', 'VALIDATION_ERROR', 422);
@@ -142,9 +124,7 @@ export function createAdminRouter() {
 
     const normalized = type === 'email' ? value.trim().toLowerCase() : value.trim();
 
-    const existing = await prisma.allowlistEntry.findUnique({
-      where: { type_value: { type, value: normalized } },
-    });
+    const existing = await findEntryByTypeValue(type, normalized);
     if (existing) {
       return c.json({
         id: existing.id,
@@ -165,9 +145,7 @@ export function createAdminRouter() {
       throw new AppError((err as Error).message, 'VALIDATION_ERROR', 422);
     }
 
-    const newEntry = await prisma.allowlistEntry.findUnique({
-      where: { type_value: { type, value: normalized } },
-    });
+    const newEntry = await findEntryByTypeValue(type, normalized);
     return c.json({
       /* c8 ignore next -- newEntry always exists after successful addDomain/addEmail */
       id: newEntry!.id,

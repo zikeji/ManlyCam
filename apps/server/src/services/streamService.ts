@@ -51,17 +51,25 @@ export class StreamService {
       });
     });
     if (toggle === 'live') {
-      this.cacheHlsPlaylistName().catch((err) => {
-        logger.warn(
-          { err },
-          'stream: failed to cache HLS playlist name on live toggle (will retry on first clip)',
-        );
-      });
+      void (async () => {
+        try {
+          await this.cacheHlsPlaylistName();
+        } catch (err) {
+          logger.warn(
+            { err },
+            'stream: failed to cache HLS playlist name on live toggle (will retry on first clip)',
+          );
+        }
+      })();
     }
     if (toggle === 'offline') {
-      this.flushHlsPath().catch((err) => {
-        logger.error({ err }, 'stream: failed to flush HLS path on offline toggle');
-      });
+      void (async () => {
+        try {
+          await this.flushHlsPath();
+        } catch (err) {
+          logger.error({ err }, 'stream: failed to flush HLS path on offline toggle');
+        }
+      })();
     }
     this.broadcastState();
   }
@@ -106,12 +114,14 @@ export class StreamService {
     this.offlineEmoji = offlineFields['offlineEmoji'];
     this.offlineTitle = offlineFields['offlineTitle'];
     this.offlineDescription = offlineFields['offlineDescription'];
-    this.pollLoop().catch(
-      /* c8 ignore next -- pollLoop only throws in catastrophic failure; happy-path coverage impossible in unit tests */
-      (err) => {
+    void (async () => {
+      try {
+        await this.pollLoop();
+      } catch (err) {
+        /* c8 ignore next -- pollLoop only throws in catastrophic failure; happy-path coverage impossible in unit tests */
         logger.error({ err }, 'mediamtx poll loop exited unexpectedly');
-      },
-    );
+      }
+    })();
   }
 
   stop(): void {

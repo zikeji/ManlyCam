@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { requireAuth } from '../middleware/requireAuth.js';
 import { requireRole } from '../middleware/requireRole.js';
 import { AppError } from '../lib/errors.js';
+import { parseJsonBody } from '../lib/parse-body.js';
 import { addReaction, removeReaction, removeReactionByMod } from '../services/reactionsService.js';
 import type { AppEnv } from '../lib/types.js';
 import type { Role } from '@manlycam/types';
@@ -13,13 +14,7 @@ export function createReactionsRouter() {
     const messageId = c.req.param('messageId');
     const user = c.get('user')!;
 
-    let body: { emoji?: unknown };
-    try {
-      body = await c.req.json<{ emoji?: unknown }>();
-    } catch {
-      throw new AppError('Invalid JSON in request body', 'INVALID_JSON', 400);
-    }
-
+    const body = await parseJsonBody<{ emoji?: unknown }>(c);
     const { emoji } = body;
     if (typeof emoji !== 'string' || emoji.trim().length === 0) {
       throw new AppError('Emoji must be a non-empty string', 'VALIDATION_ERROR', 422);

@@ -115,8 +115,12 @@ export function useHlsPlayer() {
     }
   }
 
-  function play(): void {
-    videoEl?.play().catch(() => {});
+  async function play(): Promise<void> {
+    try {
+      await videoEl?.play();
+    } catch {
+      // autoplay restriction — ignore
+    }
   }
 
   function pause(): void {

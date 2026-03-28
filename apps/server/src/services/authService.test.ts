@@ -124,17 +124,51 @@ describe('authService', () => {
       expect(result).toBeNull();
     });
 
-    it('returns the user for a valid session', async () => {
-      const mockUser = { id: 'user-1', email: 'test@example.com', displayName: 'Test User' };
+    it('updates lastSeenAt and returns user when lastSeenAt is null', async () => {
+      const mockUser = {
+        id: 'user-1',
+        email: 'test@example.com',
+        displayName: 'Test User',
+        lastSeenAt: null,
+      };
       vi.mocked(prisma.session.findUnique).mockResolvedValue({
         id: 'sess-1',
-        userId: 'user-1',
-        expiresAt: new Date(Date.now() + 1000 * 60 * 60), // 1 hour from now
-        createdAt: new Date(),
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+        user: mockUser,
+      } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue(undefined as never);
+      const result = await getSessionUser('sess-1');
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-1' },
+        data: { lastSeenAt: expect.any(Date) },
+      });
+      expect(result?.lastSeenAt).toBeInstanceOf(Date);
+    });
+
+    it('updates lastSeenAt when last seen was more than 5 minutes ago', async () => {
+      const oldDate = new Date(Date.now() - 6 * 60 * 1000); // 6 minutes ago
+      const mockUser = { id: 'user-1', email: 'test@example.com', lastSeenAt: oldDate };
+      vi.mocked(prisma.session.findUnique).mockResolvedValue({
+        id: 'sess-1',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
+        user: mockUser,
+      } as never);
+      vi.mocked(prisma.user.update).mockResolvedValue(undefined as never);
+      await getSessionUser('sess-1');
+      expect(prisma.user.update).toHaveBeenCalled();
+    });
+
+    it('skips lastSeenAt update when last seen was within 5 minutes', async () => {
+      const recentDate = new Date(Date.now() - 2 * 60 * 1000); // 2 minutes ago
+      const mockUser = { id: 'user-1', email: 'test@example.com', lastSeenAt: recentDate };
+      vi.mocked(prisma.session.findUnique).mockResolvedValue({
+        id: 'sess-1',
+        expiresAt: new Date(Date.now() + 1000 * 60 * 60),
         user: mockUser,
       } as never);
       const result = await getSessionUser('sess-1');
-      expect(result).toEqual(mockUser);
+      expect(prisma.user.update).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ id: 'user-1' });
     });
   });
 
@@ -312,7 +346,12 @@ describe('authService', () => {
       const result = await processOAuthCallback('code', 'state', 'state');
 
       expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ role: 'ViewerCompany' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            role: 'ViewerCompany',
+            lastSeenAt: expect.any(Date),
+          }),
+        }),
       );
       expect(result).toEqual({ sessionId: '01JTEST00000000000000000000', redirectTo: '/' });
     });

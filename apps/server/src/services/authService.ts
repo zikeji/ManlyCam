@@ -94,6 +94,8 @@ export async function destroySession(sessionId: string): Promise<void> {
   await prisma.session.deleteMany({ where: { id: sessionId } });
 }
 
+const LAST_SEEN_THROTTLE_MS = 5 * 60 * 1000; // update at most once every 5 minutes
+
 export async function getSessionUser(sessionId: string) {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
@@ -102,7 +104,13 @@ export async function getSessionUser(sessionId: string) {
   if (!session || session.expiresAt < new Date()) {
     return null;
   }
-  return session.user;
+  const user = session.user;
+  const now = new Date();
+  if (!user.lastSeenAt || now.getTime() - user.lastSeenAt.getTime() > LAST_SEEN_THROTTLE_MS) {
+    await prisma.user.update({ where: { id: user.id }, data: { lastSeenAt: now } });
+    user.lastSeenAt = now;
+  }
+  return user;
 }
 
 export async function processOAuthCallback(
@@ -161,6 +169,7 @@ export async function processOAuthCallback(
       email: profile.email,
       displayName: profile.displayName,
       avatarUrl: resolveAvatarUrl(profile.avatarUrl, profile.email),
+      lastSeenAt: new Date(),
       role,
     },
   });

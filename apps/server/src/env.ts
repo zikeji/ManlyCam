@@ -1,4 +1,4 @@
-/* istanbul ignore file -- env bootstrap: runs at startup, always mocked in tests; error path calls process.exit(1) */
+/* c8 ignore file -- env bootstrap: runs at startup, always mocked in tests; error path calls process.exit(1) */
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -6,7 +6,6 @@ const envSchema = z.object({
   PORT: z.string().min(1),
   BASE_URL: z.string().url(),
   DATABASE_URL: z.string().min(1),
-  SESSION_SECRET: z.string().min(1),
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
   FRP_HOST: z.string().min(1).default('localhost'),

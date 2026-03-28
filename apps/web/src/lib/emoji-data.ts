@@ -73,6 +73,25 @@ export const EMOJI_LIST: Emoji[] = Object.entries(unicodeData).reduce<Emoji[]>(
 
 export const EMOJI_MAP: Map<string, Emoji> = new Map(EMOJI_LIST.map((e) => [e.name, e]));
 
+// Inverted prefix index built at module load: maps every prefix of each name/keyword
+// to the set of emojis that have a name or keyword starting with that prefix.
+// Trades ~2ms init for O(1) per-keystroke search on low-power devices.
+const searchIndex = new Map<string, Set<Emoji>>();
+for (const emoji of EMOJI_LIST) {
+  for (const term of [emoji.name, ...emoji.keywords]) {
+    const lower = term.toLowerCase();
+    for (let i = 1; i <= lower.length; i++) {
+      const prefix = lower.slice(0, i);
+      let set = searchIndex.get(prefix);
+      if (!set) {
+        set = new Set();
+        searchIndex.set(prefix, set);
+      }
+      set.add(emoji);
+    }
+  }
+}
+
 /**
  * Build a URL for a Fluent Emoji SVG asset.
  *
@@ -86,7 +105,6 @@ export function getEmojiUrl(codepoint: string): string {
 export function searchEmojis(query: string, limit = 20): Emoji[] {
   if (!query) return EMOJI_LIST.slice(0, limit);
   const q = query.toLowerCase().trim();
-  return EMOJI_LIST.filter(
-    (e) => e.name.includes(q) || e.keywords.some((k) => k.includes(q)),
-  ).slice(0, limit);
+  const matches = searchIndex.get(q) ?? new Set<Emoji>();
+  return [...matches].slice(0, limit);
 }

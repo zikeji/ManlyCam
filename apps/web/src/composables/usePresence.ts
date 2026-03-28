@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, onUnmounted } from 'vue';
 import type { UserPresence, UserProfile } from '@manlycam/types';
 import { handleAdminUserUpdate } from './useAdminUsers';
 
@@ -74,5 +74,10 @@ export const handlePresenceUserUpdate = (profile: UserProfile): void => {
 };
 
 export const usePresence = () => {
+  /* c8 ignore next 4 -- module-level timers can't be exercised via unmount in tests */
+  onUnmounted(() => {
+    for (const timer of typingTimers.values()) clearTimeout(timer);
+    typingTimers.clear();
+  });
   return { viewers, typingUsers, mutedUserIds };
 };

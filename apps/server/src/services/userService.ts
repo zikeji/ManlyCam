@@ -9,7 +9,7 @@ import type { Role } from '@manlycam/types';
 export async function banUser(email: string): Promise<{ sessionCount: number }> {
   const normalized = email.toLowerCase();
   const user = await prisma.user.findUnique({ where: { email: normalized } });
-  if (!user) throw new Error(`User not found: ${email}`);
+  if (!user) throw new AppError(`User not found: ${email}`, 'NOT_FOUND', 404);
 
   try {
     // TODO(story-3.4): WS hub will detect missing sessions on heartbeat and emit session:revoked
@@ -27,7 +27,7 @@ export async function banUser(email: string): Promise<{ sessionCount: number }> 
   } catch (error) {
     // Handle race condition: user deleted between findUnique and transaction
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-      throw new Error(`User not found: ${email}`);
+      throw new AppError(`User not found: ${email}`, 'NOT_FOUND', 404);
     }
     throw error;
   }
@@ -36,7 +36,7 @@ export async function banUser(email: string): Promise<{ sessionCount: number }> 
 export async function unbanUser(email: string): Promise<void> {
   const normalized = email.toLowerCase();
   const user = await prisma.user.findUnique({ where: { email: normalized } });
-  if (!user) throw new Error(`User not found: ${email}`);
+  if (!user) throw new AppError(`User not found: ${email}`, 'NOT_FOUND', 404);
   await prisma.user.update({
     where: { id: user.id },
     data: { bannedAt: null },
@@ -47,7 +47,7 @@ export async function unbanUser(email: string): Promise<void> {
 export async function updateUserRole(email: string, role: Role): Promise<void> {
   const normalized = email.toLowerCase();
   const user = await prisma.user.findUnique({ where: { email: normalized } });
-  if (!user) throw new Error(`User not found: ${email}`);
+  if (!user) throw new AppError(`User not found: ${email}`, 'NOT_FOUND', 404);
 
   const updated = await prisma.user.update({
     where: { id: user.id },
@@ -71,7 +71,7 @@ export async function updateUserRole(email: string, role: Role): Promise<void> {
 
 export async function updateUserRoleById(userId: string, role: Role): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!user) throw new Error(`User not found: ${userId}`);
+  if (!user) throw new AppError(`User not found: ${userId}`, 'NOT_FOUND', 404);
 
   const updated = await prisma.user.update({
     where: { id: userId },

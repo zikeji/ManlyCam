@@ -5,7 +5,13 @@ import { createAdminRouter } from './admin.js';
 import { getSessionUser } from '../services/authService.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getAllUsers, updateUserRoleById, updateUserTagById } from '../services/userService.js';
-import { listEntries, addDomain, addEmail, removeById } from '../services/allowlistService.js';
+import {
+  listEntries,
+  addDomain,
+  addEmail,
+  removeById,
+  findEntryByTypeValue,
+} from '../services/allowlistService.js';
 import { getAuditLogPage } from '../services/auditLogService.js';
 import { AppError } from '../lib/errors.js';
 import type { AppEnv } from '../lib/types.js';
@@ -27,21 +33,12 @@ vi.mock('../services/allowlistService.js', () => ({
   addDomain: vi.fn(),
   addEmail: vi.fn(),
   removeById: vi.fn(),
+  findEntryByTypeValue: vi.fn(),
 }));
 
 vi.mock('../services/auditLogService.js', () => ({
   getAuditLogPage: vi.fn(),
 }));
-
-vi.mock('../db/client.js', () => ({
-  prisma: {
-    allowlistEntry: {
-      findUnique: vi.fn(),
-    },
-  },
-}));
-
-import { prisma } from '../db/client.js';
 
 import type { User } from '@prisma/client';
 
@@ -452,7 +449,7 @@ describe('admin routes', () => {
     it('adds new domain and returns entry with alreadyExists: false', async () => {
       const now = new Date('2024-01-15T10:00:00.000Z');
       vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
-      vi.mocked(prisma.allowlistEntry.findUnique)
+      vi.mocked(findEntryByTypeValue)
         .mockResolvedValueOnce(null) // pre-check: not found
         .mockResolvedValueOnce({ id: 'e1', type: 'domain', value: 'company.com', createdAt: now }); // re-fetch after create
       vi.mocked(addDomain).mockResolvedValue(undefined);
@@ -473,14 +470,12 @@ describe('admin routes', () => {
     it('adds new email and normalizes to lowercase', async () => {
       const now = new Date('2024-01-15T10:00:00.000Z');
       vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
-      vi.mocked(prisma.allowlistEntry.findUnique)
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({
-          id: 'e2',
-          type: 'email',
-          value: 'guest@gmail.com',
-          createdAt: now,
-        });
+      vi.mocked(findEntryByTypeValue).mockResolvedValueOnce(null).mockResolvedValueOnce({
+        id: 'e2',
+        type: 'email',
+        value: 'guest@gmail.com',
+        createdAt: now,
+      });
       vi.mocked(addEmail).mockResolvedValue(undefined);
 
       const res = await app.request('/api/admin/allowlist', {
@@ -495,7 +490,7 @@ describe('admin routes', () => {
     it('returns alreadyExists: true for duplicate domain', async () => {
       const now = new Date('2024-01-15T10:00:00.000Z');
       vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
-      vi.mocked(prisma.allowlistEntry.findUnique).mockResolvedValueOnce({
+      vi.mocked(findEntryByTypeValue).mockResolvedValueOnce({
         id: 'e1',
         type: 'domain',
         value: 'company.com',
@@ -515,7 +510,7 @@ describe('admin routes', () => {
 
     it('returns 422 when addDomain throws (invalid format)', async () => {
       vi.mocked(getSessionUser).mockResolvedValue(adminSession as never);
-      vi.mocked(prisma.allowlistEntry.findUnique).mockResolvedValueOnce(null);
+      vi.mocked(findEntryByTypeValue).mockResolvedValueOnce(null);
       vi.mocked(addDomain).mockRejectedValue(new Error('Invalid domain format: bad domain!'));
 
       const res = await app.request('/api/admin/allowlist', {

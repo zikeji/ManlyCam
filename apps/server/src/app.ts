@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { createNodeWebSocket } from '@hono/node-ws';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { existsSync, readFileSync } from 'node:fs';
@@ -8,7 +9,6 @@ import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { env } from './env.js';
 import { AppError } from './lib/errors.js';
 import { logger } from './lib/logger.js';
-import { prisma } from './db/client.js';
 import type { AppEnv } from './lib/types.js';
 import { requestLogger } from './middleware/logger.js';
 import { authMiddleware } from './middleware/auth.js';
@@ -24,6 +24,7 @@ import { createCommandsRouter } from './routes/commands.js';
 import { createReactionsRouter } from './routes/reactions.js';
 import { createClipsRouter } from './routes/clips.js';
 import { streamOnlyRouter } from './routes/stream-only.js';
+import { getPublicClipForOg } from './services/clipService.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -51,6 +52,16 @@ export function createApp() {
 
   // First middleware: request/response logging
   app.use('*', requestLogger);
+
+  // CORS — only the legitimate frontend origin may make credentialed requests
+  app.use(
+    '*',
+    cors({
+      origin: env.BASE_URL,
+      credentials: true,
+      allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    }),
+  );
 
   // Auth session injection — reads session_id cookie and sets ctx.var.user (optional, no 401)
   app.use('*', authMiddleware);
@@ -84,10 +95,7 @@ export function createApp() {
     }
 
     try {
-      const clip = await prisma.clip.findFirst({
-        where: { id, deletedAt: null },
-        select: { visibility: true, name: true, description: true, thumbnailKey: true },
-      });
+      const clip = await getPublicClipForOg(id);
 
       if (clip?.visibility === 'public') {
         const ogTitle = escapeHtmlAttr(clip.name);
