@@ -161,6 +161,7 @@ export async function processOAuthCallback(
       email: profile.email,
       displayName: profile.displayName,
       avatarUrl: resolveAvatarUrl(profile.avatarUrl, profile.email),
+      lastSeenAt: new Date(),
       role,
     },
   });

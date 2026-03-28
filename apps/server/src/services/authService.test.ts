@@ -312,7 +312,12 @@ describe('authService', () => {
       const result = await processOAuthCallback('code', 'state', 'state');
 
       expect(prisma.user.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ role: 'ViewerCompany' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({
+            role: 'ViewerCompany',
+            lastSeenAt: expect.any(Date),
+          }),
+        }),
       );
       expect(result).toEqual({ sessionId: '01JTEST00000000000000000000', redirectTo: '/' });
     });
