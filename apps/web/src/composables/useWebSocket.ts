@@ -206,8 +206,14 @@ export function useWebSocket(): WsInterface {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    socket?.close();
-    socket = null;
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onclose = null;
+      socket.onerror = null;
+      socket.close();
+      socket = null;
+    }
     isConnected.value = false;
   }
 
