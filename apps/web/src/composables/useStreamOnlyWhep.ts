@@ -99,8 +99,15 @@ export const useStreamOnlyWhep = (key: string) => {
     whepAbortCtrl?.abort();
     whepAbortCtrl = null;
     if (sessionUrl) {
-      fetch(sessionUrl, { method: 'DELETE' }).catch(() => {});
+      const url = sessionUrl;
       sessionUrl = null;
+      void (async () => {
+        try {
+          await fetch(url, { method: 'DELETE' });
+        } catch {
+          // best-effort teardown DELETE — ignore
+        }
+      })();
     }
     if (pc) {
       pc.oniceconnectionstatechange = null;
@@ -121,19 +128,27 @@ export const useStreamOnlyWhep = (key: string) => {
       pc = new RTCPeerConnection({ iceServers: [] });
       pc.addTransceiver('video', { direction: 'recvonly' });
 
-      pc.ontrack = (event) => {
+      pc.ontrack = async (event) => {
         const stream = event.streams[0] ?? new MediaStream([event.track]);
         el.srcObject = stream;
-        el.play().catch(() => {});
+        try {
+          await el.play();
+        } catch {
+          // autoplay restriction — ignore
+        }
       };
 
-      pc.onicecandidate = ({ candidate }) => {
+      pc.onicecandidate = async ({ candidate }) => {
         if (candidate && sessionUrl) {
-          fetch(sessionUrl, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/trickle-ice-sdpfrag' },
-            body: candidate.candidate,
-          }).catch(() => {});
+          try {
+            await fetch(sessionUrl, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/trickle-ice-sdpfrag' },
+              body: candidate.candidate,
+            });
+          } catch {
+            // trickle ICE failure — non-fatal
+          }
         }
       };
 
@@ -183,8 +198,13 @@ export const useStreamOnlyWhep = (key: string) => {
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return;
       if (sessionUrl) {
-        fetch(sessionUrl, { method: 'DELETE' }).catch(() => {});
+        const url = sessionUrl;
         sessionUrl = null;
+        try {
+          await fetch(url, { method: 'DELETE' });
+        } catch {
+          // best-effort cleanup — ignore
+        }
       }
       if (pc) {
         pc.oniceconnectionstatechange = null;
@@ -205,15 +225,17 @@ export const useStreamOnlyWhep = (key: string) => {
     const es = new EventSource(`/api/stream-only/${key}/sse`);
     sse = es;
 
-    es.onmessage = (event: MessageEvent) => {
+    es.onmessage = async (event: MessageEvent) => {
       if (stopped || isPermanentlyFailed.value) return;
       const data = JSON.parse(event.data as string) as { live: boolean };
       if (data.live && !pc && !isConnecting.value) {
-        connectWhep(el).catch(() => {
+        try {
+          await connectWhep(el);
+        } catch {
           if (!stopped && !isPermanentlyFailed.value) {
             setTimeout(reconnectSse, 2000);
           }
-        });
+        }
       } else if (!data.live) {
         teardownWhep();
       }
