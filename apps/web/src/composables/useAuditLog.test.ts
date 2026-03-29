@@ -16,7 +16,12 @@ const makeEntry = (id: string) => ({
   action: 'ban',
   actorId: 'u1',
   actorDisplayName: 'Admin',
+  actorAvatarUrl: null,
+  actorTag: null,
   targetId: 'u2',
+  targetDisplayName: null,
+  targetAvatarUrl: null,
+  targetTag: null,
   metadata: null,
   performedAt: '2026-01-01T10:00:00.000Z',
 });
