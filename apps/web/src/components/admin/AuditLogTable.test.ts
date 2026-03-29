@@ -330,4 +330,21 @@ describe('AuditLogTable', () => {
     const metadataCell = cells[4];
     expect(metadataCell.text()).toContain('\u2014');
   });
+
+  it('renders metadata info icon for object with numeric values (camera settings)', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([
+        makeEntry('01', 'camera_settings_update', {
+          metadata: { rpiCameraBrightness: 0.5, enabled: false },
+        }),
+      ]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.find('[data-testid="metadata-trigger"]').exists()).toBe(true);
+  });
 });

@@ -150,6 +150,59 @@ describe('getAuditLogPage', () => {
     expect(result.entries[0].targetTag).toBeNull();
   });
 
+  it('deduplicates ULID targetIds before bulk user lookup', async () => {
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([
+      makeEntry(ULID_A, { targetId: ULID_TARGET }),
+      makeEntry(ULID_B, { targetId: ULID_TARGET }),
+    ] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      {
+        id: ULID_TARGET,
+        displayName: 'Shared Target',
+        avatarUrl: null,
+        role: 'Viewer',
+        userTagText: null,
+        userTagColor: null,
+      },
+    ] as never);
+
+    const result = await getAuditLogPage({ limit: 10 });
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: [ULID_TARGET] } } }),
+    );
+    expect(result.entries[0].targetDisplayName).toBe('Shared Target');
+    expect(result.entries[1].targetDisplayName).toBe('Shared Target');
+  });
+
+  it('resolves mixed targetId types in a single page correctly', async () => {
+    const NON_ULID = 'messageId:userId:emoji';
+    vi.mocked(prisma.auditLog.findMany).mockResolvedValue([
+      makeEntry(ULID_A, { targetId: ULID_TARGET }),
+      makeEntry(ULID_B, { targetId: NON_ULID }),
+      makeEntry('01HX00000000000000000000DD', { targetId: null }),
+    ] as never);
+    vi.mocked(prisma.user.findMany).mockResolvedValue([
+      {
+        id: ULID_TARGET,
+        displayName: 'Resolved User',
+        avatarUrl: null,
+        role: 'Viewer',
+        userTagText: null,
+        userTagColor: null,
+      },
+    ] as never);
+
+    const result = await getAuditLogPage({ limit: 10 });
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: [ULID_TARGET] } } }),
+    );
+    expect(result.entries[0].targetDisplayName).toBe('Resolved User');
+    expect(result.entries[1].targetDisplayName).toBeNull();
+    expect(result.entries[2].targetDisplayName).toBeNull();
+  });
+
   it('queries without cursor when cursor is undefined', async () => {
     vi.mocked(prisma.auditLog.findMany).mockResolvedValue([] as never);
 

@@ -459,6 +459,27 @@ describe('PATCH /api/stream/camera-settings', () => {
     expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
   });
 
+  it('returns ok:true even when audit log write fails', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
+      key: 'rpiCameraBrightness',
+      value: '0.5',
+      updatedAt: new Date(),
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error('DB write failed') as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true } as never));
+
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+  });
+
   it('persists settings and attempts fetch even when Pi is unreachable, returns ok:true', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
     vi.mocked(streamService.isPiReachable).mockReturnValue(false);

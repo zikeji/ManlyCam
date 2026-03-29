@@ -34,7 +34,7 @@ onMounted(() => {
 function renderUserAvatarCell(displayName: string, avatarUrl: string | null) {
   return h('div', { class: 'flex items-center gap-2' }, [
     h(Avatar, { class: 'h-6 w-6 shrink-0' }, () => [
-      h(AvatarImage, { src: avatarUrl ?? '' }),
+      avatarUrl ? h(AvatarImage, { src: avatarUrl }) : null,
       h(AvatarFallback, { class: 'text-xs' }, () => displayName[0]?.toUpperCase() ?? '?'),
     ]),
     h('span', { class: 'text-sm' }, displayName),
@@ -93,9 +93,11 @@ const columns: ColumnDef<AuditLogEntry>[] = [
     cell: ({ row }) => {
       const metadata = row.getValue<unknown>('metadata');
       if (metadata === null || metadata === undefined) return '\u2014';
+      if (typeof metadata !== 'object' || Array.isArray(metadata))
+        return h('span', { class: 'text-xs text-muted-foreground font-mono' }, String(metadata));
       const metaObj = metadata as Record<string, unknown>;
       const metaEntries = Object.entries(metaObj);
-      return h(Popover, null, {
+      return h(Popover, {}, {
         default: () => [
           h(PopoverTrigger, { asChild: true }, () =>
             h(
