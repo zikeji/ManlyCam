@@ -6,7 +6,12 @@ export interface AuditLogEntry {
   action: string;
   actorId: string;
   actorDisplayName: string;
+  actorAvatarUrl: string | null;
+  actorTag: { text: string; color: string } | null;
   targetId: string | null;
+  targetDisplayName: string | null;
+  targetAvatarUrl: string | null;
+  targetTag: { text: string; color: string } | null;
   metadata: unknown | null;
   performedAt: string;
 }

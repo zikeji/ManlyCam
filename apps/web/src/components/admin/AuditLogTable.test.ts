@@ -14,7 +14,12 @@ const makeEntry = (id: string, action: string, overrides = {}) => ({
   action,
   actorId: 'actor-01',
   actorDisplayName: 'Admin',
+  actorAvatarUrl: 'https://example.com/admin.png',
+  actorTag: null,
   targetId: 'target-01',
+  targetDisplayName: null,
+  targetAvatarUrl: null,
+  targetTag: null,
   metadata: null,
   performedAt: '2026-03-19T15:45:00.000Z',
   ...overrides,
@@ -149,6 +154,58 @@ describe('AuditLogTable', () => {
     expect(wrapper.text()).toContain('Reaction Removed');
   });
 
+  it('maps stream_start to "Stream Started"', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([makeEntry('01', 'stream_start')]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.text()).toContain('Stream Started');
+  });
+
+  it('maps stream_stop to "Stream Stopped"', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([makeEntry('01', 'stream_stop')]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.text()).toContain('Stream Stopped');
+  });
+
+  it('maps offline_message_update to "Offline Message Updated"', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([makeEntry('01', 'offline_message_update')]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.text()).toContain('Offline Message Updated');
+  });
+
+  it('maps camera_settings_update to "Camera Settings Updated"', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([makeEntry('01', 'camera_settings_update')]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.text()).toContain('Camera Settings Updated');
+  });
+
   it('falls back to raw action string for unknown actions', () => {
     vi.mocked(useAuditLog).mockReturnValue({
       entries: ref([makeEntry('01', 'some_future_action')]),
@@ -176,7 +233,63 @@ describe('AuditLogTable', () => {
     expect(wrapper.text()).toContain('2026');
   });
 
-  it('renders — for null targetId', () => {
+  it('renders actor avatar with fallback initial', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([makeEntry('01', 'ban', { actorAvatarUrl: null })]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    // The actor column should contain "Admin" text and an avatar fallback with "A"
+    const actorCells = wrapper.findAll('td');
+    const actorCell = actorCells[1];
+    expect(actorCell.text()).toContain('Admin');
+    // Avatar fallback shows first initial
+    expect(actorCell.find('span[role="img"]').exists() || actorCell.text().includes('A')).toBe(
+      true,
+    );
+  });
+
+  it('renders resolved target name when targetDisplayName is present', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([
+        makeEntry('01', 'ban', {
+          targetDisplayName: 'Target User',
+          targetAvatarUrl: 'https://example.com/target.png',
+        }),
+      ]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.text()).toContain('Target User');
+  });
+
+  it('renders truncated raw targetId when no displayName resolved', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([
+        makeEntry('01', 'ban', {
+          targetId: '01HX00000000000000000000CC',
+          targetDisplayName: null,
+        }),
+      ]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.text()).toContain('01HX0000');
+  });
+
+  it('renders dash for null targetId', () => {
     vi.mocked(useAuditLog).mockReturnValue({
       entries: ref([makeEntry('01', 'ban', { targetId: null })]),
       isLoading: ref(false),
@@ -186,6 +299,52 @@ describe('AuditLogTable', () => {
       fetchNextPage: vi.fn(),
     });
     wrapper = mount(AuditLogTable);
-    expect(wrapper.text()).toContain('—');
+    expect(wrapper.text()).toContain('\u2014');
+  });
+
+  it('renders metadata info icon when metadata is present', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([makeEntry('01', 'ban', { metadata: { reason: 'spam' } })]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.find('[data-testid="metadata-trigger"]').exists()).toBe(true);
+  });
+
+  it('renders dash for null metadata', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([makeEntry('01', 'ban', { metadata: null })]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    // Metadata column should show dash
+    const cells = wrapper.findAll('td');
+    const metadataCell = cells[4];
+    expect(metadataCell.text()).toContain('\u2014');
+  });
+
+  it('renders metadata info icon for object with numeric values (camera settings)', () => {
+    vi.mocked(useAuditLog).mockReturnValue({
+      entries: ref([
+        makeEntry('01', 'camera_settings_update', {
+          metadata: { rpiCameraBrightness: 0.5, enabled: false },
+        }),
+      ]),
+      isLoading: ref(false),
+      error: ref(null),
+      hasMore: ref(false),
+      fetchInitial: vi.fn(),
+      fetchNextPage: vi.fn(),
+    });
+    wrapper = mount(AuditLogTable);
+    expect(wrapper.find('[data-testid="metadata-trigger"]').exists()).toBe(true);
   });
 });

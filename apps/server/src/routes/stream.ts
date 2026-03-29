@@ -8,8 +8,11 @@ import { getCameraSettings, upsertCameraSettings } from '../services/cameraServi
 import { AppError } from '../lib/errors.js';
 import { parseJsonBody } from '../lib/parse-body.js';
 import { logger } from '../lib/logger.js';
+import { ulid } from '../lib/ulid.js';
+import { prisma } from '../db/client.js';
 import type { AppEnv } from '../lib/types.js';
 import { CAMERA_CONTROLS_ALLOWLIST, Role } from '@manlycam/types';
+import type { Prisma } from '@prisma/client';
 
 // Hop-by-hop headers must not be forwarded — mixing Transfer-Encoding + Content-Length
 // in the same response is an HTTP protocol violation that Node.js rejects.
@@ -155,8 +158,23 @@ streamRouter.patch(
       }
     }
 
+    const actor = c.get('user')!;
+
     // Persist to DB
     await upsertCameraSettings(body);
+
+    try {
+      await prisma.auditLog.create({
+        data: {
+          id: ulid(),
+          action: 'camera_settings_update',
+          actorId: actor.id,
+          metadata: body as Prisma.InputJsonValue,
+        },
+      });
+    } catch (err) {
+      logger.warn({ err }, 'camera: failed to write audit log entry');
+    }
 
     // Forward to Pi via frp tunnel (always attempted — DB is source of truth)
     try {

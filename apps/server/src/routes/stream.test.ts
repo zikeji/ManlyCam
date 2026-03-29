@@ -18,6 +18,9 @@ vi.mock('../db/client.js', () => ({
       findMany: vi.fn(),
       upsert: vi.fn(),
     },
+    auditLog: {
+      create: vi.fn(),
+    },
   },
 }));
 vi.mock('../lib/ulid.js', () => ({ ulid: vi.fn(() => 'test-ulid') }));
@@ -435,6 +438,46 @@ describe('PATCH /api/stream/camera-settings', () => {
       update: { value: '0.5' },
       create: { key: 'rpiCameraBrightness', value: '0.5' },
     });
+    expect(vi.mocked(prisma.auditLog.create)).toHaveBeenCalledWith({
+      data: {
+        id: 'test-ulid',
+        action: 'camera_settings_update',
+        actorId: mockAdmin.id,
+        metadata: { rpiCameraBrightness: 0.5 },
+      },
+    });
+  });
+
+  it('does not write audit log when validation fails (invalid key)', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ invalidKey: 'value' }),
+    });
+    expect(res.status).toBe(400);
+    expect(vi.mocked(prisma.auditLog.create)).not.toHaveBeenCalled();
+  });
+
+  it('returns ok:true even when audit log write fails', async () => {
+    vi.mocked(getSessionUser).mockResolvedValue(mockAdmin as never);
+    vi.mocked(prisma.cameraSettings.upsert).mockResolvedValue({
+      key: 'rpiCameraBrightness',
+      value: '0.5',
+      updatedAt: new Date(),
+    } as never);
+    vi.mocked(prisma.auditLog.create).mockRejectedValue(new Error('DB write failed') as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true } as never));
+
+    const res = await createApp().app.request('/api/stream/camera-settings', {
+      ...authHeaders,
+      method: 'PATCH',
+      body: JSON.stringify({ rpiCameraBrightness: 0.5 }),
+    });
+
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
   });
 
   it('persists settings and attempts fetch even when Pi is unreachable, returns ok:true', async () => {

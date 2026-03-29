@@ -3,10 +3,12 @@ import { onMounted, h } from 'vue';
 import type { ColumnDef } from '@tanstack/vue-table';
 import { DataTable } from '@/components/ui/data-table';
 import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useAuditLog } from '@/composables/useAuditLog';
 import type { AuditLogEntry } from '@/composables/useAuditLog';
 import { formatDateTime } from '@/lib/dateFormat';
-import { Loader2 } from 'lucide-vue-next';
+import { Loader2, Info } from 'lucide-vue-next';
 
 const initialSorting = [{ id: 'performedAt', desc: true as const }];
 
@@ -17,6 +19,10 @@ const ACTION_LABELS: Record<string, string> = {
   ban: 'User Banned',
   unban: 'User Unbanned',
   reaction_remove: 'Reaction Removed',
+  stream_start: 'Stream Started',
+  stream_stop: 'Stream Stopped',
+  offline_message_update: 'Offline Message Updated',
+  camera_settings_update: 'Camera Settings Updated',
 };
 
 const { entries, isLoading, hasMore, fetchInitial, fetchNextPage } = useAuditLog();
@@ -24,6 +30,16 @@ const { entries, isLoading, hasMore, fetchInitial, fetchNextPage } = useAuditLog
 onMounted(() => {
   fetchInitial();
 });
+
+function renderUserAvatarCell(displayName: string, avatarUrl: string | null) {
+  return h('div', { class: 'flex items-center gap-2' }, [
+    h(Avatar, { class: 'h-6 w-6 shrink-0' }, () => [
+      avatarUrl ? h(AvatarImage, { src: avatarUrl }) : null,
+      h(AvatarFallback, { class: 'text-xs' }, () => displayName[0]?.toUpperCase() ?? '?'),
+    ]),
+    h('span', { class: 'text-sm' }, displayName),
+  ]);
+}
 
 const columns: ColumnDef<AuditLogEntry>[] = [
   {
@@ -39,13 +55,27 @@ const columns: ColumnDef<AuditLogEntry>[] = [
     accessorKey: 'actorDisplayName',
     header: 'Actor',
     enableSorting: true,
+    cell: ({ row }) => {
+      const entry = row.original;
+      return renderUserAvatarCell(entry.actorDisplayName, entry.actorAvatarUrl);
+    },
   },
   {
     accessorKey: 'targetId',
     header: 'Target',
     cell: ({ row }) => {
-      const targetId = row.getValue<string | null>('targetId');
-      return targetId ?? '—';
+      const entry = row.original;
+      if (entry.targetDisplayName) {
+        return renderUserAvatarCell(entry.targetDisplayName, entry.targetAvatarUrl);
+      }
+      if (entry.targetId) {
+        return h(
+          'span',
+          { class: 'text-xs text-muted-foreground font-mono' },
+          entry.targetId.slice(0, 8) + '\u2026',
+        );
+      }
+      return '\u2014';
     },
     enableSorting: false,
   },
@@ -62,9 +92,38 @@ const columns: ColumnDef<AuditLogEntry>[] = [
     header: 'Metadata',
     cell: ({ row }) => {
       const metadata = row.getValue<unknown>('metadata');
-      if (metadata === null || metadata === undefined) return '—';
-      const str = JSON.stringify(metadata);
-      return str.length > 80 ? str.slice(0, 80) + '…' : str;
+      if (metadata === null || metadata === undefined) return '\u2014';
+      if (typeof metadata !== 'object' || Array.isArray(metadata))
+        return h('span', { class: 'text-xs text-muted-foreground font-mono' }, String(metadata));
+      const metaObj = metadata as Record<string, unknown>;
+      const metaEntries = Object.entries(metaObj);
+      return h(Popover, {}, {
+        default: () => [
+          h(PopoverTrigger, { asChild: true }, () =>
+            h(
+              'button',
+              {
+                class:
+                  'inline-flex items-center justify-center rounded-md p-1 hover:bg-muted transition-colors',
+                'data-testid': 'metadata-trigger',
+              },
+              [h(Info, { class: 'h-4 w-4 text-muted-foreground' })],
+            ),
+          ),
+          h(PopoverContent, { class: 'w-64 p-3', align: 'end' }, () =>
+            h(
+              'dl',
+              { class: 'space-y-1 text-sm' },
+              metaEntries.map(([key, value]) =>
+                h('div', { class: 'flex justify-between gap-2', key }, [
+                  h('dt', { class: 'font-medium text-muted-foreground' }, key),
+                  h('dd', { class: 'text-right truncate max-w-[140px]' }, String(value)),
+                ]),
+              ),
+            ),
+          ),
+        ],
+      });
     },
     enableSorting: false,
   },
