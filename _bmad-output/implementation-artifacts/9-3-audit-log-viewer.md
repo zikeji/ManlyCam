@@ -99,6 +99,10 @@ The epics file uses examples like `chat:delete`, `user:ban`, `user:mute` — **t
 | `moderationService.ts` (`banUser`)                        | `ban`                                      |
 | `reactionsService.ts` (`modRemoveReaction`)               | `reaction_remove`                          |
 | `moderationService.ts` (`unbanUser`) — added in Story 9-4 | `unban`                                    |
+| `streamService.ts` (`setAdminToggle` — live)              | `stream_start`                             |
+| `streamService.ts` (`setAdminToggle` — offline)           | `stream_stop`                              |
+| `streamService.ts` (`setOfflineMessage`)                  | `offline_message_update`                   |
+| `routes/stream.ts` (PATCH `/camera-settings`)             | `camera_settings_update`                   |
 
 Map these exactly in `ACTION_LABELS`. Do not invent new strings.
 
@@ -209,7 +213,12 @@ interface AuditLogEntry {
   action: string; // e.g. "message_delete", "ban"
   actorId: string;
   actorDisplayName: string; // joined from actor.displayName
+  actorAvatarUrl: string | null; // enriched in feat/audit-74-75-camera-and-ui
+  actorTag: { text: string; color: string } | null; // computed via computeUserTag
   targetId: string | null;
+  targetDisplayName: string | null; // resolved from user table (null for non-ULID targetIds)
+  targetAvatarUrl: string | null;
+  targetTag: { text: string; color: string } | null;
   metadata: unknown | null; // JSON object or null
   performedAt: string; // ISO timestamp
 }
