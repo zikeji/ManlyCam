@@ -31,6 +31,16 @@ onMounted(() => {
   fetchInitial();
 });
 
+function renderUserAvatarCell(displayName: string, avatarUrl: string | null) {
+  return h('div', { class: 'flex items-center gap-2' }, [
+    h(Avatar, { class: 'h-6 w-6 shrink-0' }, () => [
+      h(AvatarImage, { src: avatarUrl ?? '' }),
+      h(AvatarFallback, { class: 'text-xs' }, () => displayName[0]?.toUpperCase() ?? '?'),
+    ]),
+    h('span', { class: 'text-sm' }, displayName),
+  ]);
+}
+
 const columns: ColumnDef<AuditLogEntry>[] = [
   {
     accessorKey: 'action',
@@ -47,17 +57,7 @@ const columns: ColumnDef<AuditLogEntry>[] = [
     enableSorting: true,
     cell: ({ row }) => {
       const entry = row.original;
-      return h('div', { class: 'flex items-center gap-2' }, [
-        h(Avatar, { class: 'h-6 w-6 shrink-0' }, () => [
-          h(AvatarImage, { src: entry.actorAvatarUrl ?? '' }),
-          h(
-            AvatarFallback,
-            { class: 'text-xs' },
-            () => entry.actorDisplayName[0]?.toUpperCase() ?? '?',
-          ),
-        ]),
-        h('span', { class: 'text-sm' }, entry.actorDisplayName),
-      ]);
+      return renderUserAvatarCell(entry.actorDisplayName, entry.actorAvatarUrl);
     },
   },
   {
@@ -66,17 +66,7 @@ const columns: ColumnDef<AuditLogEntry>[] = [
     cell: ({ row }) => {
       const entry = row.original;
       if (entry.targetDisplayName) {
-        return h('div', { class: 'flex items-center gap-2' }, [
-          h(Avatar, { class: 'h-6 w-6 shrink-0' }, () => [
-            h(AvatarImage, { src: entry.targetAvatarUrl ?? '' }),
-            h(
-              AvatarFallback,
-              { class: 'text-xs' },
-              () => entry.targetDisplayName![0]?.toUpperCase() ?? '?',
-            ),
-          ]),
-          h('span', { class: 'text-sm' }, entry.targetDisplayName),
-        ]);
+        return renderUserAvatarCell(entry.targetDisplayName, entry.targetAvatarUrl);
       }
       if (entry.targetId) {
         return h(
