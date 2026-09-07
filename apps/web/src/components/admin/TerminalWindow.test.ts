@@ -126,6 +126,24 @@ const getPanel = (w: { findAll: (s: string) => { element: HTMLElement }[] }): HT
   w.findAll('[data-testid="terminal-window"]')[0].element;
 import { isTerminalOpen, openTerminal, closeTerminal } from '@/composables/useTerminalWindow';
 
+// Node 22's experimental native `localStorage` global behaves inconsistently across
+// environments (throws vs. returns null for an unset key, depending on whether
+// --localstorage-file is configured) — an explicit stub keeps loadRect()'s branch
+// deterministic instead of depending on ambient host behavior.
+let mockStorageStore: Record<string, string> = {};
+const mockLocalStorage = {
+  getItem: (key: string): string | null => mockStorageStore[key] ?? null,
+  setItem: (key: string, value: string): void => {
+    mockStorageStore[key] = value;
+  },
+  removeItem: (key: string): void => {
+    delete mockStorageStore[key];
+  },
+  clear: (): void => {
+    mockStorageStore = {};
+  },
+};
+
 describe('TerminalWindow', () => {
   let wrapper: ReturnType<typeof mount> | null = null;
 
@@ -134,7 +152,8 @@ describe('TerminalWindow', () => {
     termInstances.length = 0;
     sockets.length = 0;
     isTerminalOpen.value = false;
-    globalThis.localStorage?.clear();
+    mockStorageStore = {};
+    vi.stubGlobal('localStorage', mockLocalStorage);
     mockUseMediaQuery.mockReturnValue(ref(false));
     vi.stubGlobal('WebSocket', FakeSocket as unknown as typeof WebSocket);
   });
@@ -257,9 +276,10 @@ describe('TerminalWindow', () => {
     await nextTick();
 
     const style = (wrapper!.find('[data-testid="terminal-window"]').element as HTMLElement).style;
-    // jsdom lacks localStorage → loadRect falls back to x:0/y:0; +150/+40 from the drag
-    expect(style.left).toBe('150px');
-    expect(style.top).toBe('40px');
+    // No saved rect: loadRect defaults to bottom-right of a 1024x768 viewport
+    // (x:280, y:208), then +150/+40 from the drag → 430/248.
+    expect(style.left).toBe('430px');
+    expect(style.top).toBe('248px');
   });
 
   it('resizes from the corner handle and respects the minimum size', async () => {
