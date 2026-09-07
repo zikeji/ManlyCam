@@ -37,6 +37,7 @@ const props = withDefaults(
     chatSidebarOpen?: boolean;
     unreadCount?: number;
     isDesktop?: boolean;
+    canClip?: boolean;
     showChatToggle?: boolean;
     showViewerCount?: boolean;
     videoRef?: HTMLVideoElement | null;
@@ -48,6 +49,7 @@ const props = withDefaults(
     chatSidebarOpen: false,
     unreadCount: 0,
     isDesktop: true,
+    canClip: false,
     showChatToggle: true,
     showViewerCount: true,
     videoRef: null,
@@ -325,8 +327,8 @@ const streamToggleLabel = computed(() => {
         <Camera class="w-5 h-5" />
       </Button>
 
-      <!-- 10-3b: clip (desktop only) -->
-      <TooltipProvider v-if="user && isDesktop">
+      <!-- 10-3b: clip (desktop + tablet) -->
+      <TooltipProvider v-if="user && canClip">
         <Tooltip>
           <TooltipTrigger as-child>
             <Button

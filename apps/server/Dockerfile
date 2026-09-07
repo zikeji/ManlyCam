@@ -1,7 +1,7 @@
 # Stage 1: Web Build
 FROM node:24-alpine AS web-builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
 WORKDIR /repo
 
@@ -21,7 +21,7 @@ RUN pnpm --filter @manlycam/web build
 # Stage 2: Server Build
 FROM node:24-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
 
 WORKDIR /repo
 
@@ -46,7 +46,7 @@ FROM node:24-alpine AS runner
 
 ENV NODE_ENV=production
 
-RUN corepack enable && corepack prepare pnpm@latest --activate && \
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate && \
     apk add --no-cache ffmpeg
 
 WORKDIR /repo

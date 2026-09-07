@@ -303,6 +303,20 @@ describe('ClipEditor', () => {
       const endHandle = wrapper!.find('[aria-label="Selection end handle"]');
       expect(endHandle.exists()).toBe(true);
     });
+
+    it('applies touch-none to track, selection, and handles (touch drag support)', () => {
+      mountEditor();
+      const track = wrapper!.find('[aria-label^="Clip selection:"]');
+      expect(track.classes()).toContain('touch-none');
+      const startHandle = wrapper!.find('[aria-label="Selection start handle"]');
+      expect(startHandle.classes()).toContain('touch-none');
+      const endHandle = wrapper!.find('[aria-label="Selection end handle"]');
+      expect(endHandle.classes()).toContain('touch-none');
+      // Selected region div (cursor-move sibling inside the track)
+      const selection = track.find('.cursor-move');
+      expect(selection.exists()).toBe(true);
+      expect(selection.classes()).toContain('touch-none');
+    });
   });
 
   describe('Go Live badge', () => {
