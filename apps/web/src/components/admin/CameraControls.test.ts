@@ -17,6 +17,14 @@ vi.mock('vue-sonner', () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
 }));
 
+vi.mock('./DeviceControls.vue', () => ({
+  default: {
+    name: 'DeviceControls',
+    template: '<div data-testid="device-controls-stub"></div>',
+    emits: ['open-terminal'],
+  },
+}));
+
 import {
   type useCameraControls,
   useCameraControls as useCameraControlsMock,
@@ -329,6 +337,12 @@ describe('CameraControls.vue', () => {
     expect(wrapper.text()).toContain('Encoding');
     expect(wrapper.text()).toContain('FPS');
     expect(wrapper.text()).toContain('Bitrate');
+  });
+
+  it('renders DeviceControls at the top of the controls panel', () => {
+    vi.mocked(useCameraControlsMock).mockReturnValue(defaultControls());
+    wrapper = mount(CameraControls);
+    expect(wrapper.find('[data-testid="device-controls-stub"]').exists()).toBe(true);
   });
 
   it('non-restart-required controls call patchSetting on change (select)', async () => {

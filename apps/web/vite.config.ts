@@ -77,7 +77,8 @@ export const config = defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:3000',
+      // ws:true so /api WS upgrades (device terminal) are forwarded in dev too
+      '/api': { target: 'http://localhost:3000', ws: true },
       '/ws': { target: 'ws://localhost:3000', ws: true },
     },
   },

@@ -9,6 +9,8 @@ import BroadcastConsole from '@/components/stream/BroadcastConsole.vue';
 import AtmosphericVoid from '@/components/stream/AtmosphericVoid.vue';
 import CameraControlsPanel from '@/components/admin/CameraControlsPanel.vue';
 import AdminDialog from '@/components/admin/AdminDialog.vue';
+import TerminalWindow from '@/components/admin/TerminalWindow.vue';
+import { isTerminalOpen } from '@/composables/useTerminalWindow';
 import ChatPanel from '@/components/chat/ChatPanel.vue';
 import ClipViewerModal from '@/components/clip/ClipViewerModal.vue';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -63,6 +65,16 @@ watch(controlsPanelOpen, (newValue) => {
     }
   } catch {
     /* ignore */
+  }
+});
+
+// reka-ui's Sheet locks document.body (pointer-events: none, overflow: hidden, iOS
+// touchmove blocking) while open. The Teleported terminal panel sits outside that
+// dismissable-layer system, so it silently inherits the lock — closing the drawer
+// removes it instead of fighting it.
+watch(isTerminalOpen, (open) => {
+  if (open && mobileSheetOpen.value) {
+    controlsPanelOpen.value = false;
   }
 });
 
@@ -392,6 +404,7 @@ onUnmounted(() => {
     </Sheet>
 
     <AdminDialog v-if="isAdmin" v-model:open="adminDialogOpen" />
+    <TerminalWindow v-if="isAdmin" />
 
     <!-- Clip viewer modal — fixed overlay, stream + chat continue behind it -->
     <ClipViewerModal v-if="isClipModalOpen" />

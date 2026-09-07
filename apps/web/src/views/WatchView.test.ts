@@ -4,6 +4,7 @@ import { ref, nextTick } from 'vue';
 import { createRouter, createMemoryHistory } from 'vue-router';
 import type { ComponentPublicInstance } from 'vue';
 import WatchView from './WatchView.vue';
+import { isTerminalOpen } from '@/composables/useTerminalWindow';
 
 // Shared mutable state so tests can control auth role
 const mockUser = ref<{ role: string; displayName: string } | null>({
@@ -191,6 +192,13 @@ vi.mock('@/components/admin/CameraControlsPanel.vue', () => ({
   },
 }));
 
+vi.mock('@/components/admin/TerminalWindow.vue', () => ({
+  default: {
+    name: 'TerminalWindow',
+    template: '<div data-testid="terminal-window-stub"></div>',
+  },
+}));
+
 vi.mock('@/components/admin/AdminDialog.vue', () => ({
   default: {
     name: 'AdminDialog',
@@ -270,6 +278,7 @@ describe('WatchView', () => {
   afterEach(() => {
     wrapper?.unmount();
     wrapper = null;
+    isTerminalOpen.value = false;
   });
 
   describe('Desktop Layout', () => {
@@ -647,6 +656,59 @@ describe('WatchView', () => {
       expect(
         (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
       ).toBe(true);
+    });
+  });
+
+  describe('Terminal open closes mobile controls drawer', () => {
+    beforeEach(() => {
+      mockUser.value = { role: 'Admin', displayName: 'Admin User' };
+    });
+
+    it('closes the mobile Sheet drawer when the terminal opens', async () => {
+      mockIsDesktop = false;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen =
+        true;
+      await nextTick();
+
+      isTerminalOpen.value = true;
+      await nextTick();
+
+      expect(
+        (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
+      ).toBe(false);
+    });
+
+    it('does not touch controlsPanelOpen on desktop when the terminal opens', async () => {
+      mockIsDesktop = true;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen =
+        true;
+      await nextTick();
+
+      isTerminalOpen.value = true;
+      await nextTick();
+
+      expect(
+        (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
+      ).toBe(true);
+    });
+
+    it('does nothing when the terminal opens and the drawer is already closed', async () => {
+      mockIsDesktop = false;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      isTerminalOpen.value = true;
+      await nextTick();
+
+      expect(
+        (wrapper.vm as ComponentPublicInstance & { controlsPanelOpen: boolean }).controlsPanelOpen,
+      ).toBe(false);
     });
   });
 
