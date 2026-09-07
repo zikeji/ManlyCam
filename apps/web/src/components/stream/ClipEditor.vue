@@ -769,7 +769,7 @@ onUnmounted(() => {
         <!-- Track -->
         <div
           ref="trackRef"
-          class="relative h-8 bg-[hsl(var(--muted))] rounded cursor-pointer select-none"
+          class="relative h-8 bg-[hsl(var(--muted))] rounded cursor-pointer select-none touch-none"
           role="slider"
           :aria-valuemin="earliestMs"
           :aria-valuemax="latestMs"
@@ -788,7 +788,7 @@ onUnmounted(() => {
 
           <!-- Selected region -->
           <div
-            class="absolute top-0 bottom-0 bg-primary/30 cursor-move"
+            class="absolute top-0 bottom-0 bg-primary/30 cursor-move touch-none"
             :style="{
               left: `${selectionLeftPx}px`,
               width: `${selectionRightPx - selectionLeftPx}px`,
@@ -799,7 +799,7 @@ onUnmounted(() => {
 
           <!-- Left handle -->
           <div
-            class="absolute top-0 bottom-0 w-3 -ml-1.5 cursor-ew-resize z-10 flex items-center justify-center group"
+            class="absolute top-0 bottom-0 w-3 -ml-1.5 cursor-ew-resize z-10 flex items-center justify-center group touch-none"
             :class="leftAtLimit ? 'opacity-50' : ''"
             :style="{ left: `${selectionLeftPx}px`, transition: pxTransition }"
             tabindex="0"
@@ -818,7 +818,7 @@ onUnmounted(() => {
 
           <!-- Right handle -->
           <div
-            class="absolute top-0 bottom-0 w-3 -ml-1.5 cursor-ew-resize z-10 flex items-center justify-center group"
+            class="absolute top-0 bottom-0 w-3 -ml-1.5 cursor-ew-resize z-10 flex items-center justify-center group touch-none"
             :class="rightAtLimit ? 'opacity-50' : ''"
             :style="{ left: `${selectionRightPx}px`, transition: pxTransition }"
             tabindex="0"

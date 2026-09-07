@@ -155,6 +155,7 @@ vi.mock('@/components/stream/BroadcastConsole.vue', () => ({
       'chatSidebarOpen',
       'unreadCount',
       'isDesktop',
+      'canClip',
       'clipEditorOpen',
     ],
     emits: ['toggleChatSidebar', 'toggleAdminPanel', 'clip-editor-open'],
@@ -209,6 +210,7 @@ vi.mock('@/components/admin/AdminDialog.vue', () => ({
 }));
 
 let mockIsDesktop = true;
+let mockIsTablet = false;
 let mockIsPortrait = false;
 
 let mockStorageStore: Record<string, string> = {};
@@ -243,6 +245,7 @@ describe('WatchView', () => {
     mockCollapse.mockClear();
     mockExpand.mockClear();
     mockIsDesktop = true;
+    mockIsTablet = false;
     mockIsPortrait = false;
 
     Object.defineProperty(window, 'matchMedia', {
@@ -257,12 +260,19 @@ describe('WatchView', () => {
 
     // Orientation now derives from screen.width/height (keyboard-safe).
     // Use getters so the value is read after suite-level beforeEach overrides the flags.
+    // mockIsTablet drives the short side: 810px (tablet) vs 390px (phone).
     Object.defineProperty(screen, 'width', {
-      get: () => (mockIsPortrait ? 400 : 800),
+      get: () => {
+        const shortSide = mockIsTablet ? 810 : 390;
+        return mockIsPortrait ? shortSide : shortSide * 2;
+      },
       configurable: true,
     });
     Object.defineProperty(screen, 'height', {
-      get: () => (mockIsPortrait ? 800 : 400),
+      get: () => {
+        const shortSide = mockIsTablet ? 810 : 390;
+        return mockIsPortrait ? shortSide * 2 : shortSide;
+      },
       configurable: true,
     });
     Object.defineProperty(screen, 'orientation', {
@@ -891,6 +901,92 @@ describe('WatchView', () => {
       await nextTick();
 
       expect(bc.props('clipEditorOpen')).toBe(true);
+    });
+  });
+
+  describe('Tablet clip support (short side ≥ 768px)', () => {
+    const segmentRange = {
+      earliest: '2026-03-22T10:00:00.000Z',
+      latest: '2026-03-22T10:05:00.000Z',
+      minDurationSeconds: 10,
+      maxDurationSeconds: 120,
+      streamStartedAt: '2026-03-22T09:55:00.000Z',
+    };
+
+    it('renders the desktop splitter layout on tablet portrait and passes canClip=true', async () => {
+      mockIsDesktop = false;
+      mockIsTablet = true;
+      mockIsPortrait = true;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('[data-splitter-group]').exists()).toBe(true);
+      expect(wrapper.find('main').exists()).toBe(false);
+      const bc = wrapper.findComponent({ name: 'BroadcastConsole' });
+      expect(bc.props('canClip')).toBe(true);
+      expect(bc.props('isDesktop')).toBe(true);
+    });
+
+    it('renders the desktop splitter layout on tablet landscape', async () => {
+      mockIsDesktop = false;
+      mockIsTablet = true;
+      mockIsPortrait = false;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('[data-splitter-group]').exists()).toBe(true);
+      expect(wrapper.find('main').exists()).toBe(false);
+      const bc = wrapper.findComponent({ name: 'BroadcastConsole' });
+      expect(bc.props('canClip')).toBe(true);
+    });
+
+    it('passes canClip=false on phone portrait and keeps the mobile layout', async () => {
+      mockIsDesktop = false;
+      mockIsTablet = false;
+      mockIsPortrait = true;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      expect(wrapper.find('[data-splitter-group]').exists()).toBe(false);
+      const bc = wrapper.findComponent({ name: 'BroadcastConsole' });
+      expect(bc.props('canClip')).toBeUndefined();
+    });
+
+    it('passes canClip=false on phone landscape (wide viewport but short side < 768)', async () => {
+      mockIsDesktop = false;
+      mockIsTablet = false;
+      mockIsPortrait = false;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      (wrapper.vm as ComponentPublicInstance & { chatSidebarOpen: boolean }).chatSidebarOpen = true;
+      await nextTick();
+
+      const consoles = wrapper.findAllComponents({ name: 'BroadcastConsole' });
+      expect(consoles.length).toBe(1);
+      expect(consoles[0].props('canClip')).toBeUndefined();
+    });
+
+    it('opens the clip editor on tablet when the console emits clip-editor-open', async () => {
+      mockIsDesktop = false;
+      mockIsTablet = true;
+      mockIsPortrait = true;
+      wrapper = mount(WatchView, { global: { plugins: [makeRouter()] } });
+      await flushPromises();
+
+      const streamPlayer = wrapper.findComponent({ name: 'StreamPlayer' });
+      expect(streamPlayer.props('clipEditorOpen')).toBe(false);
+
+      const bc = wrapper.findComponent({ name: 'BroadcastConsole' });
+      bc.vm.$emit('clip-editor-open', segmentRange);
+      await nextTick();
+
+      expect(streamPlayer.props('clipEditorOpen')).toBe(true);
+      expect(streamPlayer.props('clipSegmentRange')).toEqual(segmentRange);
+
+      streamPlayer.vm.$emit('clip-editor-close');
+      await nextTick();
+      expect(streamPlayer.props('clipEditorOpen')).toBe(false);
     });
   });
 });

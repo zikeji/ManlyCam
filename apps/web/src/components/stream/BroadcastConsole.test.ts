@@ -502,7 +502,7 @@ describe('BroadcastConsole', () => {
     expect(wrapper.find('.animate-spin').exists()).toBe(true);
   });
 
-  // 10-3b: clip button (desktop only, emits clip-editor-open)
+  // 10-3b: clip button (desktop + tablet, emits clip-editor-open)
   describe('clip button', () => {
     const mockRange = {
       earliest: '2026-03-22T10:00:00.000Z',
@@ -513,24 +513,39 @@ describe('BroadcastConsole', () => {
     };
 
     it('renders clip button on desktop when user is authenticated', () => {
-      wrapper = mountConsole({ isDesktop: true });
+      wrapper = mountConsole({ isDesktop: true, canClip: true });
       expect(wrapper.find('[data-clip-btn]').exists()).toBe(true);
     });
 
-    it('hides clip button on mobile', () => {
-      wrapper = mountConsole({ isDesktop: false });
+    it('hides clip button on mobile (canClip false)', () => {
+      wrapper = mountConsole({ isDesktop: false, canClip: false });
       expect(wrapper.find('[data-clip-btn]').exists()).toBe(false);
     });
 
+    it('hides clip button when canClip is not passed (default false)', () => {
+      wrapper = mountConsole({ isDesktop: true });
+      expect(wrapper.find('[data-clip-btn]').exists()).toBe(false);
+    });
+
+    it('renders clip button on tablet (isDesktop false, canClip true) and emits on click', async () => {
+      mockFetchSegmentRange.mockResolvedValue(mockRange);
+      wrapper = mountConsole({ isDesktop: false, canClip: true, streamState: 'live' });
+      expect(wrapper.find('[data-clip-btn]').exists()).toBe(true);
+      await wrapper.find('[data-clip-btn]').trigger('click');
+      await flushPromises();
+      expect(mockFetchSegmentRange).toHaveBeenCalled();
+      expect(wrapper.emitted('clip-editor-open')?.[0]?.[0]).toEqual(mockRange);
+    });
+
     it('is disabled when stream is not live', () => {
-      wrapper = mountConsole({ isDesktop: true, streamState: 'explicit-offline' });
+      wrapper = mountConsole({ isDesktop: true, canClip: true, streamState: 'explicit-offline' });
       const btn = wrapper.find('[data-clip-btn]');
       expect(btn.attributes('disabled')).toBeDefined();
     });
 
     it('fetches segment range and emits clip-editor-open on click', async () => {
       mockFetchSegmentRange.mockResolvedValue(mockRange);
-      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+      wrapper = mountConsole({ isDesktop: true, canClip: true, streamState: 'live' });
       const btn = wrapper.find('[data-clip-btn]');
       await btn.trigger('click');
       await flushPromises();
@@ -541,7 +556,7 @@ describe('BroadcastConsole', () => {
     it('shows toast.info when stream is too new', async () => {
       mockFetchSegmentRange.mockResolvedValue(mockRange);
       vi.mocked(isStreamTooNew).mockReturnValue(true);
-      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+      wrapper = mountConsole({ isDesktop: true, canClip: true, streamState: 'live' });
       await wrapper.find('[data-clip-btn]').trigger('click');
       await flushPromises();
       expect(mockToastInfo).toHaveBeenCalledWith(expect.stringContaining('just started'));
@@ -550,7 +565,7 @@ describe('BroadcastConsole', () => {
 
     it('shows toast.error when fetchSegmentRange fails', async () => {
       mockFetchSegmentRange.mockRejectedValue(new Error('fail'));
-      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+      wrapper = mountConsole({ isDesktop: true, canClip: true, streamState: 'live' });
       await wrapper.find('[data-clip-btn]').trigger('click');
       await flushPromises();
       expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining('Failed'));
@@ -558,7 +573,7 @@ describe('BroadcastConsole', () => {
 
     it('re-enables clip button when clipEditorOpen changes to false', async () => {
       mockFetchSegmentRange.mockResolvedValue(mockRange);
-      wrapper = mountConsole({ isDesktop: true, streamState: 'live' });
+      wrapper = mountConsole({ isDesktop: true, canClip: true, streamState: 'live' });
 
       // Click to open editor (which disables the button via clipDisabled)
       await wrapper.find('[data-clip-btn]').trigger('click');

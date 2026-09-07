@@ -30,6 +30,7 @@ const { streamState, piReachableWhileOffline, initStream } = useStream();
 useClipModal();
 
 const isDesktop = ref(false);
+const isTablet = ref(false);
 const isMobilePortrait = ref(false);
 const isMobileLandscape = ref(false);
 const chatSidebarOpen = ref(true);
@@ -50,7 +51,7 @@ const splitterAnimating = ref(false);
 let splitterAnimateTimer: ReturnType<typeof setTimeout> | null = null;
 
 const mobileSheetOpen = computed({
-  get: () => controlsPanelOpen.value && !isDesktop.value,
+  get: () => controlsPanelOpen.value && !isDesktopLayout.value,
   /* c8 ignore start -- computed setter only triggered by Sheet v-model in mobile template */
   set: (val: boolean) => {
     controlsPanelOpen.value = val;
@@ -100,6 +101,8 @@ watch(
 );
 
 const isAdmin = computed(() => user.value?.role === Role.Admin);
+const isDesktopLayout = computed(() => isDesktop.value || isTablet.value);
+const canClip = isDesktopLayout;
 
 const adminPreviewActive = ref(false);
 const clipEditorOpen = ref(false);
@@ -135,7 +138,7 @@ const handleStopPreview = () => {
 };
 
 const handleToggleChatSidebar = () => {
-  if (isDesktop.value && chatPanelRef.value) {
+  if (isDesktopLayout.value && chatPanelRef.value) {
     if (splitterAnimateTimer !== null) clearTimeout(splitterAnimateTimer);
     splitterAnimating.value = true;
     if (chatSidebarOpen.value) {
@@ -174,10 +177,14 @@ onMounted(() => {
     // Use screen dimensions (not viewport) for orientation so the virtual keyboard
     // shrinking the viewport doesn't falsely flip portrait ↔ landscape.
     const updateOrientation = () => {
-      const mobile = !mqDesktop.matches;
+      // Tablet = short screen side ≥ 768px — excludes phones in any orientation
+      // (a phone in landscape is ≥768px wide but its short side is still <768).
+      const shortSide = Math.min(screen.width, screen.height);
+      isTablet.value = shortSide >= 768 && !mqDesktop.matches;
+      const phone = shortSide < 768 && !mqDesktop.matches;
       const landscape = screen.width > screen.height;
-      isMobilePortrait.value = mobile && !landscape;
-      isMobileLandscape.value = mobile && landscape;
+      isMobilePortrait.value = phone && !landscape;
+      isMobileLandscape.value = phone && landscape;
     };
     updateOrientation();
     screen.orientation?.addEventListener('change', updateOrientation);
@@ -192,7 +199,7 @@ onMounted(() => {
       if (stored !== null) {
         chatSidebarOpen.value = stored === 'true';
       } else {
-        chatSidebarOpen.value = isDesktop.value;
+        chatSidebarOpen.value = isDesktopLayout.value;
       }
     }
   } catch {
@@ -214,7 +221,7 @@ onUnmounted(() => {
     <!-- Left sidebar: admin only, desktop -->
     <Transition name="sidebar-left">
       <aside
-        v-if="isAdmin && controlsPanelOpen && isDesktop"
+        v-if="isAdmin && controlsPanelOpen && isDesktopLayout"
         data-sidebar-left
         class="w-[280px] shrink-0 flex flex-col bg-[hsl(var(--sidebar))] border-r border-[hsl(var(--border))] z-30"
       >
@@ -226,9 +233,9 @@ onUnmounted(() => {
       </aside>
     </Transition>
 
-    <!-- DESKTOP: Splitter layout (≥ 1024px) -->
+    <!-- DESKTOP-LIKE: Splitter layout (≥ 768px short side) -->
     <SplitterGroup
-      v-if="isDesktop"
+      v-if="isDesktopLayout"
       direction="horizontal"
       auto-save-id="manly-chat-sidebar"
       class="flex-1 min-w-0 flex"
@@ -260,7 +267,8 @@ onUnmounted(() => {
           :controlsPanelOpen="controlsPanelOpen"
           :chatSidebarOpen="chatSidebarOpen"
           :unreadCount="unreadCount"
-          :isDesktop="isDesktop"
+          :isDesktop="isDesktopLayout"
+          :canClip="canClip"
           :showChatToggle="true"
           :videoRef="streamVideoRef"
           :clipEditorOpen="clipEditorOpen"
@@ -299,8 +307,8 @@ onUnmounted(() => {
       </SplitterPanel>
     </SplitterGroup>
 
-    <!-- NON-DESKTOP: Existing main column (< 1024px) -->
-    <main v-if="!isDesktop" class="flex-1 min-w-0 flex flex-col bg-black overflow-hidden relative">
+    <!-- NON-DESKTOP-LIKE: phone main column (< 768px short side) -->
+    <main v-if="!isDesktopLayout" class="flex-1 min-w-0 flex flex-col bg-black overflow-hidden relative">
       <!-- Non-portrait content area: Void + Stream Centered -->
       <div
         v-if="!isMobilePortrait"
