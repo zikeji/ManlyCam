@@ -132,6 +132,7 @@ export type WsMessage =
   | { type: 'moderation:unmuted'; payload: { userId: string } }
   | { type: 'user:update'; payload: UserProfile }
   | { type: 'pisugar:status'; payload: PiSugarStatus }
+  | { type: 'device:shutdown'; payload: null }
   | { type: 'users:directory' }
   | { type: 'users:lookup'; payload: { ids: string[] } }
   | { type: 'users:info'; payload: UserPresence[] }
