@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { isTerminalOpen, closeTerminal } from '@/composables/useTerminalWindow';
 import type { Terminal as XTerm } from '@xterm/xterm';
 
-const isMobile = useMediaQuery('(max-width: 767px)');
+// Matches WatchView's isDesktop threshold (min-width: 1024px), not an
+// arbitrary phone-portrait width — a phone in landscape is commonly
+// 800-930px wide, which fell between a narrower breakpoint and 1024px
+// and rendered as the desktop draggable window instead of fullscreen.
+const isMobile = useMediaQuery('(max-width: 1023px)');
 
 const containerRef = ref<HTMLDivElement | null>(null);
 const panelRef = ref<HTMLDivElement | null>(null);
