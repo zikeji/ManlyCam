@@ -72,6 +72,8 @@ cp apps/server/.env.example .env
 | `FRP_HOST`             | frps hostname                                                             | Docker: `frps` / Bare-metal: `localhost`                             |
 | `FRP_RTSP_PORT`        | frps remote port for RTSP tunnel                                          | `11935`                                                              |
 | `FRP_API_PORT`         | frps remote port for mediamtx API tunnel                                  | `11936`                                                              |
+| `FRP_AGENT_PORT`       | frps remote port for the device agent tunnel (optional)                   | `11938`                                                              |
+| `FRP_AGENT_TOKEN`      | Device agent shared token — required together with `FRP_AGENT_PORT`       | _(generate with `openssl rand -hex 32`)_                             |
 | `MTX_API_URL`          | mediamtx API base URL                                                     | Docker: `http://mediamtx:9997` / Bare-metal: `http://127.0.0.1:9997` |
 | `MTX_WEBRTC_URL`       | mediamtx WebRTC WHEP base URL                                             | Docker: `http://mediamtx:8888` / Bare-metal: `http://127.0.0.1:8888` |
 | `PET_NAME`             | Camera subject name (shown in UI)                                         | `Manly`                                                              |

@@ -23,6 +23,7 @@ import { createAdminRouter } from './routes/admin.js';
 import { createCommandsRouter } from './routes/commands.js';
 import { createReactionsRouter } from './routes/reactions.js';
 import { createClipsRouter } from './routes/clips.js';
+import { createDeviceRouter } from './routes/device.js';
 import { streamOnlyRouter } from './routes/stream-only.js';
 import { getPublicClipForOg } from './services/clipService.js';
 
@@ -83,6 +84,7 @@ export function createApp() {
   // so it can intercept upgrade requests through the full middleware pipeline.
   const { upgradeWebSocket, injectWebSocket } = createNodeWebSocket({ app });
   app.route('/', createWsRouter(upgradeWebSocket));
+  app.route('/api/admin', createDeviceRouter(upgradeWebSocket));
 
   // OG injection route for public clips — must be before SPA catch-all
   app.get('/clips/:id', async (c) => {
