@@ -20,7 +20,7 @@ info "Uninstalling ManlyCam Pi services..."
 
 # ── Stop and disable services ─────────────────────────────────────────────────────
 
-for svc in frpc mediamtx; do
+for svc in frpc mediamtx manlycam-agent; do
   if systemctl list-unit-files "${svc}.service" >/dev/null 2>&1 \
      && systemctl list-unit-files "${svc}.service" | grep -q "${svc}.service"; then
     info "Stopping and disabling ${svc}..."
@@ -32,7 +32,7 @@ done
 
 # ── Remove systemd unit files ─────────────────────────────────────────────────────
 
-for unit in /etc/systemd/system/frpc.service /etc/systemd/system/mediamtx.service; do
+for unit in /etc/systemd/system/frpc.service /etc/systemd/system/mediamtx.service /etc/systemd/system/manlycam-agent.service; do
   if [ -f "$unit" ]; then
     rm -f "$unit"
     info "Removed ${unit}"
@@ -58,6 +58,20 @@ if [ -d /etc/manlycam ]; then
   else
     info "Kept /etc/manlycam"
   fi
+fi
+
+# ── Remove agent install ──────────────────────────────────────────────────────────
+
+if [ -d /opt/manlycam/agent ]; then
+  rm -rf /opt/manlycam/agent
+  info "Removed /opt/manlycam/agent"
+fi
+if [ -f /etc/sudoers.d/manlycam-agent ]; then
+  rm -f /etc/sudoers.d/manlycam-agent
+  info "Removed /etc/sudoers.d/manlycam-agent"
+fi
+if id manlycam-agent >/dev/null 2>&1; then
+  userdel -r manlycam-agent 2>/dev/null || info "Could not remove user manlycam-agent (remove manually)"
 fi
 
 # ── Remove binaries ───────────────────────────────────────────────────────────────
