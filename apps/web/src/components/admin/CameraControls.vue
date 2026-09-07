@@ -12,6 +12,9 @@
     </div>
 
     <div class="px-4 py-3 space-y-4 flex-1">
+      <!-- Device controls: remote terminal + shutdown -->
+      <DeviceControls />
+
       <!-- Error banner -->
       <div
         v-if="lastError"
@@ -257,6 +260,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import DeviceControls from './DeviceControls.vue';
 
 const props = withDefaults(defineProps<{ previewActive?: boolean }>(), { previewActive: false });
 

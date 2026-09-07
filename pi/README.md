@@ -48,7 +48,14 @@ If this succeeds, you'll see a `test.jpg` file. If it fails, check:
 
 ## 3. Install ManlyCam Services
 
-Copy `install.sh` to the Pi (or clone the repo), then run:
+Copy the `pi/` directory to the Pi (or clone the repo), then run:
+
+```bash
+sudo ./install.sh --endpoint cam.example.com --frp-token your-secret-token
+```
+
+> **Note:** the whole `pi/` directory is needed (not just `install.sh`) — the script
+> installs `pi/agent/` from alongside itself when `--agent-token` is used.
 
 ```bash
 sudo ./install.sh --endpoint cam.example.com --frp-token your-secret-token
@@ -263,6 +270,79 @@ ls /usr/local/bin/frpc     # expect: No such file or directory
 ```
 
 The script is safe to run even if services are not currently installed.
+
+## ManlyCam Agent — Remote Terminal & Shutdown (Optional)
+
+The manlycam-agent is a small Node daemon that exposes an interactive shell (via
+[node-pty](https://github.com/microsoft/node-pty)) and a device shutdown command over the frp
+tunnel. The web UI's Camera Controls panel gets **Remote Terminal** and **Shutdown** buttons
+once the server is configured (see `FRP_AGENT_PORT` / `FRP_AGENT_TOKEN` in the server docs).
+
+> **Security:** the agent grants a shell with the privileges of its service user. The shared
+> token is the only gate on the tunnel — treat it like a root password. The frps remote port
+> (default 11938, override with `--agent-remote-port`) must never be exposed to the public internet.
+
+### Install
+
+```bash
+sudo ./install.sh --endpoint cam.example.com --frp-token your-secret-token \
+  --agent-token your-agent-token
+```
+
+The agent token is a **separate** secret from the frp token. Generate one with
+`openssl rand -hex 32`. The install script:
+
+1. Installs Node.js 22 (NodeSource) if Node ≥ 20 isn't already present
+2. Copies the agent to `/opt/manlycam/agent` and runs `npm install` (node-pty compiles
+   natively — this needs `build-essential`/`python3` and can take a few minutes on a
+   Pi Zero W 2; the script installs them when running as a non-root agent user)
+3. Writes the token to `/etc/manlycam/agent.json` (mode 600)
+4. Installs and starts the `manlycam-agent` systemd service
+5. Adds the `agent` proxy (local `127.0.0.1:8424` → remote port `11938`, override with
+   `--agent-remote-port`) to `frpc.toml`
+   inside a marker-delimited block
+
+### Running as a non-root user
+
+By default the agent runs as **root** (`systemctl poweroff` works directly). To run it as a
+dedicated user instead:
+
+```bash
+sudo ./install.sh ... --agent-token your-agent-token --agent-user manlycam-agent
+```
+
+This creates the user (if missing), writes a scoped sudoers drop at
+`/etc/sudoers.d/manlycam-agent` allowing that user to run **only** `sudo systemctl poweroff`
+without a password (validated with `visudo -c`), and runs the service as that user.
+
+### Idempotency and agent-only updates
+
+Re-running the full install is safe. If `--agent-token` is omitted on a re-run, the existing
+token is read back from `/etc/manlycam/agent.json` so the server and Pi stay in sync.
+
+To update the agent without touching frpc/mediamtx:
+
+```bash
+sudo ./install.sh --agent-only --agent-token your-agent-token
+# or, reusing the existing token and frpc.toml:
+sudo ./install.sh --agent-only
+```
+
+`--agent-only` requires a prior full install (it updates the agent, the systemd unit, and the
+marker-delimited proxy block in `frpc.toml`, then restarts frpc). `--skip-agent` skips the
+agent entirely on full installs.
+
+### Server configuration
+
+On the server, set:
+
+```
+FRP_AGENT_PORT=11938
+FRP_AGENT_TOKEN=your-agent-token
+```
+
+Both variables are required together. When unset, the web UI hides the Remote Terminal and
+Shutdown buttons.
 
 ## PiSugar Battery Monitoring (Optional)
 

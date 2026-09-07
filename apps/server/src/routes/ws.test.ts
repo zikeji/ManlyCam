@@ -14,7 +14,8 @@ let capturedFactory: WsHandlerFactory | null = null;
 vi.mock('@hono/node-ws', () => ({
   createNodeWebSocket: vi.fn(() => ({
     upgradeWebSocket: (factory: WsHandlerFactory) => {
-      capturedFactory = factory;
+      // ws router registers first; capture only its factory (device router registers later)
+      capturedFactory ??= factory;
       // No-op middleware — lifecycle tests invoke onOpen/onClose directly
       return async (_c: unknown, next: () => Promise<void>) => next();
     },

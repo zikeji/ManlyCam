@@ -23,6 +23,8 @@ const ACTION_LABELS: Record<string, string> = {
   stream_stop: 'Stream Stopped',
   offline_message_update: 'Offline Message Updated',
   camera_settings_update: 'Camera Settings Updated',
+  device_shutdown: 'Device Shutdown',
+  device_shutdown_failed: 'Device Shutdown Failed',
 };
 
 const { entries, isLoading, hasMore, fetchInitial, fetchNextPage } = useAuditLog();

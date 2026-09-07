@@ -148,6 +148,9 @@ export function useWebSocket(): WsInterface {
       if (msg.type === 'pisugar:status') {
         setPiSugarStateFromWs(msg.payload);
       }
+      if (msg.type === 'device:shutdown') {
+        showNotification('Device Shutdown', { body: 'The Pi device is powering off.' });
+      }
       if (msg.type === 'chat:ephemeral') {
         handleEphemeral(msg.payload);
       }

@@ -454,6 +454,20 @@ describe('useWebSocket', () => {
       expect(mockSetPiSugarStateFromWs).toHaveBeenCalledWith(payload);
     });
 
+    it('shows a notification on device:shutdown message', () => {
+      const { connect } = useWebSocket();
+      connect();
+      mockShowNotification.mockClear();
+      mockWsInstance.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'device:shutdown', payload: null }),
+        }),
+      );
+      expect(mockShowNotification).toHaveBeenCalledWith('Device Shutdown', {
+        body: 'The Pi device is powering off.',
+      });
+    });
+
     it('redirects to /banned on session:revoked message', () => {
       const { connect } = useWebSocket();
       connect();
