@@ -769,6 +769,19 @@ describe('GET /api/stream/hls/*', () => {
     );
   });
 
+  it('forwards the mediamtx session query string upstream', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('#EXTM3U', { status: 200 })));
+
+    const res = await createApp().app.request(
+      '/api/stream/hls/main_stream.m3u8?session=abc-123',
+      authHeaders,
+    );
+    expect(res.status).toBe(200);
+    expect(vi.mocked(global.fetch)).toHaveBeenCalledWith(
+      'http://127.0.0.1:8090/cam/main_stream.m3u8?session=abc-123',
+    );
+  });
+
   it('rejects paths containing .. with 400', async () => {
     vi.mocked(getSessionUser).mockResolvedValue(mockUser as never);
     const res = await createApp().app.request('/api/stream/hls/foo/..%2fbar', authHeaders);

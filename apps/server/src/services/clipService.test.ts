@@ -69,7 +69,7 @@ import { streamConfig } from '../lib/stream-config.js';
 import { uploadToS3, presignGetObject, deleteS3Objects, getS3Object } from '../lib/s3-client.js';
 import { wsHub } from '../services/wsHub.js';
 import { spawn } from 'node:child_process';
-import { unlink } from 'node:fs/promises';
+import { unlink, writeFile } from 'node:fs/promises';
 import {
   parseHlsSegmentRange,
   resolvePlaylistUrls,
@@ -98,6 +98,22 @@ seg0.ts
 #EXTINF:6.000,
 seg1.ts
 `;
+
+const MASTER_M3U8 = `#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-STREAM-INF:BANDWIDTH=6192000,CODECS="avc1.4d4029",RESOLUTION=1920x1080
+main_stream.m3u8?session=abc-123
+`;
+
+function mockHlsFetch(
+  mediaResponse: object = { ok: true, text: async () => M3U8_WITH_TIMESTAMPS },
+) {
+  const fetchMock = vi.fn(async (url: string) =>
+    url.endsWith('/cam/index.m3u8') ? { ok: true, text: async () => MASTER_M3U8 } : mediaResponse,
+  );
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
 
 const mockUser = {
   id: 'user-001',
@@ -186,13 +202,9 @@ describe('getSegmentRange', () => {
     vi.clearAllMocks();
     vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
       if (key === 'stream_started_at') return '2026-03-22T10:00:00.000Z';
-      if (key === 'hls_stream_playlist') return 'video1_stream.m3u8';
       return null;
     });
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, text: async () => M3U8_WITH_TIMESTAMPS }),
-    );
+    mockHlsFetch();
   });
 
   afterEach(() => {
@@ -212,7 +224,6 @@ describe('getSegmentRange', () => {
     // stream started AFTER the earliest HLS segment
     vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
       if (key === 'stream_started_at') return '2026-03-22T10:00:05.000Z';
-      if (key === 'hls_stream_playlist') return 'video1_stream.m3u8';
       return null;
     });
     const result = await getSegmentRange();
@@ -224,22 +235,22 @@ describe('getSegmentRange', () => {
     await expect(getSegmentRange()).rejects.toMatchObject({ statusCode: 422 });
   });
 
-  it('throws 422 when playlist unavailable', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce({ ok: true }) // HEAD: cache validation passes
-        .mockResolvedValueOnce({ ok: false, status: 503 }), // content fetch fails
+  it('fetches the session-scoped media playlist from the master playlist', async () => {
+    const fetchMock = mockHlsFetch();
+    await getSegmentRange();
+    expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:8090/cam/index.m3u8');
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://127.0.0.1:8090/cam/main_stream.m3u8?session=abc-123',
     );
+  });
+
+  it('throws 422 when playlist unavailable', async () => {
+    mockHlsFetch({ ok: false, status: 503 });
     await expect(getSegmentRange()).rejects.toMatchObject({ statusCode: 422 });
   });
 
   it('throws 422 when segment range cannot be parsed', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, text: async () => '#EXTM3U\n#EXTINF:6,\nseg.ts' }),
-    );
+    mockHlsFetch({ ok: true, text: async () => '#EXTM3U\n#EXTINF:6,\nseg.ts' });
     await expect(getSegmentRange()).rejects.toMatchObject({ statusCode: 422 });
   });
 });
@@ -260,18 +271,11 @@ describe('createClip', () => {
     vi.clearAllMocks();
     vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
       if (key === 'stream_started_at') return streamStarted;
-      if (key === 'hls_stream_playlist') return 'video1_stream.m3u8';
       return null;
     });
     vi.mocked(prisma.clip.count).mockResolvedValue(0);
     vi.mocked(prisma.clip.create).mockResolvedValue({ id: 'TESTULID0000000000000001' } as never);
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        text: async () => M3U8_WITH_TIMESTAMPS,
-      }),
-    );
+    mockHlsFetch();
   });
 
   afterEach(() => {
@@ -312,10 +316,7 @@ describe('createClip', () => {
   });
 
   it('throws 422 when stream has not started', async () => {
-    vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
-      if (key === 'hls_stream_playlist') return 'video1_stream.m3u8';
-      return null;
-    });
+    vi.mocked(streamConfig.getOrNull).mockResolvedValue(null);
     await expect(createClip(validParams)).rejects.toMatchObject({ statusCode: 422 });
   });
 
@@ -370,27 +371,12 @@ describe('createClip', () => {
   });
 
   it('throws 422 when playlist unavailable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
-    await expect(createClip(validParams)).rejects.toMatchObject({ statusCode: 422 });
-  });
-
-  it('throws 422 when playlist content fetch fails after cache hit', async () => {
-    // HEAD validation passes (cached name ok), but content GET returns non-ok
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce({ ok: true }) // HEAD: cache validation passes
-        .mockResolvedValueOnce({ ok: false, status: 503 }), // GET: content fetch fails
-    );
+    mockHlsFetch({ ok: false, status: 503 });
     await expect(createClip(validParams)).rejects.toMatchObject({ statusCode: 422 });
   });
 
   it('throws 422 when segment range cannot be parsed', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({ ok: true, text: async () => '#EXTM3U\n#EXTINF:6,\nseg.ts' }),
-    );
+    mockHlsFetch({ ok: true, text: async () => '#EXTM3U\n#EXTINF:6,\nseg.ts' });
     await expect(createClip(validParams)).rejects.toMatchObject({ statusCode: 422 });
   });
 
@@ -404,69 +390,25 @@ describe('createClip', () => {
     ).rejects.toMatchObject({ statusCode: 422 });
   });
 
-  it('fetches and caches stream playlist name when not cached', async () => {
-    vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
-      if (key === 'stream_started_at') return streamStarted;
-      return null; // no cached playlist name
+  it('writes a snapshot with session-scoped absolute segment URLs', async () => {
+    mockHlsFetch({
+      ok: true,
+      text: async () => M3U8_WITH_TIMESTAMPS.replace(/seg(\d)\.ts/g, 'seg$1.ts?session=abc-123'),
     });
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => '#EXTM3U\nvideo1_stream.m3u8\n',
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => M3U8_WITH_TIMESTAMPS,
-        }),
-    );
     await createClip(validParams);
-    expect(streamConfig.set).toHaveBeenCalledWith('hls_stream_playlist', 'video1_stream.m3u8');
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.stringContaining('http://127.0.0.1:8090/cam/seg0.ts?session=abc-123'),
+      'utf8',
+    );
   });
 
-  it('invalidates stale cached playlist name when HEAD returns 404', async () => {
-    vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
-      if (key === 'stream_started_at') return streamStarted;
-      return 'stale_playlist.m3u8';
-    });
-    vi.stubGlobal(
-      'fetch',
-      vi
-        .fn()
-        .mockResolvedValueOnce({ ok: false, status: 404 })
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => '#EXTM3U\nvideo1_stream.m3u8\n',
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          text: async () => M3U8_WITH_TIMESTAMPS,
-        }),
-    );
-    await createClip(validParams);
-    expect(logger.warn).toHaveBeenCalledWith(
-      { cached: 'stale_playlist.m3u8' },
-      'clip: cached HLS playlist returned 404, invalidating cache',
-    );
-    expect(streamConfig.set).toHaveBeenCalledWith('hls_stream_playlist', 'video1_stream.m3u8');
-  });
-
-  it('throws 422 when index.m3u8 unavailable (cache miss)', async () => {
-    vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
-      if (key === 'stream_started_at') return streamStarted;
-      return null;
-    });
+  it('throws 422 when index.m3u8 unavailable', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503 }));
     await expect(createClip(validParams)).rejects.toMatchObject({ statusCode: 422 });
   });
 
-  it('throws 422 when index.m3u8 has no stream playlist (cache miss)', async () => {
-    vi.mocked(streamConfig.getOrNull).mockImplementation(async (key) => {
-      if (key === 'stream_started_at') return streamStarted;
-      return null;
-    });
+  it('throws 422 when index.m3u8 has no stream playlist', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({ ok: true, text: async () => '#EXTM3U\n# comment\n' }),
