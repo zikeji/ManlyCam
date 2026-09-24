@@ -89,7 +89,7 @@ services:
       - internal
 
   mediamtx:
-    image: bluenviron/mediamtx:latest
+    image: bluenviron/mediamtx:1.21.0 # >=1.18.0 requires HLS session support (server handles ?session= tokens)
     restart: unless-stopped
     ports:
       - '8554:8554' # RTSP — frpc on Pi pushes stream here via frps tunnel

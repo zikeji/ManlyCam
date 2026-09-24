@@ -216,7 +216,7 @@ streamRouter.get('/api/stream/hls/*', requireAuth, async (c) => {
     throw new AppError('Invalid path', 'VALIDATION_ERROR', 400);
   }
   try {
-    const upstreamUrl = `${env.MTX_HLS_URL}/cam/${wildcardPath}`;
+    const upstreamUrl = `${env.MTX_HLS_URL}/cam/${wildcardPath}${new URL(c.req.url).search}`;
     const res = await fetch(upstreamUrl);
     const contentType = res.headers.get('content-type');
     const headers: Record<string, string> = {};

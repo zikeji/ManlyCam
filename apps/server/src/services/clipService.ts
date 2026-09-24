@@ -63,31 +63,19 @@ export function resolvePlaylistUrls(m3u8Text: string, playlistUrl: string): stri
   );
 }
 
-/** Fetch the HLS master playlist and extract the stream playlist filename. */
-async function fetchStreamPlaylistName(): Promise<string> {
+/**
+ * Fetch the HLS master playlist and return the absolute media playlist URL.
+ * mediamtx (>=1.18) embeds a per-session `?session=` token in the media playlist
+ * URL that expires after 30s of inactivity, so it must be resolved per request.
+ */
+async function fetchStreamPlaylistUrl(): Promise<string> {
   const indexUrl = `${env.MTX_HLS_URL}/cam/index.m3u8`;
   const res = await fetch(indexUrl);
   if (!res.ok) throw new AppError('HLS master playlist unavailable', 'STREAM_NOT_READY', 422);
   const text = await res.text();
-  const match = text.match(/^([^\s#][^\s]*\.m3u8)$/m);
+  const match = text.match(/^([^\s#][^\s?]*\.m3u8(?:\?\S*)?)$/m);
   if (!match) throw new AppError('Cannot parse HLS stream playlist name', 'STREAM_NOT_READY', 422);
-  return match[1];
-}
-
-/** Get cached stream playlist name or fetch it fresh from index.m3u8. */
-async function getStreamPlaylistName(): Promise<string> {
-  const cached = await streamConfig.getOrNull('hls_stream_playlist');
-  if (cached) {
-    const playlistUrl = `${env.MTX_HLS_URL}/cam/${cached}`;
-    const headRes = await fetch(playlistUrl, { method: 'HEAD' });
-    if (headRes.ok) return cached;
-    /* c8 ignore next 2 -- defensive: HEAD validation failure is tested but logging branch is defensive */
-    logger.warn({ cached }, 'clip: cached HLS playlist returned 404, invalidating cache');
-    await streamConfig.set('hls_stream_playlist', '');
-  }
-  const name = await fetchStreamPlaylistName();
-  await streamConfig.set('hls_stream_playlist', name);
-  return name;
+  return `${env.MTX_HLS_URL}/cam/${match[1]}`;
 }
 
 const FFMPEG_TIMEOUT_MS = 5 * 60 * 1000;
@@ -358,8 +346,7 @@ export async function getSegmentRange(): Promise<{
   const streamStartedAt = await streamConfig.getOrNull('stream_started_at');
   if (!streamStartedAt) throw new AppError('Stream has not started', 'STREAM_NOT_STARTED', 422);
 
-  const playlistName = await getStreamPlaylistName();
-  const playlistUrl = `${env.MTX_HLS_URL}/cam/${playlistName}`;
+  const playlistUrl = await fetchStreamPlaylistUrl();
   const res = await fetch(playlistUrl);
   if (!res.ok) throw new AppError('Stream playlist unavailable', 'STREAM_NOT_READY', 422);
   const m3u8Text = await res.text();
@@ -465,8 +452,7 @@ export async function createClip(params: {
   }
 
   // Validate segment range: fetch stream playlist and parse timestamps
-  const playlistName = await getStreamPlaylistName();
-  const playlistUrl = `${env.MTX_HLS_URL}/cam/${playlistName}`;
+  const playlistUrl = await fetchStreamPlaylistUrl();
   const playlistRes = await fetch(playlistUrl);
   if (!playlistRes.ok) {
     throw new AppError('Stream playlist unavailable', 'STREAM_NOT_READY', 422);

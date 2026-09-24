@@ -223,10 +223,12 @@ The simple variant runs 5 services:
 | Service    | Image                         | Purpose                                     |
 | ---------- | ----------------------------- | ------------------------------------------- |
 | `server`   | `ghcr.io/.../manlycam:latest` | Hono application server (port 3000)         |
-| `mediamtx` | `bluenviron/mediamtx:latest`  | RTSP-to-WebRTC relay + HLS segment writer   |
+| `mediamtx` | `bluenviron/mediamtx:1.21.0`  | RTSP-to-WebRTC relay + HLS segment writer   |
 | `frps`     | `snowdreamtech/frps:latest`   | frp tunnel server (port 7000)               |
 | `postgres` | `postgres:16-alpine`          | PostgreSQL database                         |
 | `rustfs`   | `rustfs/rustfs:latest`        | S3-compatible storage (dev — swap B2 in prod) |
+
+> **mediamtx version:** The compose files pin mediamtx to the tested release. mediamtx v1.18.0 added per-viewer HLS sessions: `index.m3u8` now redirects (`302` to `?cookieCheck=1`), and the media playlist and segment URLs carry a `?session=` token that expires after 30s of inactivity. Server builds before this change fail clip creation on mediamtx >= 1.18.0 with `Cannot parse HLS stream playlist name`. Bump the pin deliberately and smoke-test clip creation after upgrading.
 
 ### HLS Access
 
@@ -236,8 +238,8 @@ mediamtx serves HLS segments over HTTP at port 8090 (internal only — not publi
 
 ```bash
 # Check that mediamtx is serving the HLS playlist (from within the server container)
-docker compose exec server curl -s http://mediamtx:8090/cam/index.m3u8 | head -5
-# Expected: #EXTM3U header and segment entries
+docker compose exec server curl -sL http://mediamtx:8090/cam/index.m3u8 | head -5
+# Expected: #EXTM3U header and a main_stream.m3u8?session=... entry
 # If empty or 404: verify the Pi camera stream is active and HLS is enabled in mediamtx-server.yml
 ```
 
@@ -290,8 +292,8 @@ The Traefik variant runs 6 services:
 Same as the simple variant — mediamtx serves HLS segments over HTTP at port 8090 (internal only). The server accesses it via `MTX_HLS_URL` (`http://mediamtx:8090`). Verify with:
 
 ```bash
-docker compose exec server curl -s http://mediamtx:8090/cam/index.m3u8 | head -5
-# Expected: #EXTM3U header and segment entries when the Pi camera is active
+docker compose exec server curl -sL http://mediamtx:8090/cam/index.m3u8 | head -5
+# Expected: #EXTM3U header and a main_stream.m3u8?session=... entry when the Pi camera is active
 ```
 
 ## Bare-Metal / Non-Docker
@@ -300,10 +302,10 @@ For operators running mediamtx and frps directly on the server host without Dock
 
 ### 1. Install mediamtx
 
-Download the mediamtx binary for your platform from [mediamtx releases](https://github.com/bluenviron/mediamtx/releases) (e.g. `mediamtx_v1.9.2_linux_amd64.tar.gz`):
+Download the mediamtx binary for your platform from [mediamtx releases](https://github.com/bluenviron/mediamtx/releases) (e.g. `mediamtx_v1.21.0_linux_amd64.tar.gz`; see the version note under [Services](#services)):
 
 ```bash
-curl -fsSL https://github.com/bluenviron/mediamtx/releases/download/v1.9.2/mediamtx_v1.9.2_linux_amd64.tar.gz | \
+curl -fsSL https://github.com/bluenviron/mediamtx/releases/download/v1.21.0/mediamtx_v1.21.0_linux_amd64.tar.gz | \
   sudo tar -xzf - -C /usr/local/bin mediamtx
 sudo chmod 755 /usr/local/bin/mediamtx
 ```
@@ -353,8 +355,8 @@ The clipping feature requires mediamtx's HLS HTTP server to be reachable by the 
 **Verify HLS is serving (after starting mediamtx and the Pi stream):**
 
 ```bash
-curl -s http://127.0.0.1:8090/cam/index.m3u8 | head -5
-# Expected: #EXTM3U header and segment entries
+curl -sL http://127.0.0.1:8090/cam/index.m3u8 | head -5
+# Expected: #EXTM3U header and a main_stream.m3u8?session=... entry
 # If 404: verify the Pi stream is active and HLS is enabled in /etc/mediamtx/mediamtx.yml
 ```
 
@@ -597,7 +599,7 @@ Use this to verify the entire ManlyCam stack is operational:
 4. **Hono server:** health check passes — `curl http://localhost:3000/api/health`
 5. **Browser:** navigate to your `BASE_URL`, sign in with Google, and confirm the live stream loads
 6. **Pi:** camera streaming — see [`pi/README.md`](../../pi/README.md) for Pi-side troubleshooting
-7. **HLS buffer (Docker):** `docker compose exec server curl -s http://mediamtx:8090/cam/index.m3u8 | head -3` — `#EXTM3U` header should appear while the Pi is streaming
+7. **HLS buffer (Docker):** `docker compose exec server curl -sL http://mediamtx:8090/cam/index.m3u8 | head -3` — `#EXTM3U` header should appear while the Pi is streaming
 8. **Clip recording:** navigate to the live stream page and record a short clip — it should appear in the clips list within ~30 s
 9. **S3/B2:** check your B2 bucket (or the RustFS console at `http://localhost:9001`) — a `.mp4` and `.jpg` object should appear after the first clip is created
 
@@ -700,4 +702,4 @@ Add these to your `.env` file for clipping support (dev defaults shown; see [Cli
 | `CLIP_MIN_DURATION_SECONDS` | `10`                    | Minimum clip length in seconds        |
 | `CLIP_MAX_DURATION_SECONDS` | `120`                   | Maximum clip length in seconds (2 min)|
 
-The server constructs the full playlist URL as `{MTX_HLS_URL}/cam/video1_stream.m3u8` for ffmpeg clip extraction.
+For each clip request the server fetches `{MTX_HLS_URL}/cam/index.m3u8` and follows its session-scoped media playlist URL (e.g. `main_stream.m3u8?session=...`). The URL is never cached because mediamtx expires HLS sessions after 30s of inactivity.
